@@ -21,6 +21,9 @@ target_sources(Infantry1
         Chassis/fsm/pyro_wl_manual_state.cpp
         Chassis/fsm/pyro_wl_passive_state.cpp
         Chassis/fsm/pyro_wl_normal_state.cpp
+        Chassis/fsm/pyro_wl_align_state.cpp
+        Chassis/fsm/pyro_wl_step_state.cpp
+
 
         Application/Chassis_board/pyro_wl_chassis_app.cpp
 )

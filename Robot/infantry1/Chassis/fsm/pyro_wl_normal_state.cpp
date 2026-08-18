@@ -5,6 +5,9 @@
 namespace pyro
 {
 
+static int reset_count;
+static constexpr float REAL_MAX_LEG_LENGTH = 0.32f;
+
 void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
 {
 
@@ -24,6 +27,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
     owner->_ctx.data.target_state.beta2     = 0.0f;
     owner->_ctx.data.target_state.dot_beta1 = 0.0f;
     owner->_ctx.data.target_state.dot_beta2 = 0.0f;
+
 
     for (float & i : owner->_ctx.data.U0)
     {
@@ -56,6 +60,29 @@ void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
 
 void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
 {
+    //紧急下力判断
+    if(abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 6.0f ||
+       abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
+    {
+        if(reset_count >= 50)
+        {
+            owner->_ctx.data.flag.leg_is_should_restart = true;
+        }
+        reset_count++;
+    }
+    else 
+    {
+        reset_count = 0;
+    }
+
+    //腿长加上遥控器的小量
+    owner->_ctx.data.target_state.h += owner->_current_cmd.delta_h;
+
+    //腿长限幅
+    owner->_ctx.data.target_state.h =
+        std::clamp(owner->_ctx.data.target_state.h,MIN_LEG_LENGTH, REAL_MAX_LEG_LENGTH);
+    
+
     const float target_vx = owner->_current_cmd.v;
     owner->_ctx.data.target_state.x += target_vx * owner->_ctx.data._dt;
     owner->_ctx.data.target_state.dot_x = target_vx;
@@ -74,6 +101,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
 
 void wl_chassis_t::fsm_active_t::state_normal_t::exit(wl_chassis_t *owner)
 {
+    owner->_ctx.data.flag.leg_is_ready = false;
     (void)owner;
 }
 

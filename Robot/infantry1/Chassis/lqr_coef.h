@@ -1,6 +1,6 @@
 #ifndef __LQR_COEF_H__
 #define __LQR_COEF_H__
-
+#include "stdint.h"
 
 /*
  *  "Q_diag":

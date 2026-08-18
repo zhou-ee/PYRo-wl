@@ -13,6 +13,9 @@ void wl_chassis_t::state_passive_t::enter(wl_chassis_t *owner)
     owner->_ctx.motor.wheel[leg_def::L]->disable();
     owner->_ctx.motor.wheel[leg_def::R]->disable();
 
+    owner->_ctx.data.flag.leg_is_ready = false;
+
+
     for (auto &leg : owner->_ctx.data.leg)
     {
         leg.target_leg_length = leg.current_leg_length;
@@ -24,6 +27,8 @@ void wl_chassis_t::state_passive_t::enter(wl_chassis_t *owner)
         leg.out_joint_torque[joint_def::HIP]  = 0;
         leg.out_joint_torque[joint_def::KNEE] = 0;
     }
+
+
 }
 
 void wl_chassis_t::state_passive_t::execute(wl_chassis_t *owner)

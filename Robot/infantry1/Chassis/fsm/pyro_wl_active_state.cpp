@@ -18,14 +18,33 @@ void wl_chassis_t::fsm_active_t::on_enter(wl_chassis_t *owner)
 
 void wl_chassis_t::fsm_active_t::on_execute(wl_chassis_t *ctx)
 {
+    static int last_step_time = 0;
+
+    
+
+    
     if (ctx->_current_cmd.balance_flag)
     {
-        change_state(&_state_normal);
+        
+        if(ctx->_ctx.data.flag.leg_is_ready)
+        {
+            change_state(&_state_normal);
+        }
+        else if(ctx->_current_cmd.step_times != last_step_time)
+        {
+            change_state(&_state_step);
+        }
+        else 
+        {
+            change_state(&_state_align);
+        } 
     }
     else
     {
-        change_state(&_state_manual);
+            change_state(&_state_manual);
     }
+
+    last_step_time = ctx->_current_cmd.step_times;
 }
 
 void wl_chassis_t::fsm_active_t::on_exit(wl_chassis_t *ctx)

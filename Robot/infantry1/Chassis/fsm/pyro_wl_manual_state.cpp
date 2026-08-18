@@ -3,8 +3,10 @@
 
 #include <algorithm>
 
+
 namespace pyro
 {
+
 
 void wl_chassis_t::fsm_active_t::state_manual_t::enter(wl_chassis_t *owner)
 {
@@ -26,11 +28,13 @@ void wl_chassis_t::fsm_active_t::state_manual_t::enter(wl_chassis_t *owner)
 void wl_chassis_t::fsm_active_t::state_manual_t::execute(wl_chassis_t *owner)
 {
 
+    //加上遥控器的小量
     owner->_ctx.data.leg[leg_def::L].target_leg_length +=
         owner->_current_cmd.delta_leg_length[leg_def::L];
     owner->_ctx.data.leg[leg_def::R].target_leg_length +=
         owner->_current_cmd.delta_leg_length[leg_def::R];
 
+    //限幅
     owner->_ctx.data.leg[leg_def::L].target_leg_length =
         std::clamp(owner->_ctx.data.leg[leg_def::L].target_leg_length,
                    MIN_LEG_LENGTH, MAX_LEG_LENGTH);
