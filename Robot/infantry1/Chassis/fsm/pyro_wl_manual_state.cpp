@@ -62,9 +62,6 @@ void wl_chassis_t::fsm_active_t::state_manual_t::execute(wl_chassis_t *owner)
                             -PI, PI);
 
 
-
-    debug1 = owner->_ctx.data.leg[leg_def::R].target_leg_rad;
-    debug2 = owner->_ctx.data.leg[leg_def::R].current_leg_rad;
     owner->_manual_control();
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
