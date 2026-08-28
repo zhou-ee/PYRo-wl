@@ -4,12 +4,102 @@
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
 #include "dsp/fast_math_functions.h"
+#include "gas_spring_compensation_table.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace pyro
 {
+
+namespace
+{
+struct gas_spring_lookup_t
+{
+    float f_l = 0.0f;
+    float t_p = 0.0f;
+    bool valid = false;
+};
+
+struct lookup_interval_t
+{
+    uint16_t index = 0;
+    float alpha = 0.0f;
+};
+
+lookup_interval_t find_lookup_interval(const float *axis, uint16_t count,
+                                       float value)
+{
+    if (axis == nullptr || count == 0u || !std::isfinite(value))
+    {
+        return {};
+    }
+    if (count == 1u || value <= axis[0])
+    {
+        return {0u, 0.0f};
+    }
+    if (value >= axis[count - 1u])
+    {
+        return {static_cast<uint16_t>(count - 2u), 1.0f};
+    }
+    for (uint16_t index = 0u; index + 1u < count; ++index)
+    {
+        if (value <= axis[index + 1u])
+        {
+            const float span = axis[index + 1u] - axis[index];
+            const float alpha = (span > 0.0f)
+                                    ? (value - axis[index]) / span
+                                    : 0.0f;
+            return {index, std::clamp(alpha, 0.0f, 1.0f)};
+        }
+    }
+    return {static_cast<uint16_t>(count - 2u), 1.0f};
+}
+
+float bilinear_value(const float *values, uint16_t length_count,
+                     uint16_t beta_count, lookup_interval_t length_interval,
+                     lookup_interval_t beta_interval)
+{
+    if (values == nullptr || length_count == 0u || beta_count == 0u)
+    {
+        return 0.0f;
+    }
+    const uint16_t i0 = length_interval.index;
+    const uint16_t j0 = beta_interval.index;
+    const uint16_t i1 = (length_count > 1u) ? static_cast<uint16_t>(i0 + 1u) : i0;
+    const uint16_t j1 = (beta_count > 1u) ? static_cast<uint16_t>(j0 + 1u) : j0;
+    const uint32_t row0 = static_cast<uint32_t>(i0) * beta_count;
+    const uint32_t row1 = static_cast<uint32_t>(i1) * beta_count;
+    const float v00 = values[row0 + j0];
+    const float v01 = values[row0 + j1];
+    const float v10 = values[row1 + j0];
+    const float v11 = values[row1 + j1];
+    const float along_beta_0 = v00 + beta_interval.alpha * (v01 - v00);
+    const float along_beta_1 = v10 + beta_interval.alpha * (v11 - v10);
+    return along_beta_0 + length_interval.alpha * (along_beta_1 - along_beta_0);
+}
+
+gas_spring_lookup_t lookup_gas_spring(const gas_spring_table::table_t &table,
+                                      float leg_length, float beta)
+{
+    if (table.lengths == nullptr || table.betas == nullptr ||
+        table.f_gas_l == nullptr || table.t_gas_beta == nullptr ||
+        table.length_count == 0u || table.beta_count == 0u)
+    {
+        return {};
+    }
+    const lookup_interval_t length_interval =
+        find_lookup_interval(table.lengths, table.length_count, leg_length);
+    const lookup_interval_t beta_interval =
+        find_lookup_interval(table.betas, table.beta_count, beta);
+    return {
+        bilinear_value(table.f_gas_l, table.length_count, table.beta_count,
+                       length_interval, beta_interval),
+        bilinear_value(table.t_gas_beta, table.length_count, table.beta_count,
+                       length_interval, beta_interval),
+        true};
+}
+} // namespace
 
 wl_chassis_t::wl_chassis_t() : module_base_t("wl_chassis")
 {
@@ -157,6 +247,10 @@ void wl_chassis_t::_update_feedback()
     }
 
     _update_accel_heading_frame();
+    // Refresh with the current body pitch before support-force estimation.
+    // The takeoff detector must account for force carried by the gas spring,
+    // otherwise compensation lowers motor torque and looks like loss of contact.
+    _apply_gas_spring_compensation();
     _calc_support_force();
 }
 
@@ -370,19 +464,69 @@ void wl_chassis_t::_balance_control()
     }
 }
 
+void wl_chassis_t::_apply_gas_spring_compensation()
+{
+    _ctx.data.gas_spring_compensation_active = false;
+    for (auto &leg : _ctx.data.leg)
+    {
+        leg.gas_f_l = 0.0f;
+        leg.gas_t_p = 0.0f;
+    }
+
+    if constexpr (!GAS_SPRING_COMPENSATION_ENABLE)
+    {
+        return;
+    }
+
+    constexpr float HALF_PI = PI / 2.0f;
+    const gas_spring_table::table_t *tables[2] = {
+        &gas_spring_table::LEFT, &gas_spring_table::RIGHT};
+    bool any_valid = false;
+    for (uint8_t side = 0u; side < 2u; ++side)
+    {
+        leg_ctx_t &leg = _ctx.data.leg[side];
+        // The SolidWorks table is expressed in the body-fixed GS_BASE frame.
+        // current_leg_rad is world-referenced, so remove body pitch just as
+        // the LQR state construction does before looking up beta.
+        const float beta = loop_fp32_constrain(
+            leg.current_leg_rad - HALF_PI - _ctx.data.ins.euler_rad[1], -PI,
+            PI);
+        const gas_spring_lookup_t lookup =
+            lookup_gas_spring(*tables[side], leg.current_leg_length, beta);
+        if (!lookup.valid)
+        {
+            continue;
+        }
+        leg.gas_f_l = GAS_SPRING_COMPENSATION_SCALE * lookup.f_l;
+        leg.gas_t_p = GAS_SPRING_COMPENSATION_SCALE * lookup.t_p;
+        any_valid = true;
+    }
+    _ctx.data.gas_spring_compensation_active = any_valid;
+}
+
 
 void wl_chassis_t::_vmc_trans_v2j()
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
 
+    // Every active mode eventually reaches this VMC-to-joint conversion.
+    // Apply the passive gas-spring contribution here so ALIGN, MANUAL, AIR,
+    // STEP and BALANCE all use the same motor-side compensation.
+    _apply_gas_spring_compensation();
+
     for (auto &leg : _ctx.data.leg)
     {
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
-        leg.out_F_L = std::clamp(leg.out_F_L + leg.virtual_wall_force,
-                                 -MAX_F_L, MAX_F_L);
+        const float f_l_before_wall =
+            leg.out_F_L - (_ctx.data.gas_spring_compensation_active ? leg.gas_f_l : 0.0f);
+        const float t_p_motor =
+            leg.out_T_p - (_ctx.data.gas_spring_compensation_active ? leg.gas_t_p : 0.0f);
+        leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force,
+                                   -MAX_F_L, MAX_F_L);
+        leg.motor_t_p = t_p_motor;
 
-        float tau_sum                        = leg.out_T_p;
-        float tau_diff                       = leg.out_F_L * leg.J_L;
+        float tau_sum                        = leg.motor_t_p;
+        float tau_diff                       = leg.motor_f_l * leg.J_L;
         leg.out_joint_torque[joint_def::HIP] = std::clamp(
             (tau_sum - tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
         leg.out_joint_torque[joint_def::KNEE] = std::clamp(

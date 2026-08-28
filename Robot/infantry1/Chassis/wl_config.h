@@ -65,6 +65,11 @@ constexpr float MAX_T_P                              = 60.0f;
 constexpr float MAX_CURRENT                          = 15.0f;
 constexpr float MAX_T_W                              = K_t * MAX_CURRENT;
 
+// Gas-spring feedforward is independent of the generated LQR gains.
+// Keep it disabled until the table direction and scale are verified on hardware.
+constexpr bool GAS_SPRING_COMPENSATION_ENABLE        = false;
+constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
+
 // Airborne and landing detection defaults. Tune from logged support-force data.
 constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，低于上限虚拟墙
 constexpr float NORMAL_LENGTH_TARGET                 = 0.20f;
