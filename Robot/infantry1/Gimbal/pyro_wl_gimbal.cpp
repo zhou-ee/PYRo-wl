@@ -107,7 +107,7 @@ void wl_gimbal_t::updatePitch()
 
     _ctx.data.output.targetPitchPos         = targetMotorRaw;
     _ctx.data.output.targetPitchSpeed       = -targetPitchSpeed;
-    _ctx.data.output.pitchTorque = gravityFf ;//+ pitch_torque;
+    _ctx.data.output.pitchTorque = gravityFf + pitch_torque;
     _ctx.data.output.pitchEn                = true;
 }
 

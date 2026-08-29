@@ -150,7 +150,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 
     //角速度设置
     float target_wz;
-    if(owner->_current_cmd.wz != 0 ||target_vx != 0)
+    if(owner->_current_cmd.wz != 0)
     {
         target_wz = owner->_current_cmd.wz;
     }
