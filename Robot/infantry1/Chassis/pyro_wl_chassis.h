@@ -17,6 +17,7 @@ struct wl_chassis_deps_t
     {
         motor_base_t *joint[2][2];
         motor_base_t *wheel[2];
+        motor_base_t *yaw;
     };
 
     struct pid_deps_t
@@ -25,7 +26,6 @@ struct wl_chassis_deps_t
         pd_ctrl_t *leg_rad[2];   
         pyro::pid_t *leg_control_rad[2];   //角度环
         pyro::pid_t *leg_control_radps[2]; //速度环
-
     };
     motor_deps_t motor;
     pid_deps_t pid;
@@ -107,6 +107,13 @@ struct wheel_ctx_t
     float out_current; // Current: 电流 (A)
 };
 
+
+struct yaw_ctx_t
+{
+    float pos;
+};
+
+
 struct state_vec_t
 {
     union
@@ -174,6 +181,7 @@ struct flag_data_t
 
 struct wl_chassis_data_ctx_t
 {
+    yaw_ctx_t yaw;
     leg_ctx_t leg[2];
     wheel_ctx_t wheel[2];
     state_vec_t target_state;

@@ -8,8 +8,6 @@ void pyro::wl_gimbal_t::fsm_active_t::state_align_t::enter(owner *owner)
 {
     owner->_module_deps.pid_deps.yaw_pos->clear();
     owner->_module_deps.pid_deps.yaw_spd->clear();
-    owner->_module_deps.pid_deps.pitch_pos->clear();
-    owner->_module_deps.pid_deps.pitch_spd->clear();
     owner->_ctx.data.output.pitchEn    = true;
     owner->_ctx.data.output.yawEn      = true;
     owner->_ctx.data.output.yawCurrent = 0.0f;
@@ -20,18 +18,15 @@ void pyro::wl_gimbal_t::fsm_active_t::state_align_t::enter(owner *owner)
 
 void pyro::wl_gimbal_t::fsm_active_t::state_align_t::execute(owner *owner) 
 {
-    owner->_ctx.data.telem.targetPitchRad = PITCH_ALIGN_TARGET_RAD;
-    owner->updatePitch();
+    owner->align_updatePitch();
 
-    if(owner->_ctx.data.state.pitch.pos<PITCH_LIMIT_MIN-0.3f)
+    if(owner->_ctx.data.state.pitch.pos<PITCH_LIMIT_MAX+0.4f)
     {
-        float error_rad = YAW_ALIGN_TARGET_RAD - owner->_ctx.motor.yaw->get_current_position();
-        float yawSpdCmd     = owner->_ctx.pid.yaw_pos->calculate(0.0f,  -error_rad);
-        owner->_ctx.data.output.yawCurrent = owner->_ctx.pid.yaw_spd->calculate(yawSpdCmd, owner->_ctx.data.imu.gyro[2]);
-        owner->updateYaw();
+        float error_rad = owner->_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD;
+        owner->align_updateYaw();
 
         static int count = 0;
-        if(error_rad < 0.3f)
+        if(fabs(error_rad) < 0.1f)
         {
             if(count >= 50)
             {

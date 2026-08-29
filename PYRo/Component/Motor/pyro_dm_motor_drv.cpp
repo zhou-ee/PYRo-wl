@@ -68,30 +68,6 @@ static float uint_to_float(int x_int, float x_min, float x_max, int bits)
 }
 
 
-status_t pyro::dm_motor_drv_t::send_mit_ctrl(float target_pos, float target_vel, float t_ff)
-{
-    uint16_t torque_int, position_int, rotate_int, kp_int, kd_int;
-    std::array<uint8_t, 8> data;
-
-    // 关键修正：将外部传入的期望位置和速度进行装载
-    position_int = float_to_uint(target_pos, _min_position, _max_position, 16);
-    rotate_int   = float_to_uint(target_vel, _min_rotate, _max_rotate, 12);
-    torque_int   = float_to_uint(t_ff, _min_torque, _max_torque, 12);
-    kp_int       = float_to_uint(_runtime_kp, _min_kp, _max_kp, 12);
-    kd_int       = float_to_uint(_runtime_kd, _min_kd, _max_kd, 12);
-
-    data[0] = (position_int >> 8);
-    data[1] = position_int & 0xff;
-    data[2] = (rotate_int >> 4);
-    data[3] = ((rotate_int & 0x0f) << 4) | (kp_int >> 8);
-    data[4] = kp_int;
-    data[5] = kd_int >> 4;
-    data[6] = ((kd_int & 0x0f) << 4) | (torque_int >> 8);
-    data[7] = torque_int;
-
-    if(PYRO_OK != _can_drv->send_msg(_can_id, data.data())) return PYRO_ERROR;
-    return PYRO_OK;
-}
 
 status_t pyro::dm_motor_drv_t::update_feedback()
 {
@@ -109,6 +85,13 @@ status_t pyro::dm_motor_drv_t::update_feedback()
         _online = dwt_drv_t::get_timeline_s() - _last_update_time < 1.0f;
         return PYRO_ERROR;
     }
+
+    if (_feedback_msg->get_data(data))
+    {
+        _feedback_msg->mark_read();
+        _last_update_time = dwt_drv_t::get_timeline_s();
+    }
+    _online = true;
     uint16_t position = ((uint16_t)((data[1] << 8) | (data[2])));
     uint16_t rotate   = ((uint16_t)((data[3] << 4) | ((data[4] >> 4) & 0x0f)));
     uint16_t torque =
@@ -131,6 +114,7 @@ status_t pyro::dm_motor_drv_t::send_torque(float torque)
     kp_int       = float_to_uint(_runtime_kp, _min_kp, _max_kp, 12);
     kd_int       = float_to_uint(_runtime_kd, _min_kd, _max_kd, 12);
 
+
     data[0]      = (position_int >> 8);
     data[1]      = position_int & 0xff;
     data[2]      = (rotate_int >> 4);
@@ -144,6 +128,31 @@ status_t pyro::dm_motor_drv_t::send_torque(float torque)
     {
         return PYRO_ERROR;
     }
+    return PYRO_OK;
+}
+
+status_t pyro::dm_motor_drv_t::send_mit_ctrl(float target_pos, float target_vel, float t_ff)
+{
+    uint16_t torque_int, position_int, rotate_int, kp_int, kd_int;
+    std::array<uint8_t, 8> data;
+
+    // 关键修正：将外部传入的期望位置和速度进行装载
+    position_int = float_to_uint(target_pos, _min_position, _max_position, 16);
+    rotate_int   = float_to_uint(target_vel, _min_rotate, _max_rotate, 12);
+    torque_int   = float_to_uint(t_ff, _min_torque, _max_torque, 12);
+    kp_int       = float_to_uint(_runtime_kp, _min_kp, _max_kp, 12);
+    kd_int       = float_to_uint(_runtime_kd, _min_kd, _max_kd, 12);
+
+    data[0] = (position_int >> 8);
+    data[1] = position_int & 0xff;
+    data[2] = (rotate_int >> 4);
+    data[3] = ((rotate_int & 0x0f) << 4) | (kp_int >> 8);
+    data[4] = kp_int;
+    data[5] = kd_int >> 4;
+    data[6] = ((kd_int & 0x0f) << 4) | (torque_int >> 8);
+    data[7] = torque_int;
+
+    if(PYRO_OK != _can_drv->send_msg(_can_id, data.data())) return PYRO_ERROR;
     return PYRO_OK;
 }
 

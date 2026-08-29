@@ -252,6 +252,9 @@ void wl_chassis_t::_update_feedback()
     // otherwise compensation lowers motor torque and looks like loss of contact.
     _apply_gas_spring_compensation();
     _calc_support_force();
+
+    _ctx.motor.yaw->update_feedback();
+    _ctx.data.yaw.pos = _module_deps.motor.yaw->get_current_position();
 }
 
 

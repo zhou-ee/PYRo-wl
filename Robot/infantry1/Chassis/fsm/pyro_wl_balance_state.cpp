@@ -116,16 +116,16 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         auto_step_count = 0;
     }
 
-    //离地检测
-    if (!owner->_ctx.data.airborne.landing_recovery &&
-        owner->_detect_takeoff())
-    {
-        owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
-        owner->_ctx.data.airborne.takeoff_counter = 0;
-        owner->_ctx.data.airborne.landing_counter = 0;
-        request_switch(&owner->_state_active._state_normal._state_air);
-        return;
-    }
+    // //离地检测
+    // if (!owner->_ctx.data.airborne.landing_recovery &&
+    //     owner->_detect_takeoff())
+    // {
+    //     owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
+    //     owner->_ctx.data.airborne.takeoff_counter = 0;
+    //     owner->_ctx.data.airborne.landing_counter = 0;
+    //     request_switch(&owner->_state_active._state_normal._state_air);
+    //     return;
+    // }
 
     //落地回复
     if (owner->_ctx.data.airborne.landing_recovery)
@@ -145,12 +145,32 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
                        MIN_LEG_LENGTH, MAX_LEG_LENGTH);
     }
     
-
+    
     const float target_vx = owner->_current_cmd.v;
     owner->_ctx.data.target_state.x += target_vx * owner->_ctx.data._dt;
     owner->_ctx.data.target_state.dot_x = target_vx;
 
-    const float target_wz               = owner->_current_cmd.wz;
+    //角速度设置
+    float target_wz;
+    if(owner->_current_cmd.wz != 0 ||target_vx != 0)
+    {
+        target_wz = owner->_current_cmd.wz;
+    }
+    else
+    {
+        static const float WZ_KP = 3.0f;
+        constexpr float YAW_ALIGN_TARGET_RAD = -2.2f;
+        target_wz = WZ_KP * wrap2pi_f32_normalized(owner->_ctx.data.yaw.pos - YAW_ALIGN_TARGET_RAD);
+        if(fabs(target_wz) < 0.1f )
+        {
+            target_wz = 0;
+        }
+    }
+    
+
+
+
+
     owner->_ctx.data.target_state.psi += target_wz * owner->_ctx.data._dt;
     owner->_ctx.data.target_state.psi = loop_fp32_constrain(owner->_ctx.data.target_state.psi,-PI,PI);
     owner->_ctx.data.target_state.dot_psi = target_wz;

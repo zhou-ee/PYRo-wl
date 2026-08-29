@@ -46,29 +46,29 @@ struct virtual_rc_t
         // init(active_high, enable_multi_click, enable_long_press)
 
         // 核心武器按键，极致0延迟，关闭所有高级判定
-        buttons.trigger.init(true, true, true);
-        buttons.press_l.init(true, true, true);
-        buttons.press_r.init(true, true, true);
+        buttons.trigger.init(true, false, true);
+        buttons.press_l.init(true, false, true);
+        buttons.press_r.init(true, false, true);
 
         // 其他可能带有复合逻辑的辅助按键
-        buttons.fn_l.init(true, true, true);
-        buttons.fn_r.init(true, true, true);
+        buttons.fn_l.init(true, false, true);
+        buttons.fn_r.init(true, false, true);
 
         // 键盘按键默认全开高级判定 (不用担心，订阅 PRESS_DOWN 依然是0延迟)
-        keys.w.init(true, true, true);
-        keys.s.init(true, true, true);
-        keys.a.init(true, true, true);
-        keys.d.init(true, true, true);
-        keys.q.init(true, true, true);
-        keys.e.init(true, true, true);
-        keys.r.init(true, true, true);
-        keys.f.init(true, true, true);
-        keys.g.init(true, true, true);
-        keys.z.init(true, true, true);
-        keys.x.init(true, true, true);
-        keys.c.init(true, true, true);
-        keys.v.init(true, true, true);
-        keys.b.init(true, true, true);
+        keys.w.init(true, false, true);
+        keys.s.init(true, false, true);
+        keys.a.init(true, false, true);
+        keys.d.init(true, false, true);
+        keys.q.init(true, false, true);
+        keys.e.init(true, false, true);
+        keys.r.init(true, false, true);
+        keys.f.init(true, false, true);
+        keys.g.init(true, false, true);
+        keys.z.init(true, false, true);
+        keys.x.init(true, false, true);
+        keys.c.init(true, false, true);
+        keys.v.init(true, false, true);
+        keys.b.init(true, false, true);
 
         // 修饰键通常不双击，只长按
         keys.shift.init(true, false, true);
