@@ -29,10 +29,10 @@ constexpr float LEFT_HIP_OFFSET =
     -loop_fp32_PI(3.07832f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
     -loop_fp32_PI(0.25690f + KNEE_CALIBRATION_OFFSET);
-constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(-1.15266037f + HIP_CALIBRATION_OFFSET);
-constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(-3.01896834f + KNEE_CALIBRATION_OFFSET);
+constexpr float RIGHT_HIP_OFFSET = 
+    -loop_fp32_PI(-0.99730f + HIP_CALIBRATION_OFFSET);
+constexpr float RIGHT_KNEE_OFFSET = 
+    -loop_fp32_PI(2.71408f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
@@ -64,10 +64,15 @@ constexpr float MAX_F_L                              = 300.0f;
 constexpr float MAX_T_P                              = 60.0f;
 constexpr float MAX_CURRENT                          = 15.0f;
 constexpr float MAX_T_W                              = K_t * MAX_CURRENT;
+// Normal/Balance roll integral: positive trim adds to left and subtracts right.
+constexpr float NORMAL_ROLL_INTEGRAL_KI              = 120.0f; // N/(rad*s)
+constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 15.0f;  // N per leg
+constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
+    0.2f * PI / 180.0f;
 
 // Gas-spring feedforward is independent of the generated LQR gains.
 // Keep it disabled until the table direction and scale are verified on hardware.
-constexpr bool GAS_SPRING_COMPENSATION_ENABLE        = false;
+constexpr bool GAS_SPRING_COMPENSATION_ENABLE        = true ;
 constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 
 // Airborne and landing detection defaults. Tune from logged support-force data.

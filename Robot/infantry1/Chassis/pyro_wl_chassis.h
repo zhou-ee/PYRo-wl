@@ -186,6 +186,7 @@ struct wl_chassis_data_ctx_t
     ins_data_t ins;
     airborne_data_t airborne;
     float _dt;
+    float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
     bool gas_spring_compensation_active;
 };
