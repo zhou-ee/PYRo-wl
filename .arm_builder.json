@@ -1,7 +1,7 @@
 {
   "cfg_path": "C:\\Users\\look_\\AppData\\Roaming\\EmbeddedTool\\user_configs\\stm32g4_daplink .cfg",
   "flash_mode": "Run",
-  "cmake_options": "-DROBOT_ID=3",
+  "cmake_options": "-DROBOT_ID=3 -DINFANTRY1_BOARD=CHASSIS_BOARD",
   "backend_type": "OpenOCD",
   "target_type": "stm32g431cbux",
   "svd_path": "E:\\Develop\\Cmake_pack\\openocd_test\\STM32G431.svd",

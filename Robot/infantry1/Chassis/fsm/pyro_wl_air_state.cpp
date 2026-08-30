@@ -36,6 +36,8 @@ void wl_chassis_t::_calc_support_force()
 {
     const float support_alpha =
         _ctx.data._dt / (SUPPORT_FORCE_LPF_TAU + _ctx.data._dt);
+    const float compensation_scale =
+        std::max(std::fabs(GAS_SPRING_COMPENSATION_SCALE), 1.0e-6f);
     for (uint8_t i = 0; i < 2; ++i)
     {
         const leg_ctx_t &leg = _ctx.data.leg[i];
@@ -55,10 +57,18 @@ void wl_chassis_t::_calc_support_force()
             + length * beta_dot * beta_dot *
                   cos_beta;
 
+        // Motor torque feedback excludes the passive gas spring. Add the
+        // physical spring contribution back for contact/takeoff detection.
+        const float gas_f_l = _ctx.data.gas_spring_compensation_active
+                                  ? leg.gas_f_l / compensation_scale
+                                  : 0.0f;
+        const float gas_t_p = _ctx.data.gas_spring_compensation_active
+                                  ? leg.gas_t_p / compensation_scale
+                                  : 0.0f;
         const float support_force_raw =
-            leg.current_F_L * cos_beta;
-            // + leg.current_T_p / length * sin_beta
-            // + SUPPORT_FORCE_EFFECTIVE_MASS * leg_endpoint_accel;
+            (leg.current_F_L + gas_f_l) * cos_beta +
+            (leg.current_T_p + gas_t_p) / length * sin_beta +
+            SUPPORT_FORCE_EFFECTIVE_MASS * leg_endpoint_accel;
         _ctx.data.airborne.support_force[i] +=
             support_alpha *
                 (support_force_raw + SUPPORT_FORCE_BIAS[i] -

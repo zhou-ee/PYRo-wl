@@ -84,6 +84,10 @@ struct leg_ctx_t
     float out_F_L; // F_L * J_L = tau_2 - tau_1
     float virtual_wall_force;
     float out_T_p; // T_p = tau_2 + tau_1
+    float gas_f_l;
+    float gas_t_p;
+    float motor_f_l;
+    float motor_t_p;
     float current_F_L;
     float current_T_p;
 
@@ -190,7 +194,9 @@ struct wl_chassis_data_ctx_t
     ins_data_t ins;
     airborne_data_t airborne;
     float _dt;
+    float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
+    bool gas_spring_compensation_active;
 };
 
 struct wl_chassis_ctx_t
@@ -235,6 +241,7 @@ class wl_chassis_t final
     float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
     void _gain_calculate();
     void _balance_control();
+    void _apply_gas_spring_compensation();
     void _vmc_trans_v2j();
     void _send_joint_torque() const;
     void _send_wheel_torque() const;

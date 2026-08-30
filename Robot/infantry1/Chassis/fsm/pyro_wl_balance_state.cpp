@@ -1,6 +1,7 @@
 #include "pyro_wl_chassis.h"
 #include "stm32h7xx_hal_rcc_ex.h"
 #include <algorithm>
+#include <cmath>
 float debug1;
 float debug2;
 namespace pyro
@@ -30,6 +31,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     owner->_ctx.data.target_state.beta2     = 0.0f;
     owner->_ctx.data.target_state.dot_beta1 = 0.0f;
     owner->_ctx.data.target_state.dot_beta2 = 0.0f;
+    owner->_ctx.data.normal_roll_force_trim = 0.0f;
 
 
     for (float & i : owner->_ctx.data.U0)
@@ -177,6 +179,30 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 
     owner->_gain_calculate();
     owner->_balance_control();
+
+    const float roll_error = owner->_ctx.data.target_state.phi -
+                             owner->_ctx.data.current_state.phi;
+    if (std::fabs(roll_error) > NORMAL_ROLL_INTEGRAL_DEADBAND)
+    {
+        owner->_ctx.data.normal_roll_force_trim = std::clamp(
+            owner->_ctx.data.normal_roll_force_trim +
+                NORMAL_ROLL_INTEGRAL_KI * roll_error * owner->_ctx.data._dt,
+            -NORMAL_ROLL_INTEGRAL_LIMIT, NORMAL_ROLL_INTEGRAL_LIMIT);
+    }
+
+    owner->_ctx.data.control.F_l1 = std::clamp(
+        owner->_ctx.data.control.F_l1 +
+            owner->_ctx.data.normal_roll_force_trim,
+        -MAX_F_L, MAX_F_L);
+    owner->_ctx.data.control.F_l2 = std::clamp(
+        owner->_ctx.data.control.F_l2 -
+            owner->_ctx.data.normal_roll_force_trim,
+        -MAX_F_L, MAX_F_L);
+    owner->_ctx.data.leg[leg_def::L].out_F_L =
+        owner->_ctx.data.control.F_l1;
+    owner->_ctx.data.leg[leg_def::R].out_F_L =
+        owner->_ctx.data.control.F_l2;
+
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
