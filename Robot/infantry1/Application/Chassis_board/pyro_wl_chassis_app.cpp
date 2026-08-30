@@ -11,7 +11,7 @@
 #include "pyro_dji_motor_drv.h"
 #include "wl_config.h"
 #include <cstdint>
-#include "pyro_shared_data_def.h"
+#include "pyro_board_drv.h"
 
 using namespace pyro;
 
@@ -28,10 +28,11 @@ static TaskHandle_t chassis_task_handle           = nullptr;
 static pyro::wl_chassis_t *wl_chassis_ptr         = nullptr;
 static pyro::wl_chassis_cmd_t *wl_chassis_cmd_ptr = nullptr;
 static pyro::wl_chassis_deps_t *wl_chassis_deps   = nullptr;
+static pyro::board_drv_t *board_ptr               = nullptr;
+
+static pyro::board_drv_t::g2c_data_t last_g2c_data;
 
 static pyro::can_msg_buffer_t can3_rx_buf(0x101);//板间通信id
-static GimbalToChassisComm g2c_cmd;
-static GimbalToChassisComm last_g2c_cmd;
 
 static void gimbal_cmd();
 static void chassis_dr162cmd(uint32_t notify);
@@ -41,9 +42,6 @@ extern "C"
 {
     void infantry1_chassis_thread(void *argument)
     {
-        
-        pyro::bsp_can::get_can3().register_rx_msg(&can3_rx_buf);
-        vTaskDelay(2000);
         while (true)
         {
             uint32_t notify_val = 0;
@@ -51,13 +49,12 @@ extern "C"
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
             
 
-            std::array<uint8_t, 8> data;
-            if (can3_rx_buf.get_data(data))
+            
+            if (board_ptr->check_online())
             {
-                //云台命令
-                memcpy(&last_g2c_cmd, &g2c_cmd, 8);
-                memcpy(&g2c_cmd, &data, 8);
+                
                 gimbal_cmd();
+                
             }
             else if (dr16_drv_t::instance().check_online())
             {
@@ -76,15 +73,15 @@ extern "C"
 
     void infantry1_chassis_init(void *argument)
     {
-        
-
-
         wl_chassis_cmd_ptr = new pyro::wl_chassis_cmd_t();
         wl_chassis_ptr     = pyro::wl_chassis_t::instance();
 
         deps_init();
         wl_chassis_ptr->configure(*wl_chassis_deps);
         wl_chassis_ptr->start();
+
+        *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
+        board_ptr->start_rx();
 
         xTaskCreate(infantry1_chassis_thread, "chassis_app_thread", 256,
                     nullptr, configMAX_PRIORITIES - 1, &chassis_task_handle);
@@ -102,8 +99,10 @@ extern "C"
 
 void gimbal_cmd()
 {
+    //云台命令
+    const auto& g2c_data = board_ptr->get_g2c_rx_data();
     //下力模式
-    if(g2c_cmd.msg.mode == 0)
+    if(g2c_data.mode == 0)
     {
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::L] = 0.0f;
@@ -114,29 +113,29 @@ void gimbal_cmd()
         wl_chassis_cmd_ptr->wz                           = 0.0f;
         return;
     }
-    if (g2c_cmd.msg.mode == 1)
+    if (g2c_data.mode == 1)
     {
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
 
         // 手动通道输入控制腿长和腿度（角度）的偏置量
         //用spining按键来切换左右腿
-        wl_chassis_cmd_ptr->delta_leg_length[!g2c_cmd.msg.spining]= 0;
-        wl_chassis_cmd_ptr->delta_leg_rad[!g2c_cmd.msg.spining]   = 0;
-        wl_chassis_cmd_ptr->delta_leg_length[g2c_cmd.msg.spining] = g2c_cmd.msg.vx / 31.0f * 0.001f;
-        wl_chassis_cmd_ptr->delta_leg_rad[g2c_cmd.msg.spining]    = g2c_cmd.msg.w  / 31.0f * 0.001f;
+        wl_chassis_cmd_ptr->delta_leg_length[!g2c_data.spining]= 0;
+        wl_chassis_cmd_ptr->delta_leg_rad[!g2c_data.spining]   = 0;
+        wl_chassis_cmd_ptr->delta_leg_length[g2c_data.spining] = g2c_data.vx / 31.0f * 0.001f;
+        wl_chassis_cmd_ptr->delta_leg_rad[g2c_data.spining]    = g2c_data.w  / 31.0f * 0.001f;
         wl_chassis_cmd_ptr->v                           = 0.0f;
         wl_chassis_cmd_ptr->wz                          = 0.0f;
         wl_chassis_cmd_ptr->cmd_continus_state          = pyro::chassis_active_state_t::MANUAL;
     }
-    else if (g2c_cmd.msg.mode == 2)//平衡模式
+    else if (g2c_data.mode == 2)//平衡模式
     {
-        if(g2c_cmd.msg.mode == 2 && last_g2c_cmd.msg.mode != 2)
+        if(g2c_data.mode == 2 && last_g2c_data.mode != 2)
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::RESTART;
         }
         //平衡模式下的键位判断
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
-        if (g2c_cmd.msg.step_mode == 1)
+        if (g2c_data.step_mode == 1)
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
         }
@@ -145,31 +144,33 @@ void gimbal_cmd()
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::L]    = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::R] = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::R]    = 0.0f;
-        wl_chassis_cmd_ptr->v                            = g2c_cmd.msg.vx / 31.0f;
-        if(g2c_cmd.msg.spining)
+        wl_chassis_cmd_ptr->v                            = g2c_data.vx / 31.0f;
+        if(g2c_data.spining)
         {
             wl_chassis_cmd_ptr->wz                       = 6.5f;
         }
         else 
         {
-            wl_chassis_cmd_ptr->wz                       = -g2c_cmd.msg.w / 31.0f * 2.0f;
+            wl_chassis_cmd_ptr->wz                       = -g2c_data.w / 31.0f * 2.0f;
         }
         
-        if(g2c_cmd.msg.delta_leg == 0)
+        if(g2c_data.delta_leg == 0)
         {
             wl_chassis_cmd_ptr->dot_L                    = 0.0f;
         }
-        else if(g2c_cmd.msg.delta_leg == 1)
+        else if(g2c_data.delta_leg == 1)
         {
             wl_chassis_cmd_ptr->dot_L                    = 0.3f;
         }
-        else if(g2c_cmd.msg.delta_leg == 2)
+        else if(g2c_data.delta_leg == 2)
         {
             wl_chassis_cmd_ptr->dot_L                    = -0.3f;
         }
         wl_chassis_cmd_ptr->cmd_continus_state           = pyro::chassis_active_state_t::NORMAL;
 
     }
+
+    memcpy(&last_g2c_data, &g2c_data, sizeof(pyro::board_drv_t::g2c_data_t));
 }
 
 void chassis_dr162cmd(uint32_t notify)

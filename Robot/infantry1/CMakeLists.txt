@@ -1,5 +1,5 @@
-#set(BOARD "CHASSIS_BOARD")
-set(BOARD "GIMBAL_BOARD")
+set(BOARD "CHASSIS_BOARD")
+#set(BOARD "GIMBAL_BOARD")
 
 add_library(Infantry1 OBJECT)
 
@@ -30,6 +30,7 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 Application/Chassis_board/pyro_wl_chassis_app.cpp
 
                 Communication/General/pyro_board_drv.cpp
+                Communication/Chassis/pyro_board_com.cpp
         )
 
         target_include_directories(Infantry1

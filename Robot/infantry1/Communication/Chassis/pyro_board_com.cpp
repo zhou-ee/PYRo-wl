@@ -9,18 +9,11 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-void hero_board_com_init(void *argument)
+extern "C"
 {
+    void infantry1_board_com_init(void *argument)
+    {
 
-    vTaskDelete(nullptr);
+        vTaskDelete(nullptr);
+    }
 }

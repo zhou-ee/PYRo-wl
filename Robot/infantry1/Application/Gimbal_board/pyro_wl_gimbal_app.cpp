@@ -38,7 +38,7 @@ static TaskHandle_t gimbal_task_handle = nullptr;
 static pyro::wl_gimbal_t *wl_gimbal_ptr         = nullptr;
 static pyro::wl_gimbal_cmd_t *wl_gimbal_cmd_ptr = nullptr;
 static pyro::wl_gimbal_deps_t *wl_gimbal_deps   = nullptr;
-static pyro::board_drv_t *board_ptr               = nullptr;
+//static pyro::board_drv_t *board_ptr               = nullptr;
 
 static virtual_rc_t vrc_t;
 
@@ -102,10 +102,10 @@ extern "C"
         wl_gimbal_ptr->configure(*wl_gimbal_deps);
         wl_gimbal_ptr->start();
 
-        // 板间通信启动
-        // 云台角色，使用 CAN1
-        *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
-        board_ptr->start_rx();
+        // // 板间通信启动
+        // // 云台角色，使用 CAN1
+        // *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
+        // board_ptr->start_rx();
 
 
         xTaskCreate(wl_gimbal_thread, "infantry_gimbal_thread", 256, 
