@@ -28,6 +28,8 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
 
 
                 Application/Chassis_board/pyro_wl_chassis_app.cpp
+
+                Communication/General/pyro_board_drv.cpp
         )
 
         target_include_directories(Infantry1
@@ -64,6 +66,9 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
                 
                 Application/Gimbal_board/pyro_wl_gimbal_app.cpp
                 Application/Gimbal_board/pyro_wl_booster_app.cpp
+
+                Communication/General/pyro_board_drv.cpp
+                Communication/Gimbal/pyro_board_com.cpp
         )       
         # 针对 Chassis 的特殊头文件包含
         target_include_directories(Infantry1
@@ -73,6 +78,7 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
                 ${CMAKE_CURRENT_SOURCE_DIR}/Application/Booster_board
                 ${CMAKE_CURRENT_SOURCE_DIR}/Gimbal
                 ${CMAKE_CURRENT_SOURCE_DIR}/Booster
+                ${CMAKE_CURRENT_SOURCE_DIR}/Communication/General
         )       
         target_compile_definitions(PYRo PUBLIC  
                 DR16_UART=PYRO_UART5

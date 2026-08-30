@@ -7,6 +7,7 @@ extern "C"
 {
 extern void pyro_init_thread(void *argument);
 extern void start_debug_task(void *arg);
+extern void infantry1_board_com_init(void *argument);
 extern void infantry1_chassis_init(void *argument);
 extern void infantry1_gimbal_init(void *argument);
 extern void infantry1_booster_init(void *argument);
@@ -28,6 +29,8 @@ void start_mission_planer_task(void const *argument)
     xTaskCreate(infantry1_chassis_init, "infantry1_chassis_init", 512, nullptr,
                 configMAX_PRIORITIES - 2, nullptr);
 #endif
+        xTaskCreate(infantry1_board_com_init, "pyro_board_com_init", 512, nullptr,
+                    configMAX_PRIORITIES - 2, nullptr);
 
 #if DEBUG_MODE
     xTaskCreate(start_debug_task, "start_debug_task", 512, nullptr,
