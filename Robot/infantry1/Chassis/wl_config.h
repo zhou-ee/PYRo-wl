@@ -29,10 +29,10 @@ constexpr float LEFT_HIP_OFFSET =
     -loop_fp32_PI(3.07832f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
     -loop_fp32_PI(0.25690f + KNEE_CALIBRATION_OFFSET);
-constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(-1.15266037f + HIP_CALIBRATION_OFFSET);
-constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(-3.01896834f + KNEE_CALIBRATION_OFFSET);
+constexpr float RIGHT_HIP_OFFSET = 
+    -loop_fp32_PI(-0.99730f + HIP_CALIBRATION_OFFSET);
+constexpr float RIGHT_KNEE_OFFSET = 
+    -loop_fp32_PI(2.71408f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
@@ -64,6 +64,20 @@ constexpr float MAX_F_L                              = 300.0f;
 constexpr float MAX_T_P                              = 60.0f;
 constexpr float MAX_CURRENT                          = 15.0f;
 constexpr float MAX_T_W                              = K_t * MAX_CURRENT;
+
+// 300 N 气弹簧广义力拟合，适用腿长 L 范围为 [0.18, 0.38] m。
+// x = (L - 0.28) / 0.10，F_gas(L) = sum(c[k] * x^k)。
+constexpr float GAS_SPRING_LENGTH_CENTER             = 0.28f;
+constexpr float GAS_SPRING_LENGTH_SCALE              = 0.10f;
+constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
+constexpr uint32_t GAS_SPRING_FORCE_POLY_DEGREE      = 3;
+constexpr float GAS_SPRING_FORCE_POLY_COEF[
+    GAS_SPRING_FORCE_POLY_DEGREE + 1] = {
+    119.867552440332f,
+    37.1404981279233f,
+    -4.91246097241044f,
+    2.70356625079196f,
+};
 
 // Airborne and landing detection defaults. Tune from logged support-force data.
 constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，低于上限虚拟墙

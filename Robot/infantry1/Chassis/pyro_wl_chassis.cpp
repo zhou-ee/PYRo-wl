@@ -201,6 +201,8 @@ void wl_chassis_t::_vmc_trans_j2v()
         leg.current_leg_length = OJ4 * OJ8 / OJ5;
         leg.L_wp               = evaluate_polynomial_ascending(
             leg.current_leg_length, L_WP_POLY_COEF, L_WP_POLY_DEGREE);
+        leg.gas_spring_force   = _calc_gas_spring_force(
+            leg.current_leg_length);
         leg.current_leg_speed = dot_theta * leg.J_L;
 
         const float raw_beta  = leg.current_joint_rad[joint_def::HIP] + theta;
@@ -272,6 +274,18 @@ float wl_chassis_t::_calc_leg_length_wall_force(const leg_ctx_t &leg) const
     }
 
     return 0.0f;
+}
+
+float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
+{
+    const float normalized_length = std::clamp(
+        (leg_length - GAS_SPRING_LENGTH_CENTER) /
+            GAS_SPRING_LENGTH_SCALE,
+        -1.0f, 1.0f);
+    return GAS_SPRING_COMPENSATION_SCALE *
+           evaluate_polynomial_ascending(
+               normalized_length, GAS_SPRING_FORCE_POLY_COEF,
+               GAS_SPRING_FORCE_POLY_DEGREE);
 }
 
 void wl_chassis_t::_gain_calculate()
@@ -377,8 +391,9 @@ void wl_chassis_t::_vmc_trans_v2j()
     for (auto &leg : _ctx.data.leg)
     {
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
-        leg.out_F_L = std::clamp(leg.out_F_L + leg.virtual_wall_force,
-                                 -MAX_F_L, MAX_F_L);
+        leg.out_F_L = std::clamp(
+            leg.out_F_L + leg.virtual_wall_force - leg.gas_spring_force,
+            -MAX_F_L, MAX_F_L);
 
         float tau_sum                        = leg.out_T_p;
         float tau_diff                       = leg.out_F_L * leg.J_L;

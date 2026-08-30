@@ -27,12 +27,14 @@ JLinkSetting.ini
 
 vscode_build/
 build/
+build-chassis/
 /cmake-build-debug-stm32
 .cache/
 .idea
 .vscode
 !*/CMakeLists.txt
 !CMakeLists.txt
+
 
 
 

@@ -56,7 +56,7 @@ void wl_chassis_t::_calc_support_force()
                   cos_beta;
 
         const float support_force_raw =
-            leg.current_F_L * cos_beta;
+            (leg.current_F_L + leg.gas_spring_force) * cos_beta;
             // + leg.current_T_p / length * sin_beta
             // + SUPPORT_FORCE_EFFECTIVE_MASS * leg_endpoint_accel;
         _ctx.data.airborne.support_force[i] +=
