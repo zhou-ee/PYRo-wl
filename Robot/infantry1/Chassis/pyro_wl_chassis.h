@@ -6,7 +6,8 @@
 #include "pyro_module_base.h"
 #include "pyro_motor_base.h"
 #include "wl_config.h"
-#include "dsp/window_functions.h"
+#include "dsppp/memory_pool.hpp"
+#include <dsppp/matrix.hpp>
 
 namespace pyro
 {
@@ -154,6 +155,7 @@ struct airborne_data_t
     float support_force_sum = 0.0f;
 };
 
+
 struct flag_data_t
 {
     bool leg_is_should_restart;  //紧急下力的标志位
@@ -168,8 +170,12 @@ struct wl_chassis_data_ctx_t
     wheel_ctx_t wheel[2];
     state_vec_t target_state;
     state_vec_t current_state;
+    state_vec_t next_state;
+    control_vec_t dist;
     control_vec_t control;
     flag_data_t flag;
+    arm_cmsis_dsp::Matrix<float,STATE_DIM,STATE_DIM> G;
+    arm_cmsis_dsp::Matrix<float,STATE_DIM,INPUT_DIM> H;
     float K[INPUT_DIM][STATE_DIM];
     float U0[INPUT_DIM];
     odom_t odom;
@@ -217,8 +223,6 @@ class wl_chassis_t final
     // 辅助函数
     void _vmc_trans_j2v();
     void _manual_control();
-    float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
-    float _calc_gas_spring_force(float leg_length) const;
     void _gain_calculate();
     void _balance_control();
     void _vmc_trans_v2j();
@@ -230,6 +234,10 @@ class wl_chassis_t final
     bool _detect_landing();
     void _execute_air_control();
     void _execute_landing_recovery();
+    void _leso_update();
+
+    float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
+    float _calc_gas_spring_force(float leg_length) const;
 
     using owner = wl_chassis_t;
 

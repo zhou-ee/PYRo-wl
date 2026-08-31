@@ -27,7 +27,6 @@ __STATIC_INLINE void _dot_m_m(const MA&    pSrcA,
                                     RES && pDst,
                               const Scalar* = nullptr)
 {
-  std::cout << "Mat mul scalar\n";
   using TA = typename traits<MA>::Scalar;
   using TB = typename traits<MB>::Scalar;
   using T = typename MixedRes<TA,TB>::type;

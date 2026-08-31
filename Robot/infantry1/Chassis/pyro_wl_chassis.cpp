@@ -4,7 +4,8 @@
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
 #include "dsp/fast_math_functions.h"
-
+#include "dsppp/memory_pool.hpp"
+#include "dsppp/matrix.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -331,6 +332,12 @@ void wl_chassis_t::_gain_calculate()
     _ctx.data.target_state.beta2 = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);
+}
+
+void wl_chassis_t::_leso_update()
+{
+
+
 }
 
 void wl_chassis_t::_balance_control()
