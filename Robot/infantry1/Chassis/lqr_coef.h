@@ -19,6 +19,7 @@
 
 constexpr uint32_t STATE_DIM                                         = 14;
 constexpr uint32_t INPUT_DIM                                         = 6;
+constexpr uint32_t EXT_STATE_DIM                                     = 20;
 constexpr uint32_t K_POLY_DEGREE                                     = 3;
 constexpr uint32_t U0_POLY_DEGREE                                    = 3;
 constexpr uint32_t BETA_TRIM_POLY_DEGREE                             = 3;
@@ -888,7 +889,7 @@ constexpr float BETA_TRIM_POLY_COEF[BETA_TRIM_POLY_DEGREE + 1] = {
     -2.0136658000e-01f, 1.1237433600e+00f, -2.6590609600e+00f,
     2.4987946100e+00f};
 
-namespace lqr_state_def
+namespace state_def
 {
 enum : uint8_t
 {
@@ -909,7 +910,7 @@ enum : uint8_t
 };
 }
 
-namespace lqr_input_def
+namespace input_def
 {
 enum : uint8_t
 {

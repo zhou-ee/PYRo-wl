@@ -23,10 +23,9 @@ struct wl_chassis_deps_t
     {
         pd_ctrl_t *leg_length[2];
 
-        pd_ctrl_t *leg_rad[2];   
-        pyro::pid_t *leg_control_rad[2];   //角度环
-        pyro::pid_t *leg_control_radps[2]; //速度环
-
+        pd_ctrl_t *leg_rad[2];
+        pyro::pid_t *leg_control_rad[2];   // 角度环
+        pyro::pid_t *leg_control_radps[2]; // 速度环
     };
     motor_deps_t motor;
     pid_deps_t pid;
@@ -72,7 +71,7 @@ struct leg_ctx_t
     float out_F_L; // F_L * J_L = tau_2 - tau_1
     float virtual_wall_force;
     float gas_spring_force; // 沿腿长增大方向的被动广义力
-    float out_T_p; // T_p = tau_2 + tau_1
+    float out_T_p;          // T_p = tau_2 + tau_1
     float current_F_L;
     float current_T_p;
 
@@ -92,36 +91,6 @@ struct wheel_ctx_t
     float out_current; // Current: 电流 (A)
 };
 
-struct state_vec_t
-{
-    union
-    {
-        struct
-        {
-            float x, dot_x;
-            float psi, dot_psi;
-            float theta, dot_theta;
-            float phi, dot_phi;
-            float L, dot_L;
-            float beta1, dot_beta1;
-            float beta2, dot_beta2;
-        };
-        float data[14];
-    };
-};
-struct control_vec_t
-{
-    union
-    {
-        struct
-        {
-            float T_w1,T_w2;
-            float T_p1,T_p2;
-            float F_l1,F_l2;
-        };
-        float data[6];
-    };
-};
 struct odom_t
 {
     float real_x;
@@ -143,24 +112,24 @@ enum class chassis_state_t : uint8_t
 
 struct airborne_data_t
 {
-    chassis_state_t state = chassis_state_t::NORMAL;
-    bool landing_recovery = false;
+    chassis_state_t state    = chassis_state_t::NORMAL;
+    bool landing_recovery    = false;
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
-    float L_ref = NORMAL_LENGTH_TARGET;
-    float L_air_ref[2] = {NORMAL_LENGTH_TARGET, NORMAL_LENGTH_TARGET};
-    float accel_z_y = 0.0f;
-    float accel_z_y_lpf = 0.0f;
-    float support_force[2] = {0.0f, 0.0f};
-    float support_force_sum = 0.0f;
+    float L_ref              = NORMAL_LENGTH_TARGET;
+    float L_air_ref[2]       = {NORMAL_LENGTH_TARGET, NORMAL_LENGTH_TARGET};
+    float accel_z_y          = 0.0f;
+    float accel_z_y_lpf      = 0.0f;
+    float support_force[2]   = {0.0f, 0.0f};
+    float support_force_sum  = 0.0f;
 };
 
 
 struct flag_data_t
 {
-    bool leg_is_should_restart;  //紧急下力的标志位
-    bool leg_is_ready;           //复位成功的标志位
-    bool step;                   //是否上台阶的标志位
+    bool leg_is_should_restart; // 紧急下力的标志位
+    bool leg_is_ready;          // 复位成功的标志位
+    bool step;                  // 是否上台阶的标志位
 };
 
 
@@ -168,16 +137,22 @@ struct wl_chassis_data_ctx_t
 {
     leg_ctx_t leg[2];
     wheel_ctx_t wheel[2];
-    state_vec_t target_state;
-    state_vec_t current_state;
-    state_vec_t next_state;
-    control_vec_t dist;
-    control_vec_t control;
+    arm_cmsis_dsp::Vector<float, STATE_DIM> target_state{};
+    arm_cmsis_dsp::Vector<float, STATE_DIM> error{};
+    arm_cmsis_dsp::Vector<float, STATE_DIM> measured_state{};
+    arm_cmsis_dsp::Vector<float, STATE_DIM> current_state{};
+    arm_cmsis_dsp::Vector<float, STATE_DIM> next_state{};
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> dist{};
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> control{};
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> U0{};
+    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> K{};
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> G{};
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, INPUT_DIM> H{};
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> L_x{};
+    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> L_d{};
+
+
     flag_data_t flag;
-    arm_cmsis_dsp::Matrix<float,STATE_DIM,STATE_DIM> G;
-    arm_cmsis_dsp::Matrix<float,STATE_DIM,INPUT_DIM> H;
-    float K[INPUT_DIM][STATE_DIM];
-    float U0[INPUT_DIM];
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;
@@ -223,7 +198,7 @@ class wl_chassis_t final
     // 辅助函数
     void _vmc_trans_j2v();
     void _manual_control();
-    void _gain_calculate();
+    void _fit_params();
     void _balance_control();
     void _vmc_trans_v2j();
     void _send_joint_torque() const;
@@ -290,8 +265,8 @@ class wl_chassis_t final
       private:
         state_manual_t _state_manual;
         state_normal_t _state_normal;
-        state_air_t    _state_air;
-        state_align_t  _state_align;
+        state_air_t _state_air;
+        state_align_t _state_align;
         state_step_t _state_step;
     };
 

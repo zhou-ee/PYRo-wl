@@ -145,10 +145,10 @@ inline typename OutputVector<M,V>::type dot(const M&m,const V&v)
 template<typename M,
          typename V,
          typename RES,
-         typename std::enable_if<CompatibleDynamicMatVecProduct<M,V>::value,bool>::type = true>
+         typename std::enable_if<CompatibleStaticMatVecProduct<M,V>::value ||
+                                 CompatibleDynamicMatVecProduct<M,V>::value,bool>::type = true>
 inline void dot(RES && res,const M&m,const V&v)
 {
-   //typename OutputVector<M,V>::type res(m.rows());
    _dot_m_v(res,m,v,CURRENT_ARCH);
 }
 

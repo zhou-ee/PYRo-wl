@@ -12,23 +12,24 @@ void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
 
     owner->_ctx.data.odom.real_x            = 0;
 
-    owner->_ctx.data.target_state.x         = 0;
-    owner->_ctx.data.target_state.dot_x     = 0.0f;
-    owner->_ctx.data.target_state.psi       = owner->_ctx.data.ins.euler_rad[0];
-    owner->_ctx.data.target_state.dot_psi   = 0.0f;
-    owner->_ctx.data.target_state.L =
+    owner->_ctx.data.target_state[state_def::X] = 0;
+    owner->_ctx.data.target_state[state_def::DOT_X] = 0.0f;
+    owner->_ctx.data.target_state[state_def::PSI] =
+        owner->_ctx.data.ins.euler_rad[0];
+    owner->_ctx.data.target_state[state_def::DOT_PSI] = 0.0f;
+    owner->_ctx.data.target_state[state_def::L] =
         owner->_ctx.data.airborne.landing_recovery
             ? owner->_ctx.data.airborne.L_ref
             : NORMAL_LENGTH_TARGET;
-    owner->_ctx.data.target_state.dot_L     = 0.0f;
-    owner->_ctx.data.target_state.theta     = 0.0f;
-    owner->_ctx.data.target_state.dot_theta = 0.0f;
-    owner->_ctx.data.target_state.phi       = 0.0f;
-    owner->_ctx.data.target_state.dot_phi   = 0.0f;
-    owner->_ctx.data.target_state.beta1     = 0.0f;
-    owner->_ctx.data.target_state.beta2     = 0.0f;
-    owner->_ctx.data.target_state.dot_beta1 = 0.0f;
-    owner->_ctx.data.target_state.dot_beta2 = 0.0f;
+    owner->_ctx.data.target_state[state_def::DOT_L] = 0.0f;
+    owner->_ctx.data.target_state[state_def::THETA] = 0.0f;
+    owner->_ctx.data.target_state[state_def::DOT_THETA] = 0.0f;
+    owner->_ctx.data.target_state[state_def::PHI] = 0.0f;
+    owner->_ctx.data.target_state[state_def::DOT_PHI]   = 0.0f;
+    owner->_ctx.data.target_state[state_def::BETA_1] = 0.0f;
+    owner->_ctx.data.target_state[state_def::BETA_2] = 0.0f;
+    owner->_ctx.data.target_state[state_def::DOT_BETA_1] = 0.0f;
+    owner->_ctx.data.target_state[state_def::DOT_BETA_2] = 0.0f;
 
 
     for (float & i : owner->_ctx.data.U0)
@@ -89,24 +90,28 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
     {
         //腿长加上遥控器的小量
         const float target_dot_L = owner->_current_cmd.dot_L;
-        owner->_ctx.data.target_state.dot_L = target_dot_L;
-        owner->_ctx.data.target_state.L +=
-        target_dot_L * owner->_ctx.data._dt;
+        owner->_ctx.data.target_state[state_def::DOT_L] = target_dot_L;
+        owner->_ctx.data.target_state[state_def::L] +=
+            target_dot_L * owner->_ctx.data._dt;
         //腿长限幅
-        owner->_ctx.data.target_state.L =
-        std::clamp(owner->_ctx.data.target_state.L,
+        owner->_ctx.data.target_state[state_def::L] =
+            std::clamp(owner->_ctx.data.target_state[state_def::L],
                        MIN_LEG_LENGTH, MAX_LEG_LENGTH);
     }
     
 
     const float target_vx = owner->_current_cmd.v;
-    owner->_ctx.data.target_state.x += target_vx * owner->_ctx.data._dt;
-    owner->_ctx.data.target_state.dot_x = target_vx;
+    owner->_ctx.data.target_state[state_def::X] +=
+        target_vx * owner->_ctx.data._dt;
+    owner->_ctx.data.target_state[state_def::DOT_X] = target_vx;
 
     const float target_wz               = owner->_current_cmd.wz;
-    owner->_ctx.data.target_state.psi += target_wz * owner->_ctx.data._dt;
-    owner->_ctx.data.target_state.psi = loop_fp32_constrain(owner->_ctx.data.target_state.psi,-PI,PI);
-    owner->_ctx.data.target_state.dot_psi = target_wz;
+    owner->_ctx.data.target_state[state_def::PSI] +=
+        target_wz * owner->_ctx.data._dt;
+    owner->_ctx.data.target_state[state_def::PSI] =
+        loop_fp32_constrain(
+            owner->_ctx.data.target_state[state_def::PSI], -PI, PI);
+    owner->_ctx.data.target_state[state_def::DOT_PSI] = target_wz;
 
     if (!owner->_ctx.data.airborne.landing_recovery &&
         owner->_detect_takeoff())
@@ -118,7 +123,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
         return;
     }
 
-    owner->_gain_calculate();
+    owner->_fit_params();
     owner->_balance_control();
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
