@@ -242,7 +242,7 @@ void wl_chassis_t::_manual_control()
     rl_target_radps = _ctx.pid.leg_control_rad[leg_def::R]->calculate(
         0.0f, _ctx.data.leg[leg_def::R].error_leg_rad);
     _ctx.data.leg[leg_def::R].out_T_p =
-        _ctx.pid.leg_control_radps[leg_def::L]->calculate(
+        _ctx.pid.leg_control_radps[leg_def::R]->calculate(
             rl_target_radps, _ctx.data.leg[leg_def::R].current_leg_radps);
 
     // _ctx.data.leg[leg_def::L].out_T_p =
@@ -343,6 +343,8 @@ void wl_chassis_t::_leso_update()
     static arm_cmsis_dsp::Vector<float, INPUT_DIM> L_dres{};
 
     residual = _ctx.data.measured_state - _ctx.data.current_state;
+    residual[state_def::PSI] =
+        loop_fp32_constrain(residual[state_def::PSI], -PI, PI);
     arm_cmsis_dsp::dot(Gxk, _ctx.data.G, _ctx.data.current_state);
     arm_cmsis_dsp::dot(Hdk, _ctx.data.H, _ctx.data.dist);
     arm_cmsis_dsp::dot(Huk, _ctx.data.H, _ctx.data.control);
@@ -351,7 +353,6 @@ void wl_chassis_t::_leso_update()
 
     _ctx.data.next_state = Gxk + Hdk + Huk + L_xres;
     _ctx.data.dist += L_dres;
-
 }
 
 void wl_chassis_t::_balance_control()
@@ -360,28 +361,28 @@ void wl_chassis_t::_balance_control()
     error                 = _ctx.data.target_state - _ctx.data.current_state;
     error[state_def::PSI] = loop_fp32_constrain(error[state_def::PSI], -PI, PI);
     arm_cmsis_dsp::dot(_ctx.data.control, _ctx.data.K, error);
-    _ctx.data.control += _ctx.data.U0;
+    _ctx.data.output = _ctx.data.control + _ctx.data.U0 - _ctx.data.dist;
 
-    _ctx.data.control[input_def::T_W1] =
-        std::clamp(_ctx.data.control[input_def::T_W1], -MAX_T_W, MAX_T_W);
-    _ctx.data.control[input_def::T_W2] =
-        std::clamp(_ctx.data.control[input_def::T_W2], -MAX_T_W, MAX_T_W);
-    _ctx.data.control[input_def::T_P1] =
-        std::clamp(_ctx.data.control[input_def::T_P1], -MAX_T_P, MAX_T_P);
-    _ctx.data.control[input_def::T_P2] =
-        std::clamp(_ctx.data.control[input_def::T_P2], -MAX_T_P, MAX_T_P);
-    _ctx.data.control[input_def::F_L1] =
-        std::clamp(_ctx.data.control[input_def::F_L1], -MAX_F_L, MAX_F_L);
-    _ctx.data.control[input_def::F_L2] =
-        std::clamp(_ctx.data.control[input_def::F_L2], -MAX_F_L, MAX_F_L);
+    _ctx.data.output[input_def::T_W1] =
+        std::clamp(_ctx.data.output[input_def::T_W1], -MAX_T_W, MAX_T_W);
+    _ctx.data.output[input_def::T_W2] =
+        std::clamp(_ctx.data.output[input_def::T_W2], -MAX_T_W, MAX_T_W);
+    _ctx.data.output[input_def::T_P1] =
+        std::clamp(_ctx.data.output[input_def::T_P1], -MAX_T_P, MAX_T_P);
+    _ctx.data.output[input_def::T_P2] =
+        std::clamp(_ctx.data.output[input_def::T_P2], -MAX_T_P, MAX_T_P);
+    _ctx.data.output[input_def::F_L1] =
+        std::clamp(_ctx.data.output[input_def::F_L1], -MAX_F_L, MAX_F_L);
+    _ctx.data.output[input_def::F_L2] =
+        std::clamp(_ctx.data.output[input_def::F_L2], -MAX_F_L, MAX_F_L);
 
-    _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.control[input_def::T_P1];
-    _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.control[input_def::T_P2];
-    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.control[input_def::F_L1];
-    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.control[input_def::F_L2];
+    _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.output[input_def::T_P1];
+    _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.output[input_def::T_P2];
+    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.output[input_def::F_L1];
+    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.output[input_def::F_L2];
 
-    _ctx.data.wheel[leg_def::L].out_T_w = _ctx.data.control[input_def::T_W1];
-    _ctx.data.wheel[leg_def::R].out_T_w = _ctx.data.control[input_def::T_W2];
+    _ctx.data.wheel[leg_def::L].out_T_w = _ctx.data.output[input_def::T_W1];
+    _ctx.data.wheel[leg_def::R].out_T_w = _ctx.data.output[input_def::T_W2];
     for (auto &wheel : _ctx.data.wheel)
     {
         wheel.out_current =

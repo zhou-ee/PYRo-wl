@@ -145,6 +145,7 @@ struct wl_chassis_data_ctx_t
     arm_cmsis_dsp::Vector<float, INPUT_DIM> dist{};
     arm_cmsis_dsp::Vector<float, INPUT_DIM> control{};
     arm_cmsis_dsp::Vector<float, INPUT_DIM> U0{};
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> output{};
     arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> K{};
     arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> G{};
     arm_cmsis_dsp::Matrix<float, STATE_DIM, INPUT_DIM> H{};
