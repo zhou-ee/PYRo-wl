@@ -140,8 +140,7 @@ struct wl_chassis_data_ctx_t
     arm_cmsis_dsp::Vector<float, STATE_DIM> target_state{};
     arm_cmsis_dsp::Vector<float, STATE_DIM> error{};
     arm_cmsis_dsp::Vector<float, STATE_DIM> measured_state{};
-    arm_cmsis_dsp::Vector<float, STATE_DIM> current_state{};
-    arm_cmsis_dsp::Vector<float, STATE_DIM> next_state{};
+    arm_cmsis_dsp::Vector<float, STATE_DIM> predict_state{};
     arm_cmsis_dsp::Vector<float, INPUT_DIM> dist{};
     arm_cmsis_dsp::Vector<float, INPUT_DIM> control{};
     arm_cmsis_dsp::Vector<float, INPUT_DIM> U0{};

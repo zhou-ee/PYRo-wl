@@ -11,31 +11,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
 {
 
     owner->_ctx.data.odom.real_x            = 0;
-
-    owner->_ctx.data.target_state[state_def::X] = 0;
-    owner->_ctx.data.target_state[state_def::DOT_X] = 0.0f;
-    owner->_ctx.data.target_state[state_def::PSI] =
-        owner->_ctx.data.ins.euler_rad[0];
-    owner->_ctx.data.target_state[state_def::DOT_PSI] = 0.0f;
+    owner->_ctx.data.measured_state[state_def::X] = 0.0f;
+    owner->_ctx.data.predict_state = owner->_ctx.data.measured_state;
+    owner->_ctx.data.dist = 0.0f;
+    owner->_ctx.data.target_state = 0.0f;
     owner->_ctx.data.target_state[state_def::L] =
         owner->_ctx.data.airborne.landing_recovery
             ? owner->_ctx.data.airborne.L_ref
             : NORMAL_LENGTH_TARGET;
-    owner->_ctx.data.target_state[state_def::DOT_L] = 0.0f;
-    owner->_ctx.data.target_state[state_def::THETA] = 0.0f;
-    owner->_ctx.data.target_state[state_def::DOT_THETA] = 0.0f;
-    owner->_ctx.data.target_state[state_def::PHI] = 0.0f;
-    owner->_ctx.data.target_state[state_def::DOT_PHI]   = 0.0f;
-    owner->_ctx.data.target_state[state_def::BETA_1] = 0.0f;
-    owner->_ctx.data.target_state[state_def::BETA_2] = 0.0f;
-    owner->_ctx.data.target_state[state_def::DOT_BETA_1] = 0.0f;
-    owner->_ctx.data.target_state[state_def::DOT_BETA_2] = 0.0f;
-
-
-    for (float & i : owner->_ctx.data.U0)
-    {
-        i = 0.0f;
-    }
+    owner->_ctx.data.U0 = 0.0f;
 
     float avg_length = (owner->_ctx.data.leg[leg_def::L].current_leg_length +
                         owner->_ctx.data.leg[leg_def::R].current_leg_length) *
@@ -77,7 +61,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
         }
         reset_count++;
     }
-    else 
+    else
     {
         reset_count = 0;
     }
@@ -98,7 +82,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
             std::clamp(owner->_ctx.data.target_state[state_def::L],
                        MIN_LEG_LENGTH, MAX_LEG_LENGTH);
     }
-    
+
 
     const float target_vx = owner->_current_cmd.v;
     owner->_ctx.data.target_state[state_def::X] +=
@@ -128,11 +112,12 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
+    owner->_leso_update();
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::exit(wl_chassis_t *owner)
 {
-    (void)owner;
+    owner->_ctx.data.dist = {};
 }
 
 } // namespace pyro

@@ -109,7 +109,7 @@ void wl_chassis_t::_update_feedback()
                                &_ctx.data.ins.accel[2]);
 
     // 7. State vector feedback.
-    auto &state         = _ctx.data.current_state;
+    auto &state         = _ctx.data.measured_state;
 
     state[state_def::X] = _ctx.data.odom.real_x;
     state[state_def::DOT_X] =
@@ -290,11 +290,6 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
 
 void wl_chassis_t::_fit_params()
 {
-    // const float norm_delta_L =
-    //     std::clamp((_ctx.data.leg[leg_def::L].current_leg_length -
-    //                 _ctx.data.leg[leg_def::R].current_leg_length) *
-    //                    (1.0f / 0.2f),
-    //                -1.0f, 1.0f);
     const float norm_L1 =
         std::clamp((_ctx.data.leg[leg_def::L].current_leg_length -
                     0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH)) *
@@ -306,9 +301,9 @@ void wl_chassis_t::_fit_params()
                        (1.0f / (0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH))),
                    -1.0f, 1.0f);
 
-    for (int32_t input = 0; input < INPUT_DIM; ++input)
+    for (uint32_t input = 0; input < INPUT_DIM; ++input)
     {
-        for (int32_t state = 0; state < STATE_DIM; ++state)
+        for (uint32_t state = 0; state < STATE_DIM; ++state)
         {
             float p_terms[K_POLY_DEGREE + 1];
             for (uint32_t p = 0; p <= K_POLY_DEGREE; ++p)
@@ -342,23 +337,35 @@ void wl_chassis_t::_leso_update()
     static arm_cmsis_dsp::Vector<float, STATE_DIM> L_xres{};
     static arm_cmsis_dsp::Vector<float, INPUT_DIM> L_dres{};
 
-    residual = _ctx.data.measured_state - _ctx.data.current_state;
+    residual = _ctx.data.measured_state - _ctx.data.predict_state;
     residual[state_def::PSI] =
         loop_fp32_constrain(residual[state_def::PSI], -PI, PI);
-    arm_cmsis_dsp::dot(Gxk, _ctx.data.G, _ctx.data.current_state);
+    arm_cmsis_dsp::dot(Gxk, _ctx.data.G, _ctx.data.predict_state);
     arm_cmsis_dsp::dot(Hdk, _ctx.data.H, _ctx.data.dist);
     arm_cmsis_dsp::dot(Huk, _ctx.data.H, _ctx.data.control);
     arm_cmsis_dsp::dot(L_xres, _ctx.data.L_x, residual);
     arm_cmsis_dsp::dot(L_dres, _ctx.data.L_d, residual);
 
-    _ctx.data.next_state = Gxk + Hdk + Huk + L_xres;
+    _ctx.data.predict_state = Gxk + Hdk + Huk + L_xres;
     _ctx.data.dist += L_dres;
+    _ctx.data.dist[input_def::T_W1] =
+        std::clamp(_ctx.data.dist[input_def::T_W1], -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
+    _ctx.data.dist[input_def::T_W2] =
+        std::clamp(_ctx.data.dist[input_def::T_W2], -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
+    _ctx.data.dist[input_def::T_P1] =
+        std::clamp(_ctx.data.dist[input_def::T_P1], -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
+    _ctx.data.dist[input_def::T_P2] =
+        std::clamp(_ctx.data.dist[input_def::T_P2], -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
+    _ctx.data.dist[input_def::F_L1] =
+        std::clamp(_ctx.data.dist[input_def::F_L1], -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
+    _ctx.data.dist[input_def::F_L2] =
+        std::clamp(_ctx.data.dist[input_def::F_L2], -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
 }
 
 void wl_chassis_t::_balance_control()
 {
     auto &error           = _ctx.data.error;
-    error                 = _ctx.data.target_state - _ctx.data.current_state;
+    error                 = _ctx.data.target_state - _ctx.data.predict_state;
     error[state_def::PSI] = loop_fp32_constrain(error[state_def::PSI], -PI, PI);
     arm_cmsis_dsp::dot(_ctx.data.control, _ctx.data.K, error);
     _ctx.data.output = _ctx.data.control + _ctx.data.U0 - _ctx.data.dist;

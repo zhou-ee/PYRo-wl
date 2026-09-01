@@ -64,6 +64,7 @@ constexpr float MAX_F_L                              = 300.0f;
 constexpr float MAX_T_P                              = 60.0f;
 constexpr float MAX_CURRENT                          = 15.0f;
 constexpr float MAX_T_W                              = K_t * MAX_CURRENT;
+constexpr float DIST_RATIO                       = 0.5f;
 
 // 300 N 气弹簧广义力拟合，适用腿长 L 范围为 [0.18, 0.38] m。
 // x = (L - 0.28) / 0.10，F_gas(L) = sum(c[k] * x^k)。

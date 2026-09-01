@@ -168,9 +168,9 @@ void wl_chassis_t::_execute_air_control()
         const uint8_t input_index =
             (i == leg_def::L) ? input_def::T_P1 :
                                 input_def::T_P2;
-        const float beta_error = -_ctx.data.current_state[beta_index];
+        const float beta_error = -_ctx.data.measured_state[beta_index];
         const float dot_beta_error =
-            -_ctx.data.current_state[dot_beta_index];
+            -_ctx.data.measured_state[dot_beta_index];
         leg.out_T_p = std::clamp(
             _ctx.data.K(input_index, beta_index) * beta_error +
                 _ctx.data.K(input_index, dot_beta_index) *
