@@ -114,6 +114,8 @@ void wl_chassis_t::_update_feedback()
     state[state_def::X] = _ctx.data.odom.real_x;
     state[state_def::DOT_X] =
         (_ctx.data.odom.real_dot_x[0] + _ctx.data.odom.real_dot_x[1]) / 2;
+
+    // @TODO: PSI修改为yaw电机反馈
     state[state_def::PSI]       = _ctx.data.ins.euler_rad[0];
     state[state_def::DOT_PSI]   = _ctx.data.ins.gyro[0];
     state[state_def::THETA]     = _ctx.data.ins.euler_rad[1];
@@ -245,15 +247,6 @@ void wl_chassis_t::_manual_control()
         _ctx.pid.leg_control_radps[leg_def::R]->calculate(
             rl_target_radps, _ctx.data.leg[leg_def::R].current_leg_radps);
 
-    // _ctx.data.leg[leg_def::L].out_T_p =
-    // _ctx.pid.leg_rad[leg_def::L]->calculate(
-    //     0.0f, _ctx.data.leg[leg_def::L].error_leg_rad,
-    //     _ctx.data.leg[leg_def::L].current_leg_radps);
-
-    // _ctx.data.leg[leg_def::R].out_T_p =
-    // _ctx.pid.leg_rad[leg_def::R]->calculate(
-    //     0.0f, _ctx.data.leg[leg_def::R].error_leg_rad,
-    //     _ctx.data.leg[leg_def::R].current_leg_radps);
 }
 
 float wl_chassis_t::_calc_leg_length_wall_force(const leg_ctx_t &leg) const
@@ -342,7 +335,7 @@ void wl_chassis_t::_leso_update()
         loop_fp32_constrain(residual[state_def::PSI], -PI, PI);
     arm_cmsis_dsp::dot(Gxk, _ctx.data.G, _ctx.data.predict_state);
     arm_cmsis_dsp::dot(Hdk, _ctx.data.H, _ctx.data.dist);
-    arm_cmsis_dsp::dot(Huk, _ctx.data.H, _ctx.data.control);
+    arm_cmsis_dsp::dot(Huk, _ctx.data.H, _ctx.data.output - _ctx.data.U0);
     arm_cmsis_dsp::dot(L_xres, _ctx.data.L_x, residual);
     arm_cmsis_dsp::dot(L_dres, _ctx.data.L_d, residual);
 
@@ -370,6 +363,7 @@ void wl_chassis_t::_balance_control()
     arm_cmsis_dsp::dot(_ctx.data.control, _ctx.data.K, error);
     _ctx.data.output = _ctx.data.control + _ctx.data.U0 - _ctx.data.dist;
 
+    // @TODO: 所有输出量均需要修改向量output，便于统一控制和明确语义
     _ctx.data.output[input_def::T_W1] =
         std::clamp(_ctx.data.output[input_def::T_W1], -MAX_T_W, MAX_T_W);
     _ctx.data.output[input_def::T_W2] =

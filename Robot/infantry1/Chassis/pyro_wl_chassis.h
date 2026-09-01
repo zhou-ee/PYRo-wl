@@ -22,10 +22,8 @@ struct wl_chassis_deps_t
     struct pid_deps_t
     {
         pd_ctrl_t *leg_length[2];
-
-        pd_ctrl_t *leg_rad[2];
-        pyro::pid_t *leg_control_rad[2];   // 角度环
-        pyro::pid_t *leg_control_radps[2]; // 速度环
+        pid_t *leg_control_rad[2];   // 角度环
+        pid_t *leg_control_radps[2]; // 速度环
     };
     motor_deps_t motor;
     pid_deps_t pid;
@@ -137,19 +135,32 @@ struct wl_chassis_data_ctx_t
 {
     leg_ctx_t leg[2];
     wheel_ctx_t wheel[2];
-    arm_cmsis_dsp::Vector<float, STATE_DIM> target_state{};
-    arm_cmsis_dsp::Vector<float, STATE_DIM> error{};
-    arm_cmsis_dsp::Vector<float, STATE_DIM> measured_state{};
-    arm_cmsis_dsp::Vector<float, STATE_DIM> predict_state{};
-    arm_cmsis_dsp::Vector<float, INPUT_DIM> dist{};
-    arm_cmsis_dsp::Vector<float, INPUT_DIM> control{};
-    arm_cmsis_dsp::Vector<float, INPUT_DIM> U0{};
-    arm_cmsis_dsp::Vector<float, INPUT_DIM> output{};
-    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> K{};
-    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> G{};
-    arm_cmsis_dsp::Matrix<float, STATE_DIM, INPUT_DIM> H{};
-    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> L_x{};
-    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> L_d{};
+    arm_cmsis_dsp::Vector<float, STATE_DIM> target_state =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, STATE_DIM> error =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, STATE_DIM> measured_state =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, STATE_DIM> predict_state =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> dist =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> control =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> U0 =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> output =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> K =
+        arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> G =
+        arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, INPUT_DIM> H =
+        arm_cmsis_dsp::Matrix<float, STATE_DIM, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> L_x =
+        arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> L_d =
+        arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM>(0.0f);
 
 
     flag_data_t flag;

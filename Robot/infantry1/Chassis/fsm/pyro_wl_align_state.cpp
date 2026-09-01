@@ -34,6 +34,7 @@ namespace pyro
         }
 
         //复位的角度小量计算
+        // @TODO: 复位时将yaw轴控制权转交给底盘，控制相对角度为0作为起身必要条件
         right_leg_delta_rad    = (loop_fp32_constrain(ALIGN_TARGET_RAD-owner->_ctx.data.leg[leg_def::R].target_leg_rad,0,2*PI))/ALIGN_TIME_MS;
         left_leg_delta_rad     = (loop_fp32_constrain(ALIGN_TARGET_RAD-owner->_ctx.data.leg[leg_def::L].target_leg_rad,0,2*PI))/ALIGN_TIME_MS;
         right_leg_delta_length = (ALIGN_TARGET_LENGTH - owner->_ctx.data.leg[leg_def::R].target_leg_length)/ALIGN_TIME_MS;

@@ -35,10 +35,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
         leg.out_joint_torque[joint_def::HIP]  = 0;
         leg.out_joint_torque[joint_def::KNEE] = 0;
     }
-    // owner->_ctx.pid.leg_length[leg_def::L]->clear();
-    // owner->_ctx.pid.leg_length[leg_def::R]->clear();
-    owner->_ctx.pid.leg_rad[leg_def::L]->clear();
-    owner->_ctx.pid.leg_rad[leg_def::R]->clear();
 
 
     owner->_ctx.motor.wheel[leg_def::L]->enable();
@@ -117,7 +113,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
 
 void wl_chassis_t::fsm_active_t::state_normal_t::exit(wl_chassis_t *owner)
 {
-    owner->_ctx.data.dist = {};
+    owner->_ctx.data.dist = 0.0f;
 }
 
 } // namespace pyro
