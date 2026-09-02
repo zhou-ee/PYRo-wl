@@ -1,7 +1,7 @@
 #ifndef __WL_CONFIG_H__
 #define __WL_CONFIG_H__
 #include "pyro_algo_common.h"
-#include "lqr_coef.h"
+#include "coef.h"
 
 namespace pyro
 {

@@ -319,6 +319,173 @@ void wl_chassis_t::_fit_params()
     _ctx.data.target_state[state_def::BETA_2] = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);
+
+    // BEGIN GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
+    // Static dimensions, modes and coefficients are in coef.h.
+    float leso_chebyshev[2][LESO_CHEBYSHEV_DEGREE + 1] = {};
+    leso_chebyshev[0][0] = 1.0f;
+    leso_chebyshev[1][0] = 1.0f;
+    leso_chebyshev[0][1] = norm_L1;
+    leso_chebyshev[1][1] = norm_L2;
+    for (uint32_t order = 2; order <= LESO_CHEBYSHEV_DEGREE; ++order)
+    {
+        for (uint32_t axis = 0; axis < 2; ++axis)
+        {
+            const float product = leso_chebyshev[axis][1] *
+                                  leso_chebyshev[axis][order - 1];
+            leso_chebyshev[axis][order] =
+                product + product - leso_chebyshev[axis][order - 2];
+        }
+    }
+
+    float leso_even_basis[LESO_EVEN_TERM_COUNT] = {};
+    for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
+    {
+        const uint32_t p = LESO_EVEN_TERMS[term][0];
+        const uint32_t q = LESO_EVEN_TERMS[term][1];
+        const float direct = leso_chebyshev[0][p] * leso_chebyshev[1][q];
+        leso_even_basis[term] =
+            (p == q) ? direct : direct + leso_chebyshev[0][q] * leso_chebyshev[1][p];
+    }
+    float leso_odd_basis[LESO_ODD_TERM_COUNT] = {};
+    for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
+    {
+        const uint32_t p = LESO_ODD_TERMS[term][0];
+        const uint32_t q = LESO_ODD_TERMS[term][1];
+        leso_odd_basis[term] =
+            leso_chebyshev[0][p] * leso_chebyshev[1][q] -
+            leso_chebyshev[0][q] * leso_chebyshev[1][p];
+    }
+
+    float leso_g_even_values[LESO_G_EVEN_RANK] = {};
+    for (uint32_t mode = 0; mode < LESO_G_EVEN_RANK; ++mode)
+    {
+        for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
+        {
+            leso_g_even_values[mode] +=
+                LESO_G_EVEN_COEFFICIENTS[mode][term] * leso_even_basis[term];
+        }
+    }
+    float leso_g_odd_values[LESO_G_ODD_RANK] = {};
+    for (uint32_t mode = 0; mode < LESO_G_ODD_RANK; ++mode)
+    {
+        for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
+        {
+            leso_g_odd_values[mode] +=
+                LESO_G_ODD_COEFFICIENTS[mode][term] * leso_odd_basis[term];
+        }
+    }
+
+    float leso_h_even_values[LESO_H_EVEN_RANK] = {};
+    for (uint32_t mode = 0; mode < LESO_H_EVEN_RANK; ++mode)
+    {
+        for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
+        {
+            leso_h_even_values[mode] +=
+                LESO_H_EVEN_COEFFICIENTS[mode][term] * leso_even_basis[term];
+        }
+    }
+    float leso_h_odd_values[LESO_H_ODD_RANK] = {};
+    for (uint32_t mode = 0; mode < LESO_H_ODD_RANK; ++mode)
+    {
+        for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
+        {
+            leso_h_odd_values[mode] +=
+                LESO_H_ODD_COEFFICIENTS[mode][term] * leso_odd_basis[term];
+        }
+    }
+
+    float leso_ld_even_values[LESO_LD_EVEN_RANK] = {};
+    for (uint32_t mode = 0; mode < LESO_LD_EVEN_RANK; ++mode)
+    {
+        for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
+        {
+            leso_ld_even_values[mode] +=
+                LESO_LD_EVEN_COEFFICIENTS[mode][term] * leso_even_basis[term];
+        }
+    }
+    float leso_ld_odd_values[LESO_LD_ODD_RANK] = {};
+    for (uint32_t mode = 0; mode < LESO_LD_ODD_RANK; ++mode)
+    {
+        for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
+        {
+            leso_ld_odd_values[mode] +=
+                LESO_LD_ODD_COEFFICIENTS[mode][term] * leso_odd_basis[term];
+        }
+    }
+
+    for (uint32_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint32_t column = 0; column < STATE_DIM; ++column)
+        {
+            _ctx.data.G(row, column) = (row == column) ? 1.0f : 0.0f;
+        }
+    }
+    _ctx.data.G(state_def::X, state_def::DOT_X) = LESO_SAMPLE_TIME;
+    _ctx.data.G(state_def::PSI, state_def::DOT_PSI) = LESO_SAMPLE_TIME;
+    for (uint32_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint32_t scheduled_column = 0;
+             scheduled_column < LESO_G_COLUMN_COUNT; ++scheduled_column)
+        {
+            float value = LESO_G_MEAN[row][scheduled_column];
+            for (uint32_t mode = 0; mode < LESO_G_EVEN_RANK; ++mode)
+            {
+                value += leso_g_even_values[mode] *
+                         LESO_G_EVEN_MODES[mode][row][scheduled_column];
+            }
+            for (uint32_t mode = 0; mode < LESO_G_ODD_RANK; ++mode)
+            {
+                value += leso_g_odd_values[mode] *
+                         LESO_G_ODD_MODES[mode][row][scheduled_column];
+            }
+            _ctx.data.G(row, scheduled_column + LESO_G_COLUMN_OFFSET) += value;
+        }
+    }
+
+    for (uint32_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint32_t column = 0; column < INPUT_DIM; ++column)
+        {
+            float value = LESO_H_MEAN[row][column];
+            for (uint32_t mode = 0; mode < LESO_H_EVEN_RANK; ++mode)
+            {
+                value += leso_h_even_values[mode] * LESO_H_EVEN_MODES[mode][row][column];
+            }
+            for (uint32_t mode = 0; mode < LESO_H_ODD_RANK; ++mode)
+            {
+                value += leso_h_odd_values[mode] * LESO_H_ODD_MODES[mode][row][column];
+            }
+            _ctx.data.H(row, column) = value;
+        }
+    }
+
+    for (uint32_t row = 0; row < INPUT_DIM; ++row)
+    {
+        for (uint32_t column = 0; column < STATE_DIM; ++column)
+        {
+            float value = LESO_LD_MEAN[row][column];
+            for (uint32_t mode = 0; mode < LESO_LD_EVEN_RANK; ++mode)
+            {
+                value += leso_ld_even_values[mode] * LESO_LD_EVEN_MODES[mode][row][column];
+            }
+            for (uint32_t mode = 0; mode < LESO_LD_ODD_RANK; ++mode)
+            {
+                value += leso_ld_odd_values[mode] * LESO_LD_ODD_MODES[mode][row][column];
+            }
+            _ctx.data.L_d(row, column) = value;
+        }
+    }
+
+    for (uint32_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint32_t column = 0; column < STATE_DIM; ++column)
+        {
+            _ctx.data.L_x(row, column) = _ctx.data.G(row, column);
+        }
+        _ctx.data.L_x(row, row) -= LESO_UNMATCHED_POLE;
+    }
+    // END GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
 }
 
 void wl_chassis_t::_leso_update()
