@@ -1,5 +1,5 @@
 {
-  "cfg_path": "C:\\Users\\ssyss\\AppData\\Roaming\\EmbeddedTool\\user_configs\\stm32h7_daplink.cfg",
+  "cfg_path": "C:\\Users\\zhou_\\AppData\\Roaming\\EmbeddedTool\\user_configs\\stm32g4_daplink .cfg",
   "flash_mode": "Run",
   "cmake_options": "-DROBOT_ID=3",
   "backend_type": "OpenOCD",

@@ -339,78 +339,53 @@ void wl_chassis_t::_fit_params()
     }
 
     float leso_even_basis[LESO_EVEN_TERM_COUNT] = {};
+    float leso_odd_basis[LESO_ODD_TERM_COUNT] = {};
+    uint32_t odd_term = 0;
     for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
     {
-        const uint32_t p = LESO_EVEN_TERMS[term][0];
-        const uint32_t q = LESO_EVEN_TERMS[term][1];
+        const uint32_t p = LESO_TERMS[term][0];
+        const uint32_t q = LESO_TERMS[term][1];
         const float direct = leso_chebyshev[0][p] * leso_chebyshev[1][q];
-        leso_even_basis[term] =
-            (p == q) ? direct : direct + leso_chebyshev[0][q] * leso_chebyshev[1][p];
-    }
-    float leso_odd_basis[LESO_ODD_TERM_COUNT] = {};
-    for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
-    {
-        const uint32_t p = LESO_ODD_TERMS[term][0];
-        const uint32_t q = LESO_ODD_TERMS[term][1];
-        leso_odd_basis[term] =
-            leso_chebyshev[0][p] * leso_chebyshev[1][q] -
-            leso_chebyshev[0][q] * leso_chebyshev[1][p];
+        if (p == q)
+        {
+            leso_even_basis[term] = direct;
+        }
+        else
+        {
+            const float exchanged =
+                leso_chebyshev[0][q] * leso_chebyshev[1][p];
+            leso_even_basis[term] = direct + exchanged;
+            leso_odd_basis[odd_term++] = direct - exchanged;
+        }
     }
 
-    float leso_g_even_values[LESO_G_EVEN_RANK] = {};
-    for (uint32_t mode = 0; mode < LESO_G_EVEN_RANK; ++mode)
+    float leso_g_even_values[LESO_POD_RANK] = {};
+    float leso_g_odd_values[LESO_POD_RANK] = {};
+    float leso_h_even_values[LESO_POD_RANK] = {};
+    float leso_h_odd_values[LESO_POD_RANK] = {};
+    float leso_ld_even_values[LESO_POD_RANK] = {};
+    float leso_ld_odd_values[LESO_POD_RANK] = {};
+    for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
     {
         for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
         {
+            const float basis = leso_even_basis[term];
             leso_g_even_values[mode] +=
-                LESO_G_EVEN_COEFFICIENTS[mode][term] * leso_even_basis[term];
-        }
-    }
-    float leso_g_odd_values[LESO_G_ODD_RANK] = {};
-    for (uint32_t mode = 0; mode < LESO_G_ODD_RANK; ++mode)
-    {
-        for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
-        {
-            leso_g_odd_values[mode] +=
-                LESO_G_ODD_COEFFICIENTS[mode][term] * leso_odd_basis[term];
-        }
-    }
-
-    float leso_h_even_values[LESO_H_EVEN_RANK] = {};
-    for (uint32_t mode = 0; mode < LESO_H_EVEN_RANK; ++mode)
-    {
-        for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
-        {
+                LESO_G_EVEN_COEFFICIENTS[mode][term] * basis;
             leso_h_even_values[mode] +=
-                LESO_H_EVEN_COEFFICIENTS[mode][term] * leso_even_basis[term];
-        }
-    }
-    float leso_h_odd_values[LESO_H_ODD_RANK] = {};
-    for (uint32_t mode = 0; mode < LESO_H_ODD_RANK; ++mode)
-    {
-        for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
-        {
-            leso_h_odd_values[mode] +=
-                LESO_H_ODD_COEFFICIENTS[mode][term] * leso_odd_basis[term];
-        }
-    }
-
-    float leso_ld_even_values[LESO_LD_EVEN_RANK] = {};
-    for (uint32_t mode = 0; mode < LESO_LD_EVEN_RANK; ++mode)
-    {
-        for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
-        {
+                LESO_H_EVEN_COEFFICIENTS[mode][term] * basis;
             leso_ld_even_values[mode] +=
-                LESO_LD_EVEN_COEFFICIENTS[mode][term] * leso_even_basis[term];
+                LESO_LD_EVEN_COEFFICIENTS[mode][term] * basis;
         }
-    }
-    float leso_ld_odd_values[LESO_LD_ODD_RANK] = {};
-    for (uint32_t mode = 0; mode < LESO_LD_ODD_RANK; ++mode)
-    {
         for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
         {
+            const float basis = leso_odd_basis[term];
+            leso_g_odd_values[mode] +=
+                LESO_G_ODD_COEFFICIENTS[mode][term] * basis;
+            leso_h_odd_values[mode] +=
+                LESO_H_ODD_COEFFICIENTS[mode][term] * basis;
             leso_ld_odd_values[mode] +=
-                LESO_LD_ODD_COEFFICIENTS[mode][term] * leso_odd_basis[term];
+                LESO_LD_ODD_COEFFICIENTS[mode][term] * basis;
         }
     }
 
@@ -429,35 +404,38 @@ void wl_chassis_t::_fit_params()
              scheduled_column < LESO_G_COLUMN_COUNT; ++scheduled_column)
         {
             float value = LESO_G_MEAN[row][scheduled_column];
-            for (uint32_t mode = 0; mode < LESO_G_EVEN_RANK; ++mode)
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_g_even_values[mode] *
                          LESO_G_EVEN_MODES[mode][row][scheduled_column];
             }
-            for (uint32_t mode = 0; mode < LESO_G_ODD_RANK; ++mode)
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_g_odd_values[mode] *
                          LESO_G_ODD_MODES[mode][row][scheduled_column];
             }
             _ctx.data.G(row, scheduled_column + LESO_G_COLUMN_OFFSET) += value;
         }
-    }
 
-    for (uint32_t row = 0; row < STATE_DIM; ++row)
-    {
         for (uint32_t column = 0; column < INPUT_DIM; ++column)
         {
             float value = LESO_H_MEAN[row][column];
-            for (uint32_t mode = 0; mode < LESO_H_EVEN_RANK; ++mode)
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_h_even_values[mode] * LESO_H_EVEN_MODES[mode][row][column];
             }
-            for (uint32_t mode = 0; mode < LESO_H_ODD_RANK; ++mode)
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_h_odd_values[mode] * LESO_H_ODD_MODES[mode][row][column];
             }
             _ctx.data.H(row, column) = value;
         }
+
+        for (uint32_t column = 0; column < STATE_DIM; ++column)
+        {
+            _ctx.data.L_x(row, column) = _ctx.data.G(row, column);
+        }
+        _ctx.data.L_x(row, row) -= LESO_UNMATCHED_POLE;
     }
 
     for (uint32_t row = 0; row < INPUT_DIM; ++row)
@@ -465,25 +443,16 @@ void wl_chassis_t::_fit_params()
         for (uint32_t column = 0; column < STATE_DIM; ++column)
         {
             float value = LESO_LD_MEAN[row][column];
-            for (uint32_t mode = 0; mode < LESO_LD_EVEN_RANK; ++mode)
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_ld_even_values[mode] * LESO_LD_EVEN_MODES[mode][row][column];
             }
-            for (uint32_t mode = 0; mode < LESO_LD_ODD_RANK; ++mode)
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_ld_odd_values[mode] * LESO_LD_ODD_MODES[mode][row][column];
             }
             _ctx.data.L_d(row, column) = value;
         }
-    }
-
-    for (uint32_t row = 0; row < STATE_DIM; ++row)
-    {
-        for (uint32_t column = 0; column < STATE_DIM; ++column)
-        {
-            _ctx.data.L_x(row, column) = _ctx.data.G(row, column);
-        }
-        _ctx.data.L_x(row, row) -= LESO_UNMATCHED_POLE;
     }
     // END GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
 }
