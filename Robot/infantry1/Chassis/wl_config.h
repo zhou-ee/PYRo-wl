@@ -109,6 +109,8 @@ constexpr float L_WP_POLY_COEF[L_WP_POLY_DEGREE + 1] = {0.0581f, 0.3760f,
 
 constexpr float WHEEL_RADIUS                         = 0.06f;
 
+constexpr static float YAW_OFFSET = -2.2f;
+
 
 namespace leg_def
 {

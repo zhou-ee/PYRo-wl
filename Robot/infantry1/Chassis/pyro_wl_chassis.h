@@ -107,6 +107,7 @@ struct wheel_ctx_t
 struct yaw_ctx_t
 {
     float pos;
+    float rot;
 };
 
 

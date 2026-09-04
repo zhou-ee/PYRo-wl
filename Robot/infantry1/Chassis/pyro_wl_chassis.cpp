@@ -6,7 +6,7 @@
 #include "dsp/fast_math_functions.h"
 #include "dsppp/memory_pool.hpp"
 #include "dsppp/matrix.hpp"
-#include "gas_spring_compensation_table.h"
+#include "wl_config.h"
 
 #include <algorithm>
 #include <cmath>
@@ -56,6 +56,7 @@ void wl_chassis_t::_update_feedback()
         }
         _ctx.motor.wheel[leg]->update_feedback();
     }
+    _ctx.motor.yaw->update_feedback();
 
     // 3. Read and organize all leg-related feedback.
     constexpr float JOINT_POSITION_OFFSET[2][2] = {
@@ -89,6 +90,9 @@ void wl_chassis_t::_update_feedback()
         wheel_ctx.current_T_w = wheel_motor->get_current_torque() *
                                 wheel_ctx.direction * rec_reduction_ratio;
     }
+
+    _ctx.data.yaw.pos = _ctx.motor.yaw->get_current_position() - YAW_OFFSET;
+    _ctx.data.yaw.rot = _ctx.motor.yaw->get_current_rotate();
 
     // 4. Convert joint-space feedback to virtual-mechanism feedback.
     _vmc_trans_j2v();
@@ -163,8 +167,8 @@ void wl_chassis_t::_update_feedback()
     // otherwise compensation lowers motor torque and looks like loss of contact.
     _calc_support_force();
 
-    _ctx.motor.yaw->update_feedback();
-    _ctx.data.yaw.pos = _module_deps.motor.yaw->get_current_position();
+    
+    
 }
 
 
