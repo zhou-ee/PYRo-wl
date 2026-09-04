@@ -17,6 +17,7 @@ struct wl_chassis_deps_t
     {
         motor_base_t *joint[2][2];
         motor_base_t *wheel[2];
+        motor_base_t *yaw;
     };
 
     struct pid_deps_t
