@@ -30,7 +30,11 @@ void pyro::wl_gimbal_t::fsm_active_t::state_align_t::execute(owner *owner)
         {
             if(count >= 50)
             {
-                request_switch(&owner->_state_active._state_manual);
+                if(owner->_ctx.data.chassis_is_ready)
+                {
+                    request_switch(&owner->_state_active._state_manual);
+                }
+                
             }
             count++;
         }
