@@ -59,16 +59,10 @@ void wl_chassis_t::_calc_support_force()
 
         // Motor torque feedback excludes the passive gas spring. Add the
         // physical spring contribution back for contact/takeoff detection.
-        const float gas_f_l = _ctx.data.gas_spring_compensation_active
-                                  ? leg.gas_f_l / compensation_scale
-                                  : 0.0f;
-        const float gas_t_p = _ctx.data.gas_spring_compensation_active
-                                  ? leg.gas_t_p / compensation_scale
-                                  : 0.0f;
         const float support_force_raw =
-            (leg.current_F_L + gas_f_l) * cos_beta +
-            (leg.current_T_p + gas_t_p) / length * sin_beta +
-            SUPPORT_FORCE_EFFECTIVE_MASS * leg_endpoint_accel;
+            (leg.current_F_L) * cos_beta;
+            // + leg.current_T_p / length * sin_beta
+            // + SUPPORT_FORCE_EFFECTIVE_MASS * leg_endpoint_accel;
         _ctx.data.airborne.support_force[i] +=
             support_alpha *
                 (support_force_raw + SUPPORT_FORCE_BIAS[i] -
@@ -137,25 +131,25 @@ void wl_chassis_t::_execute_landing_recovery()
     }
 
     const float error =
-        NORMAL_LENGTH_TARGET - _ctx.data.target_state.L;
+        NORMAL_LENGTH_TARGET - _ctx.data.vector.target_state[state_def::L];
     const float max_step = AIR_LENGTH_RECOVERY_RATE * _ctx.data._dt;
     const float step = std::clamp(error, -max_step, max_step);
-    _ctx.data.target_state.L += step;
-    _ctx.data.target_state.dot_L =
+    _ctx.data.vector.target_state[state_def::L] += step;
+    _ctx.data.vector.target_state[state_def::DOT_L] =
         (_ctx.data._dt > 1.0e-5f) ? step / _ctx.data._dt : 0.0f;
 
     if (std::fabs(error) <= AIR_LENGTH_RECOVERY_EPSILON &&
         _ctx.data.airborne.support_force_sum > AIR_CONTACT_FORCE_OFF)
     {
-        _ctx.data.target_state.L = NORMAL_LENGTH_TARGET;
-        _ctx.data.target_state.dot_L = 0.0f;
+        _ctx.data.vector.target_state[state_def::L] = NORMAL_LENGTH_TARGET;
+        _ctx.data.vector.target_state[state_def::DOT_L] = 0.0f;
         _ctx.data.airborne.landing_recovery = false;
     }
 }
 
 void wl_chassis_t::_execute_air_control()
 {
-    _gain_calculate();
+    _fit_params();
     for (uint8_t i = 0; i < 2; ++i)
     {
         leg_ctx_t &leg = _ctx.data.leg[i];
@@ -170,20 +164,20 @@ void wl_chassis_t::_execute_air_control()
             leg.current_leg_speed);
 
         const uint8_t beta_index =
-            (i == leg_def::L) ? lqr_state_def::BETA_1 :
-                                lqr_state_def::BETA_2;
+            (i == leg_def::L) ? state_def::BETA_1 :
+                                state_def::BETA_2;
         const uint8_t dot_beta_index =
-            (i == leg_def::L) ? lqr_state_def::DOT_BETA_1 :
-                                lqr_state_def::DOT_BETA_2;
+            (i == leg_def::L) ? state_def::DOT_BETA_1 :
+                                state_def::DOT_BETA_2;
         const uint8_t input_index =
-            (i == leg_def::L) ? lqr_input_def::T_P1 :
-                                lqr_input_def::T_P2;
-        const float beta_error = -_ctx.data.current_state.data[beta_index];
+            (i == leg_def::L) ? input_def::T_P1 :
+                                input_def::T_P2;
+        const float beta_error = -_ctx.data.vector.measured_state[beta_index];
         const float dot_beta_error =
-            -_ctx.data.current_state.data[dot_beta_index];
+            -_ctx.data.vector.measured_state[dot_beta_index];
         leg.out_T_p = std::clamp(
-            _ctx.data.K[input_index][beta_index] * beta_error +
-                _ctx.data.K[input_index][dot_beta_index] *
+            _ctx.data.matrix.K(input_index, beta_index) * beta_error +
+                _ctx.data.matrix.K(input_index, dot_beta_index) *
                     dot_beta_error,
             -MAX_T_P, MAX_T_P);
 
@@ -224,9 +218,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::execute(wl_chassis
         owner->_ctx.data.airborne.L_ref =
             0.5f * (owner->_ctx.data.leg[leg_def::L].current_leg_length +
                     owner->_ctx.data.leg[leg_def::R].current_leg_length);
-        owner->_ctx.data.target_state.L =
+        owner->_ctx.data.vector.target_state[state_def::L] =
             owner->_ctx.data.airborne.L_ref;
-        owner->_ctx.data.target_state.dot_L = 0.0f;
+        owner->_ctx.data.vector.target_state[state_def::DOT_L] = 0.0f;
         owner->_ctx.data.airborne.takeoff_counter = 0;
         owner->_ctx.data.airborne.landing_counter = 0;
         request_switch(&owner->_state_active._state_normal._state_balance);

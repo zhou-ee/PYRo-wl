@@ -81,26 +81,7 @@ float bilinear_value(const float *values, uint16_t length_count,
     return along_beta_0 + length_interval.alpha * (along_beta_1 - along_beta_0);
 }
 
-gas_spring_lookup_t lookup_gas_spring(const gas_spring_table::table_t &table,
-                                      float leg_length, float beta)
-{
-    if (table.lengths == nullptr || table.betas == nullptr ||
-        table.f_gas_l == nullptr || table.t_gas_beta == nullptr ||
-        table.length_count == 0u || table.beta_count == 0u)
-    {
-        return {};
-    }
-    const lookup_interval_t length_interval =
-        find_lookup_interval(table.lengths, table.length_count, leg_length);
-    const lookup_interval_t beta_interval =
-        find_lookup_interval(table.betas, table.beta_count, beta);
-    return {
-        bilinear_value(table.f_gas_l, table.length_count, table.beta_count,
-                       length_interval, beta_interval),
-        bilinear_value(table.t_gas_beta, table.length_count, table.beta_count,
-                       length_interval, beta_interval),
-        true};
-}
+
 } // namespace
 
 wl_chassis_t::wl_chassis_t() : module_base_t("wl_chassis")
@@ -249,7 +230,6 @@ void wl_chassis_t::_update_feedback()
     // Refresh with the current body pitch before support-force estimation.
     // The takeoff detector must account for force carried by the gas spring,
     // otherwise compensation lowers motor torque and looks like loss of contact.
-    _apply_gas_spring_compensation();
     _calc_support_force();
 
     _ctx.motor.yaw->update_feedback();

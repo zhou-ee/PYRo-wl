@@ -129,7 +129,7 @@ struct ins_data_t
 
 struct airborne_data_t
 {
-    chassis_state_t state    = chassis_state_t::NORMAL;
+    chassis_function_state_t state    = chassis_function_state_t::NONE;
     bool landing_recovery    = false;
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
@@ -240,7 +240,6 @@ class wl_chassis_t final
     void _manual_control();
     void _fit_params();
     void _balance_control();
-    void _apply_gas_spring_compensation();
     void _vmc_trans_v2j();
     void _send_joint_torque() const;
     void _send_wheel_torque() const;
