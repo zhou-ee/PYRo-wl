@@ -100,7 +100,7 @@ void wl_chassis_t::_update_feedback()
         _ctx.data._dt;
 
     // 6. Read IMU feedback.
-    auto ins = ins_drv_t::get_instance();
+    const auto ins = ins_drv_t::get_instance();
     ins->get_rads_n(&_ctx.data.ins.euler_rad[0], &_ctx.data.ins.euler_rad[1],
                     &_ctx.data.ins.euler_rad[2]);
     ins->get_gyro_b(&_ctx.data.ins.gyro[0], &_ctx.data.ins.gyro[1],
@@ -192,24 +192,25 @@ void wl_chassis_t::_vmc_trans_j2v()
                                 2;
         const float sin_theta  = arm_sin_f32(theta);
         const float cos_theta  = arm_cos_f32(theta);
-        float OH               = OJ5 * cos_theta;
-        float HJ5              = OJ5 * sin_theta;
-        float HJ4              = sqrt(J4J5 * J4J5 - HJ5 * HJ5);
-        float OJ4              = OH + HJ4;
+        const float OH         = OJ5 * cos_theta;
+        const float HJ5        = OJ5 * sin_theta;
+        const float HJ4        = sqrt(J4J5 * J4J5 - HJ5 * HJ5);
+        const float OJ4        = OH + HJ4;
         leg.J_L                = -OJ8 * sin_theta * (OJ4 / HJ4);
         leg.current_leg_length = OJ4 * OJ8 / OJ5;
-        leg.gas_spring_force  = _calc_gas_spring_force(leg.current_leg_length);
-        leg.current_leg_speed = dot_theta * leg.J_L;
+        leg.gas_spring_force   = _calc_gas_spring_force(leg.current_leg_length);
+        leg.current_leg_speed  = dot_theta * leg.J_L;
 
-        const float raw_beta  = leg.current_joint_rad[joint_def::HIP] + theta;
-        const float beta      = loop_fp32_constrain(raw_beta, -PI, PI);
-        leg.current_leg_rad   = beta;
-        leg.current_leg_radps = (leg.current_joint_radps[joint_def::KNEE] +
+        const float raw_beta   = leg.current_joint_rad[joint_def::HIP] + theta;
+        const float beta       = loop_fp32_constrain(raw_beta, -PI, PI);
+        leg.current_leg_rad    = beta;
+        leg.current_leg_radps  = (leg.current_joint_radps[joint_def::KNEE] +
                                  leg.current_joint_radps[joint_def::HIP]) /
                                 2;
         leg.current_F_L = (leg.current_joint_torque[joint_def::KNEE] -
                            leg.current_joint_torque[joint_def::HIP]) /
-                          leg.J_L + leg.gas_spring_force;
+                              leg.J_L +
+                          leg.gas_spring_force;
         leg.current_T_p = leg.current_joint_torque[joint_def::KNEE] +
                           leg.current_joint_torque[joint_def::HIP];
     }
@@ -217,12 +218,12 @@ void wl_chassis_t::_vmc_trans_j2v()
 
 void wl_chassis_t::_vmc_trans_v2j()
 {
-    constexpr float MAX_MOTOR_TORQUE = 40.0f;
 
     for (auto &leg : _ctx.data.leg)
     {
-        float tau_sum  = leg.out_T_p;
-        float tau_diff = leg.out_F_L * leg.J_L;
+        constexpr float MAX_MOTOR_TORQUE     = 40.0f;
+        const float tau_sum                  = leg.out_T_p;
+        const float tau_diff                 = leg.out_F_L * leg.J_L;
         leg.out_joint_torque[joint_def::HIP] = std::clamp(
             (tau_sum - tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
         leg.out_joint_torque[joint_def::KNEE] = std::clamp(
@@ -263,11 +264,12 @@ void wl_chassis_t::_manual_control()
 
 void wl_chassis_t::_balance_control()
 {
-    auto &error           = _ctx.data.vector.error;
-    error                 = _ctx.data.vector.target_state - _ctx.data.vector.predict_state;
+    auto &error = _ctx.data.vector.error;
+    error = _ctx.data.vector.target_state - _ctx.data.vector.predict_state;
     error[state_def::PSI] = loop_fp32_constrain(error[state_def::PSI], -PI, PI);
     arm_cmsis_dsp::dot(_ctx.data.vector.control, _ctx.data.matrix.K, error);
-    _ctx.data.vector.output = _ctx.data.vector.control + _ctx.data.vector.U0 - _ctx.data.vector.dist;
+    _ctx.data.vector.output =
+        _ctx.data.vector.control + _ctx.data.vector.U0 - _ctx.data.vector.dist;
 
     // @TODO: 所有输出量均需要修改向量output，便于统一控制和明确语义
     _ctx.data.vector.output[input_def::T_W1] =
@@ -284,20 +286,26 @@ void wl_chassis_t::_balance_control()
     auto &leg_R              = _ctx.data.leg[leg_def::R];
     leg_L.virtual_wall_force = _calc_leg_length_wall_force(leg_L);
     leg_R.virtual_wall_force = _calc_leg_length_wall_force(leg_R);
-    _ctx.data.vector.output[input_def::F_L1] =
-        std::clamp(_ctx.data.vector.output[input_def::F_L1] + leg_L.virtual_wall_force,
-                   -MAX_F_L, MAX_F_L);
-    _ctx.data.vector.output[input_def::F_L2] =
-        std::clamp(_ctx.data.vector.output[input_def::F_L2] + leg_R.virtual_wall_force,
-                   -MAX_F_L, MAX_F_L);
+    _ctx.data.vector.output[input_def::F_L1] = std::clamp(
+        _ctx.data.vector.output[input_def::F_L1] + leg_L.virtual_wall_force,
+        -MAX_F_L, MAX_F_L);
+    _ctx.data.vector.output[input_def::F_L2] = std::clamp(
+        _ctx.data.vector.output[input_def::F_L2] + leg_R.virtual_wall_force,
+        -MAX_F_L, MAX_F_L);
 
 
-    _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.vector.output[input_def::T_P1];
-    _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.vector.output[input_def::T_P2];
-    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.vector.output[input_def::F_L1];
-    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.vector.output[input_def::F_L2];
-    _ctx.data.wheel[leg_def::L].out_T_w = _ctx.data.vector.output[input_def::T_W1];
-    _ctx.data.wheel[leg_def::R].out_T_w = _ctx.data.vector.output[input_def::T_W2];
+    _ctx.data.leg[leg_def::L].out_T_p =
+        _ctx.data.vector.output[input_def::T_P1];
+    _ctx.data.leg[leg_def::R].out_T_p =
+        _ctx.data.vector.output[input_def::T_P2];
+    _ctx.data.leg[leg_def::L].out_F_L =
+        _ctx.data.vector.output[input_def::F_L1];
+    _ctx.data.leg[leg_def::R].out_F_L =
+        _ctx.data.vector.output[input_def::F_L2];
+    _ctx.data.wheel[leg_def::L].out_T_w =
+        _ctx.data.vector.output[input_def::T_W1];
+    _ctx.data.wheel[leg_def::R].out_T_w =
+        _ctx.data.vector.output[input_def::T_W2];
     for (auto &wheel : _ctx.data.wheel)
     {
         wheel.out_current =
@@ -317,32 +325,33 @@ void wl_chassis_t::_leso_update()
     residual = _ctx.data.vector.measured_state - _ctx.data.vector.predict_state;
     residual[state_def::PSI] =
         loop_fp32_constrain(residual[state_def::PSI], -PI, PI);
-    arm_cmsis_dsp::dot(Gxk,    _ctx.data.matrix.G, _ctx.data.vector.predict_state);
-    arm_cmsis_dsp::dot(Hdk,    _ctx.data.matrix.H, _ctx.data.vector.dist);
-    arm_cmsis_dsp::dot(Huk,    _ctx.data.matrix.H, _ctx.data.vector.output - _ctx.data.vector.U0);
+    arm_cmsis_dsp::dot(Gxk, _ctx.data.matrix.G, _ctx.data.vector.predict_state);
+    arm_cmsis_dsp::dot(Hdk, _ctx.data.matrix.H, _ctx.data.vector.dist);
+    arm_cmsis_dsp::dot(Huk, _ctx.data.matrix.H,
+                       _ctx.data.vector.output - _ctx.data.vector.U0);
     arm_cmsis_dsp::dot(L_xres, _ctx.data.matrix.L_x, residual);
     arm_cmsis_dsp::dot(L_dres, _ctx.data.matrix.L_d, residual);
 
     _ctx.data.vector.predict_state = Gxk + Hdk + Huk + L_xres;
     _ctx.data.vector.dist += L_dres;
     _ctx.data.vector.dist[input_def::T_W1] =
-        std::clamp(_ctx.data.vector.dist[input_def::T_W1], -DIST_RATIO * MAX_T_W,
-                   DIST_RATIO * MAX_T_W);
+        std::clamp(_ctx.data.vector.dist[input_def::T_W1],
+                   -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
     _ctx.data.vector.dist[input_def::T_W2] =
-        std::clamp(_ctx.data.vector.dist[input_def::T_W2], -DIST_RATIO * MAX_T_W,
-                   DIST_RATIO * MAX_T_W);
+        std::clamp(_ctx.data.vector.dist[input_def::T_W2],
+                   -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
     _ctx.data.vector.dist[input_def::T_P1] =
-        std::clamp(_ctx.data.vector.dist[input_def::T_P1], -DIST_RATIO * MAX_T_P,
-                   DIST_RATIO * MAX_T_P);
+        std::clamp(_ctx.data.vector.dist[input_def::T_P1],
+                   -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
     _ctx.data.vector.dist[input_def::T_P2] =
-        std::clamp(_ctx.data.vector.dist[input_def::T_P2], -DIST_RATIO * MAX_T_P,
-                   DIST_RATIO * MAX_T_P);
+        std::clamp(_ctx.data.vector.dist[input_def::T_P2],
+                   -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
     _ctx.data.vector.dist[input_def::F_L1] =
-        std::clamp(_ctx.data.vector.dist[input_def::F_L1], -DIST_RATIO * MAX_F_L,
-                   DIST_RATIO * MAX_F_L);
+        std::clamp(_ctx.data.vector.dist[input_def::F_L1],
+                   -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
     _ctx.data.vector.dist[input_def::F_L2] =
-        std::clamp(_ctx.data.vector.dist[input_def::F_L2], -DIST_RATIO * MAX_F_L,
-                   DIST_RATIO * MAX_F_L);
+        std::clamp(_ctx.data.vector.dist[input_def::F_L2],
+                   -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
 }
 
 float wl_chassis_t::_calc_leg_length_wall_force(const leg_ctx_t &leg) const
@@ -409,12 +418,14 @@ void wl_chassis_t::_fit_params()
         evaluate_polynomial_ascending(norm_L1, FL_U0_POLY_COEF, U0_POLY_DEGREE);
     _ctx.data.vector.U0[input_def::F_L2] =
         evaluate_polynomial_ascending(norm_L2, FL_U0_POLY_COEF, U0_POLY_DEGREE);
-    _ctx.data.vector.target_state[state_def::BETA_1] = evaluate_polynomial_ascending(
-        _ctx.data.leg[leg_def::L].current_leg_length, BETA_TRIM_POLY_COEF,
-        BETA_TRIM_POLY_DEGREE);
-    _ctx.data.vector.target_state[state_def::BETA_2] = evaluate_polynomial_ascending(
-        _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
-        BETA_TRIM_POLY_DEGREE);
+    _ctx.data.vector.target_state[state_def::BETA_1] =
+        evaluate_polynomial_ascending(
+            _ctx.data.leg[leg_def::L].current_leg_length, BETA_TRIM_POLY_COEF,
+            BETA_TRIM_POLY_DEGREE);
+    _ctx.data.vector.target_state[state_def::BETA_2] =
+        evaluate_polynomial_ascending(
+            _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
+            BETA_TRIM_POLY_DEGREE);
 
     // BEGIN GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
     // Static dimensions, modes and coefficients are in coef.h.
@@ -509,7 +520,8 @@ void wl_chassis_t::_fit_params()
                 value += leso_g_odd_values[mode] *
                          LESO_G_ODD_MODES[mode][row][scheduled_column];
             }
-            _ctx.data.matrix.G(row, scheduled_column + LESO_G_COLUMN_OFFSET) += value;
+            _ctx.data.matrix.G(row, scheduled_column + LESO_G_COLUMN_OFFSET) +=
+                value;
         }
 
         for (uint32_t column = 0; column < INPUT_DIM; ++column)

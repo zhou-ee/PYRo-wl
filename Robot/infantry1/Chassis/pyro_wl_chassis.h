@@ -69,7 +69,7 @@ struct leg_ctx_t
     float virtual_wall_force;
     float gas_spring_force; // 沿腿长增大方向的被动广义力
     float out_T_p;          // T_p = tau_2 + tau_1
-    float current_F_L;
+    float current_F_L;      // 加上气弹簧等效力
     float current_T_p;
 
     float direction; // Motor-positive sign in the defined leg coordinate system
@@ -202,13 +202,14 @@ class wl_chassis_t final
     using data_ctx_t                              = wl_chassis_data_ctx_t;
     using ctx_t                                   = wl_chassis_ctx_t;
 
-  private:
-    wl_chassis_t();
-    ~wl_chassis_t() override = default;
-
+  protected:
     status_t _init() override;
     void _update_feedback() override;
     void _fsm_execute() override;
+
+  private:
+    wl_chassis_t();
+    ~wl_chassis_t() override = default;
 
     // 私有成员变量
 
@@ -275,6 +276,8 @@ class wl_chassis_t final
             void execute(owner *owner) override;
             void exit(owner *owner) override;
         };
+
+      protected:
         void on_enter(wl_chassis_t *ctx) override;
         void on_execute(wl_chassis_t *ctx) override;
         void on_exit(wl_chassis_t *ctx) override;
