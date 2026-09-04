@@ -89,8 +89,6 @@ void wl_gimbal_t::updatePitch()
     float targetMotorRaw = _ctx.data.telem.targetPitchRad + offsetPitch;
 
 
-
-
     //再还原回imu的角度用来pid计算
     float target_imu_rad = targetMotorRaw - offsetPitch;
     _ctx.data.telem.targetPitchRad = target_imu_rad;
@@ -153,7 +151,7 @@ void wl_gimbal_t::align_updatePitch()
 
     //云台俯仰轴的重力补偿和位置控制
     float gravityFf           = PITCH_K_GRAVITY_COS * arm_cos_f32(_ctx.data.imu.pitch) + PITCH_K_GRAVITY_SIN * arm_sin_f32(_ctx.data.imu.pitch);
-    float targetPitchSpeed = -_ctx.data.telem.target_pitch_vel;
+    //float targetPitchSpeed = -_ctx.data.telem.target_pitch_vel;
 
 
     _ctx.data.output.targetPitchPos         = PITCH_ALIGN_TARGET_RAD;

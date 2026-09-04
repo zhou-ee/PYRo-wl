@@ -152,7 +152,7 @@ void gimbal_cmd()
         }
         else 
         {
-            wl_chassis_cmd_ptr->wz                       = -g2c_data.w / 31.0f * 2.0f;
+            wl_chassis_cmd_ptr->wz                       = 0.0f;//-g2c_data.w / 31.0f * 2.0f;
         }
         
         if(g2c_data.delta_leg == 0)

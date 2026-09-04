@@ -129,21 +129,21 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     owner->_ctx.data.vector.target_state[state_def::DOT_X] = target_vx;
 
     //角速度设置
-    float target_wz;
-    if(owner->_current_cmd.wz != 0)
-    {
-        target_wz = owner->_current_cmd.wz;
-    }
-    else
-    {
-        static const float WZ_KP = 3.0f;
-        constexpr float YAW_ALIGN_TARGET_RAD = -2.2f;
-        target_wz = WZ_KP * wrap2pi_f32_normalized(owner->_ctx.data.yaw.pos - YAW_ALIGN_TARGET_RAD);
-        if(fabs(target_wz) < 0.1f )
-        {
-            target_wz = 0;
-        }
-    }
+    float target_wz = 0.0f;
+    // if(fabs(owner->_current_cmd.wz) <= 0.01f)
+    // {
+    //     target_wz = owner->_current_cmd.wz;
+    // }
+    // else
+    // {
+    //     static const float WZ_KP = 3.0f;
+    //     constexpr float YAW_ALIGN_TARGET_RAD = -2.2f;
+    //     target_wz = WZ_KP * wrap2pi_f32_normalized(owner->_ctx.data.yaw.pos - YAW_ALIGN_TARGET_RAD);
+    //     if(fabs(target_wz) < 0.1f )
+    //     {
+    //         target_wz = 0;
+    //     }
+    // }
     
 
     owner->_ctx.data.vector.target_state[state_def::PSI] +=

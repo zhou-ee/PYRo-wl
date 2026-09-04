@@ -48,6 +48,7 @@ public:
      */
     struct c2g_data_t
     {
+        uint32_t chassis_is_align_ready : 1; //机体姿态对齐的标志位,只供给云盘读取
 
     };
 

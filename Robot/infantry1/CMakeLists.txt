@@ -1,5 +1,5 @@
-set(BOARD "CHASSIS_BOARD")
-#set(BOARD "GIMBAL_BOARD")
+#set(BOARD "CHASSIS_BOARD")
+set(BOARD "GIMBAL_BOARD")
 
 add_library(Infantry1 OBJECT)
 

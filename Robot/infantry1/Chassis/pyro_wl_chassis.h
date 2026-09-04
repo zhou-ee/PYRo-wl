@@ -145,6 +145,7 @@ struct airborne_data_t
 struct flag_data_t
 {
     bool leg_is_should_restart; // 紧急下力的标志位
+    bool chassis_is_align_ready; // 机体姿态对齐的标志位,只供给云盘读取
 };
 
 struct vector_data_t
