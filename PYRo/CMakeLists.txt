@@ -113,6 +113,7 @@ target_include_directories(PYRo PUBLIC
         Algorithm/EKF
         Algorithm/KF
         Algorithm/LESO
+        Algorithm/LinearAlgebra
         Algorithm/CRC
         Algorithm/Powercontrol
         Algorithm/Navigation

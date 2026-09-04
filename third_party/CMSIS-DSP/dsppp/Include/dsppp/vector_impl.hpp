@@ -266,15 +266,14 @@ protected:
    };
 
    
-   Vector_Base& operator=(const Vector_Base& other) 
-   {
-        if ((length_ == other.length_) && (this != &other)) 
+    Vector_Base& operator=(const Vector_Base& other)
+    {
+        if ((length_ == other.length_) && (this != &other))
         {
-            _Fill(*this,other,other.length_,CURRENT_ARCH);
-             //std::memcpy(values_,other.values_,sizeof(P)*length_);
-        }  
-      return(*this);
-   }
+            eval(*this, +other, other.length_, CURRENT_ARCH);
+        }
+        return *this;
+    }
 
    // Done in derivated classes since we need
    // the allocator destroy

@@ -6,7 +6,8 @@
 #include "pyro_module_base.h"
 #include "pyro_motor_base.h"
 #include "wl_config.h"
-#include "dsp/window_functions.h"
+#include "dsppp/memory_pool.hpp"
+#include <dsppp/matrix.hpp>
 #include <cstdint>
 
 namespace pyro
@@ -23,9 +24,8 @@ struct wl_chassis_deps_t
     struct pid_deps_t
     {
         pd_ctrl_t *leg_length[2];
-        pd_ctrl_t *leg_rad[2];   
-        pyro::pid_t *leg_control_rad[2];   //角度环
-        pyro::pid_t *leg_control_radps[2]; //速度环
+        pid_t *leg_control_rad[2];   // 角度环
+        pid_t *leg_control_radps[2]; // 速度环
     };
     motor_deps_t motor;
     pid_deps_t pid;
@@ -80,15 +80,11 @@ struct leg_ctx_t
     float error_leg_rad;
 
     float J_L;
-    float L_wp;
     float out_F_L; // F_L * J_L = tau_2 - tau_1
     float virtual_wall_force;
-    float out_T_p; // T_p = tau_2 + tau_1
-    float gas_f_l;
-    float gas_t_p;
-    float motor_f_l;
-    float motor_t_p;
-    float current_F_L;
+    float gas_spring_force; // 沿腿长增大方向的被动广义力
+    float out_T_p;          // T_p = tau_2 + tau_1
+    float current_F_L;      // 加上气弹簧等效力
     float current_T_p;
 
     float direction; // Motor-positive sign in the defined leg coordinate system
@@ -114,36 +110,8 @@ struct yaw_ctx_t
 };
 
 
-struct state_vec_t
-{
-    union
-    {
-        struct
-        {
-            float x, dot_x;
-            float psi, dot_psi;
-            float theta, dot_theta;
-            float phi, dot_phi;
-            float L, dot_L;
-            float beta1, dot_beta1;
-            float beta2, dot_beta2;
-        };
-        float data[14];
-    };
-};
-struct control_vec_t
-{
-    union
-    {
-        struct
-        {
-            float T_w1,T_w2;
-            float T_p1,T_p2;
-            float F_l1,F_l2;
-        };
-        float data[6];
-    };
-};
+
+
 struct odom_t
 {
     float real_x;
@@ -161,21 +129,55 @@ struct ins_data_t
 
 struct airborne_data_t
 {
-    chassis_function_state_t state = chassis_function_state_t::NONE;
-    bool landing_recovery = false;
+    chassis_state_t state    = chassis_state_t::NORMAL;
+    bool landing_recovery    = false;
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
-    float L_ref = NORMAL_LENGTH_TARGET;
-    float L_air_ref[2] = {NORMAL_LENGTH_TARGET, NORMAL_LENGTH_TARGET};
-    float accel_z_y = 0.0f;
-    float accel_z_y_lpf = 0.0f;
-    float support_force[2] = {0.0f, 0.0f};
-    float support_force_sum = 0.0f;
+    float L_ref              = NORMAL_LENGTH_TARGET;
+    float L_air_ref[2]       = {NORMAL_LENGTH_TARGET, NORMAL_LENGTH_TARGET};
+    float accel_z_y          = 0.0f;
+    float accel_z_y_lpf      = 0.0f;
+    float support_force[2]   = {0.0f, 0.0f};
+    float support_force_sum  = 0.0f;
 };
+
 
 struct flag_data_t
 {
-    bool leg_is_should_restart;  //紧急下力的标志位
+    bool leg_is_should_restart; // 紧急下力的标志位
+};
+
+struct vector_data_t
+{
+    arm_cmsis_dsp::Vector<float, STATE_DIM> target_state =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, STATE_DIM> error =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, STATE_DIM> measured_state =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, STATE_DIM> predict_state =
+        arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> dist =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> control =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> U0 =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Vector<float, INPUT_DIM> output =
+        arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+};
+struct matrix_data_t
+{
+    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> K =
+        arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> G =
+        arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, INPUT_DIM> H =
+        arm_cmsis_dsp::Matrix<float, STATE_DIM, INPUT_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> L_x =
+        arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM>(0.0f);
+    arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> L_d =
+        arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM>(0.0f);
 };
 
 
@@ -184,12 +186,9 @@ struct wl_chassis_data_ctx_t
     yaw_ctx_t yaw;
     leg_ctx_t leg[2];
     wheel_ctx_t wheel[2];
-    state_vec_t target_state;
-    state_vec_t current_state;
-    control_vec_t control;
+    vector_data_t vector;
+    matrix_data_t matrix;
     flag_data_t flag;
-    float K[INPUT_DIM][STATE_DIM];
-    float U0[INPUT_DIM];
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;
@@ -225,21 +224,21 @@ class wl_chassis_t final
     using data_ctx_t                              = wl_chassis_data_ctx_t;
     using ctx_t                                   = wl_chassis_ctx_t;
 
-  private:
-    wl_chassis_t();
-    ~wl_chassis_t() override = default;
-
+  protected:
     status_t _init() override;
     void _update_feedback() override;
     void _fsm_execute() override;
+
+  private:
+    wl_chassis_t();
+    ~wl_chassis_t() override = default;
 
     // 私有成员变量
 
     // 辅助函数
     void _vmc_trans_j2v();
     void _manual_control();
-    float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
-    void _gain_calculate();
+    void _fit_params();
     void _balance_control();
     void _apply_gas_spring_compensation();
     void _vmc_trans_v2j();
@@ -251,6 +250,10 @@ class wl_chassis_t final
     bool _detect_landing();
     void _execute_air_control();
     void _execute_landing_recovery();
+    void _leso_update();
+
+    float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
+    float _calc_gas_spring_force(float leg_length) const;
 
     using owner = wl_chassis_t;
 

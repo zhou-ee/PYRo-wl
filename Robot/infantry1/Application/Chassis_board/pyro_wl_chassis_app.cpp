@@ -312,13 +312,6 @@ void deps_init()
     wl_chassis_deps->pid.leg_length[leg_def::R] = new pyro::pd_ctrl_t(
         1300.0f, 42.0f, 80.0f, OUTPUT_CUTOFF_HZ, 1, DERIVATIVE_CUTOFF_HZ, 1);
 
-
-    // Leg-angle PD: output T_p (N m), limited to 32 N m.
-    wl_chassis_deps->pid.leg_rad[leg_def::L] = new pyro::pd_ctrl_t(
-        50.0f, 0.6f, 15.0f, OUTPUT_CUTOFF_HZ, 1, DERIVATIVE_CUTOFF_HZ, 1);
-    wl_chassis_deps->pid.leg_rad[leg_def::R] = new pyro::pd_ctrl_t(
-        50.0f, 0.6f, 15.0f, OUTPUT_CUTOFF_HZ, 1, DERIVATIVE_CUTOFF_HZ, 1);
-
     //双环控制的腿角度
     wl_chassis_deps->pid.leg_control_rad[leg_def::R]   = new pyro::pid_t(60.0f, 0.0f, 0.0f, 0.0f, 15.0f);
     wl_chassis_deps->pid.leg_control_rad[leg_def::L]   = new pyro::pid_t(60.0f, 0.0f, 0.0f, 0.0f, 15.0f);

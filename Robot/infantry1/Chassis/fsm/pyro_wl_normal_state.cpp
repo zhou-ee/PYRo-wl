@@ -22,7 +22,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
     {
         owner->_ctx.data.current_function = owner->_current_cmd.cmd_function_state;
     }
-    else 
+    else
     {
         owner->_ctx.data.current_function = chassis_function_state_t::NONE;
     }
@@ -38,7 +38,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
 
 void wl_chassis_t::fsm_active_t::state_normal_t::on_exit(wl_chassis_t *owner)
 {
-    (void)owner;
+    owner->_ctx.data.vector.dist = 0.0f;
 }
 
 } // namespace pyro
