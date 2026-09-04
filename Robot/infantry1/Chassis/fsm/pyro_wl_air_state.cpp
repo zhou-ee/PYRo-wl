@@ -56,7 +56,7 @@ void wl_chassis_t::_calc_support_force()
                   cos_beta;
 
         const float support_force_raw =
-            (leg.current_F_L + leg.gas_spring_force) * cos_beta;
+            (leg.current_F_L) * cos_beta;
             // + leg.current_T_p / length * sin_beta
             // + SUPPORT_FORCE_EFFECTIVE_MASS * leg_endpoint_accel;
         _ctx.data.airborne.support_force[i] +=
@@ -127,18 +127,18 @@ void wl_chassis_t::_execute_landing_recovery()
     }
 
     const float error =
-        NORMAL_LENGTH_TARGET - _ctx.data.target_state[state_def::L];
+        NORMAL_LENGTH_TARGET - _ctx.data.vector.target_state[state_def::L];
     const float max_step = AIR_LENGTH_RECOVERY_RATE * _ctx.data._dt;
     const float step = std::clamp(error, -max_step, max_step);
-    _ctx.data.target_state[state_def::L] += step;
-    _ctx.data.target_state[state_def::DOT_L] =
+    _ctx.data.vector.target_state[state_def::L] += step;
+    _ctx.data.vector.target_state[state_def::DOT_L] =
         (_ctx.data._dt > 1.0e-5f) ? step / _ctx.data._dt : 0.0f;
 
     if (std::fabs(error) <= AIR_LENGTH_RECOVERY_EPSILON &&
         _ctx.data.airborne.support_force_sum > AIR_CONTACT_FORCE_OFF)
     {
-        _ctx.data.target_state[state_def::L] = NORMAL_LENGTH_TARGET;
-        _ctx.data.target_state[state_def::DOT_L] = 0.0f;
+        _ctx.data.vector.target_state[state_def::L] = NORMAL_LENGTH_TARGET;
+        _ctx.data.vector.target_state[state_def::DOT_L] = 0.0f;
         _ctx.data.airborne.landing_recovery = false;
     }
 }
@@ -168,12 +168,12 @@ void wl_chassis_t::_execute_air_control()
         const uint8_t input_index =
             (i == leg_def::L) ? input_def::T_P1 :
                                 input_def::T_P2;
-        const float beta_error = -_ctx.data.measured_state[beta_index];
+        const float beta_error = -_ctx.data.vector.measured_state[beta_index];
         const float dot_beta_error =
-            -_ctx.data.measured_state[dot_beta_index];
+            -_ctx.data.vector.measured_state[dot_beta_index];
         leg.out_T_p = std::clamp(
-            _ctx.data.K(input_index, beta_index) * beta_error +
-                _ctx.data.K(input_index, dot_beta_index) *
+            _ctx.data.matrix.K(input_index, beta_index) * beta_error +
+                _ctx.data.matrix.K(input_index, dot_beta_index) *
                     dot_beta_error,
             -MAX_T_P, MAX_T_P);
 
@@ -214,9 +214,9 @@ void wl_chassis_t::fsm_active_t::state_air_t::execute(wl_chassis_t *owner)
         owner->_ctx.data.airborne.L_ref =
             0.5f * (owner->_ctx.data.leg[leg_def::L].current_leg_length +
                     owner->_ctx.data.leg[leg_def::R].current_leg_length);
-        owner->_ctx.data.target_state[state_def::L] =
+        owner->_ctx.data.vector.target_state[state_def::L] =
             owner->_ctx.data.airborne.L_ref;
-        owner->_ctx.data.target_state[state_def::DOT_L] = 0.0f;
+        owner->_ctx.data.vector.target_state[state_def::DOT_L] = 0.0f;
         owner->_ctx.data.airborne.takeoff_counter = 0;
         owner->_ctx.data.airborne.landing_counter = 0;
         owner->_state_active.request_normal();

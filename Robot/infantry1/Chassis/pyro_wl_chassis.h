@@ -65,7 +65,6 @@ struct leg_ctx_t
     float error_leg_rad;
 
     float J_L;
-    float L_wp;
     float out_F_L; // F_L * J_L = tau_2 - tau_1
     float virtual_wall_force;
     float gas_spring_force; // 沿腿长增大方向的被动广义力
@@ -130,11 +129,8 @@ struct flag_data_t
     bool step;                  // 是否上台阶的标志位
 };
 
-
-struct wl_chassis_data_ctx_t
+struct vector_data_t
 {
-    leg_ctx_t leg[2];
-    wheel_ctx_t wheel[2];
     arm_cmsis_dsp::Vector<float, STATE_DIM> target_state =
         arm_cmsis_dsp::Vector<float, STATE_DIM>(0.0f);
     arm_cmsis_dsp::Vector<float, STATE_DIM> error =
@@ -151,6 +147,9 @@ struct wl_chassis_data_ctx_t
         arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
     arm_cmsis_dsp::Vector<float, INPUT_DIM> output =
         arm_cmsis_dsp::Vector<float, INPUT_DIM>(0.0f);
+};
+struct matrix_data_t
+{
     arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> K =
         arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM>(0.0f);
     arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM> G =
@@ -161,8 +160,15 @@ struct wl_chassis_data_ctx_t
         arm_cmsis_dsp::Matrix<float, STATE_DIM, STATE_DIM>(0.0f);
     arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM> L_d =
         arm_cmsis_dsp::Matrix<float, INPUT_DIM, STATE_DIM>(0.0f);
+};
 
 
+struct wl_chassis_data_ctx_t
+{
+    leg_ctx_t leg[2];
+    wheel_ctx_t wheel[2];
+    vector_data_t vector;
+    matrix_data_t matrix;
     flag_data_t flag;
     odom_t odom;
     ins_data_t ins;

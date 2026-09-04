@@ -934,8 +934,6 @@ constexpr uint32_t LESO_G_COLUMN_COUNT = 10;
 constexpr uint32_t LESO_POD_RANK = 3;
 constexpr float LESO_SAMPLE_TIME = 1.000000047e-03f;
 constexpr float LESO_UNMATCHED_POLE = 3.849999905e-01f;
-static_assert(STATE_DIM == 14 && INPUT_DIM == 6,
-              "LESO fit dimensions no longer match the model");
 
 constexpr uint8_t LESO_TERMS[LESO_EVEN_TERM_COUNT][2] = {
     {0, 0},

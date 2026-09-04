@@ -11,15 +11,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
 {
 
     owner->_ctx.data.odom.real_x            = 0;
-    owner->_ctx.data.measured_state[state_def::X] = 0.0f;
-    owner->_ctx.data.predict_state = owner->_ctx.data.measured_state;
-    owner->_ctx.data.dist = 0.0f;
-    owner->_ctx.data.target_state = 0.0f;
-    owner->_ctx.data.target_state[state_def::L] =
+    owner->_ctx.data.vector.measured_state[state_def::X] = 0.0f;
+    owner->_ctx.data.vector.predict_state = owner->_ctx.data.vector.measured_state;
+    owner->_ctx.data.vector.dist = 0.0f;
+    owner->_ctx.data.vector.target_state = 0.0f;
+    owner->_ctx.data.vector.target_state[state_def::L] =
         owner->_ctx.data.airborne.landing_recovery
             ? owner->_ctx.data.airborne.L_ref
             : NORMAL_LENGTH_TARGET;
-    owner->_ctx.data.U0 = 0.0f;
+    owner->_ctx.data.vector.U0 = 0.0f;
 
     float avg_length = (owner->_ctx.data.leg[leg_def::L].current_leg_length +
                         owner->_ctx.data.leg[leg_def::R].current_leg_length) *
@@ -70,28 +70,28 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
     {
         //腿长加上遥控器的小量
         const float target_dot_L = owner->_current_cmd.dot_L;
-        owner->_ctx.data.target_state[state_def::DOT_L] = target_dot_L;
-        owner->_ctx.data.target_state[state_def::L] +=
+        owner->_ctx.data.vector.target_state[state_def::DOT_L] = target_dot_L;
+        owner->_ctx.data.vector.target_state[state_def::L] +=
             target_dot_L * owner->_ctx.data._dt;
         //腿长限幅
-        owner->_ctx.data.target_state[state_def::L] =
-            std::clamp(owner->_ctx.data.target_state[state_def::L],
+        owner->_ctx.data.vector.target_state[state_def::L] =
+            std::clamp(owner->_ctx.data.vector.target_state[state_def::L],
                        MIN_LEG_LENGTH, MAX_LEG_LENGTH);
     }
 
 
     const float target_vx = owner->_current_cmd.v;
-    owner->_ctx.data.target_state[state_def::X] +=
+    owner->_ctx.data.vector.target_state[state_def::X] +=
         target_vx * owner->_ctx.data._dt;
-    owner->_ctx.data.target_state[state_def::DOT_X] = target_vx;
+    owner->_ctx.data.vector.target_state[state_def::DOT_X] = target_vx;
 
     const float target_wz               = owner->_current_cmd.wz;
-    owner->_ctx.data.target_state[state_def::PSI] +=
+    owner->_ctx.data.vector.target_state[state_def::PSI] +=
         target_wz * owner->_ctx.data._dt;
-    owner->_ctx.data.target_state[state_def::PSI] =
+    owner->_ctx.data.vector.target_state[state_def::PSI] =
         loop_fp32_constrain(
-            owner->_ctx.data.target_state[state_def::PSI], -PI, PI);
-    owner->_ctx.data.target_state[state_def::DOT_PSI] = target_wz;
+            owner->_ctx.data.vector.target_state[state_def::PSI], -PI, PI);
+    owner->_ctx.data.vector.target_state[state_def::DOT_PSI] = target_wz;
 
     if (!owner->_ctx.data.airborne.landing_recovery &&
         owner->_detect_takeoff())
@@ -113,7 +113,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
 
 void wl_chassis_t::fsm_active_t::state_normal_t::exit(wl_chassis_t *owner)
 {
-    owner->_ctx.data.dist = 0.0f;
+    owner->_ctx.data.vector.dist = 0.0f;
 }
 
 } // namespace pyro
