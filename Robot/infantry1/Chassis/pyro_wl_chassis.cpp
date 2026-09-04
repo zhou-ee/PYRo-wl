@@ -14,75 +14,6 @@
 namespace pyro
 {
 
-namespace
-{
-struct gas_spring_lookup_t
-{
-    float f_l = 0.0f;
-    float t_p = 0.0f;
-    bool valid = false;
-};
-
-struct lookup_interval_t
-{
-    uint16_t index = 0;
-    float alpha = 0.0f;
-};
-
-lookup_interval_t find_lookup_interval(const float *axis, uint16_t count,
-                                       float value)
-{
-    if (axis == nullptr || count == 0u || !std::isfinite(value))
-    {
-        return {};
-    }
-    if (count == 1u || value <= axis[0])
-    {
-        return {0u, 0.0f};
-    }
-    if (value >= axis[count - 1u])
-    {
-        return {static_cast<uint16_t>(count - 2u), 1.0f};
-    }
-    for (uint16_t index = 0u; index + 1u < count; ++index)
-    {
-        if (value <= axis[index + 1u])
-        {
-            const float span = axis[index + 1u] - axis[index];
-            const float alpha = (span > 0.0f)
-                                    ? (value - axis[index]) / span
-                                    : 0.0f;
-            return {index, std::clamp(alpha, 0.0f, 1.0f)};
-        }
-    }
-    return {static_cast<uint16_t>(count - 2u), 1.0f};
-}
-
-float bilinear_value(const float *values, uint16_t length_count,
-                     uint16_t beta_count, lookup_interval_t length_interval,
-                     lookup_interval_t beta_interval)
-{
-    if (values == nullptr || length_count == 0u || beta_count == 0u)
-    {
-        return 0.0f;
-    }
-    const uint16_t i0 = length_interval.index;
-    const uint16_t j0 = beta_interval.index;
-    const uint16_t i1 = (length_count > 1u) ? static_cast<uint16_t>(i0 + 1u) : i0;
-    const uint16_t j1 = (beta_count > 1u) ? static_cast<uint16_t>(j0 + 1u) : j0;
-    const uint32_t row0 = static_cast<uint32_t>(i0) * beta_count;
-    const uint32_t row1 = static_cast<uint32_t>(i1) * beta_count;
-    const float v00 = values[row0 + j0];
-    const float v01 = values[row0 + j1];
-    const float v10 = values[row1 + j0];
-    const float v11 = values[row1 + j1];
-    const float along_beta_0 = v00 + beta_interval.alpha * (v01 - v00);
-    const float along_beta_1 = v10 + beta_interval.alpha * (v11 - v10);
-    return along_beta_0 + length_interval.alpha * (along_beta_1 - along_beta_0);
-}
-
-
-} // namespace
 
 wl_chassis_t::wl_chassis_t() : module_base_t("wl_chassis")
 {
@@ -282,9 +213,8 @@ void wl_chassis_t::_vmc_trans_j2v()
         const float raw_beta   = leg.current_joint_rad[joint_def::HIP] + theta;
         const float beta       = loop_fp32_constrain(raw_beta, -PI, PI);
         leg.current_leg_rad    = beta;
-        leg.current_leg_radps  = (leg.current_joint_radps[joint_def::KNEE] +
-                                 leg.current_joint_radps[joint_def::HIP]) /
-                                2;
+        leg.current_leg_radps  = 0.5f * (leg.current_joint_radps[joint_def::KNEE] +
+                                 leg.current_joint_radps[joint_def::HIP]);
         leg.current_F_L = (leg.current_joint_torque[joint_def::KNEE] -
                            leg.current_joint_torque[joint_def::HIP]) /
                               leg.J_L +

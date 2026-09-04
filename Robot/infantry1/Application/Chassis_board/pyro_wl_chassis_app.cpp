@@ -129,12 +129,13 @@ void gimbal_cmd()
     }
     else if (g2c_data.mode == 2)//平衡模式
     {
+        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
         if(g2c_data.mode == 2 && last_g2c_data.mode != 2)
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::RESTART;
         }
         //平衡模式下的键位判断
-        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
+        
         if (g2c_data.step_mode == 1)
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;

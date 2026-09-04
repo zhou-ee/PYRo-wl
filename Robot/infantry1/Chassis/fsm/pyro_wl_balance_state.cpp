@@ -7,7 +7,7 @@
 namespace pyro
 {
 
-static int reset_count;
+static int reset_count = 0;
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
@@ -40,9 +40,11 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
 
     owner->_ctx.motor.wheel[leg_def::L]->enable();
     owner->_ctx.motor.wheel[leg_def::R]->enable();
-    owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
+    owner->_ctx.data.airborne.state = chassis_function_state_t::NONE;
     owner->_ctx.data.airborne.takeoff_counter = 0;
     owner->_ctx.data.airborne.landing_counter = 0;
+
+    reset_count = 0;
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_chassis_t *owner)
