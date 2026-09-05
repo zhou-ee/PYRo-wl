@@ -33,6 +33,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
     {
         change_state(&_state_step);
     }
+        if(owner->_ctx.data.current_function == chassis_function_state_t::JUMP)
+    {
+        change_state(&_state_jump);
+    }
     
 }
 

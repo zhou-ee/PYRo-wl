@@ -18,6 +18,7 @@ using namespace pyro;
 
 constexpr uint32_t EVENT_BIT_RESTART   = (1 << 0); 
 constexpr uint32_t EVENT_BIT_STEP      = (1 << 1); 
+constexpr uint32_t EVENT_BIT_JUMP      = (1 << 2); 
 
 
 
@@ -93,8 +94,10 @@ extern "C"
                             chassis_task_handle, EVENT_BIT_RESTART);
     pyro::sw_broker::subscribe(&vrc.switches.right, pyro::sw_event_t::DOWN_TO_UP,
                             chassis_task_handle, EVENT_BIT_RESTART);
-        pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
+    pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
                             chassis_task_handle, EVENT_BIT_STEP);
+    pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_DOWN, 
+                            chassis_task_handle, EVENT_BIT_JUMP);
 
         vTaskDelete(nullptr);
     }
@@ -211,6 +214,10 @@ void chassis_dr162cmd(uint32_t notify)
     else if (notify & EVENT_BIT_STEP)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
+    }
+        else if (notify & EVENT_BIT_JUMP)
+    {
+        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::JUMP;
     }
 
 
