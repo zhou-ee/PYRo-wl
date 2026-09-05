@@ -18,6 +18,7 @@ using namespace pyro;
 
 constexpr uint32_t EVENT_BIT_RESTART   = (1 << 0); 
 constexpr uint32_t EVENT_BIT_STEP      = (1 << 1); 
+constexpr uint32_t EVENT_BIT_JUMP      = (1 << 2); 
 
 
 
@@ -55,8 +56,7 @@ extern "C"
                 gimbal_cmd();
                 
             }
-            // else if (dr16_drv_t::instance().check_online())
-            if (dr16_drv_t::instance().check_online())
+            else if (dr16_drv_t::instance().check_online())
             {
                 // 当前没有板间通信，直接检测并使用遥控器控制
                 chassis_dr162cmd(notify_val);
@@ -94,8 +94,10 @@ extern "C"
                             chassis_task_handle, EVENT_BIT_RESTART);
     pyro::sw_broker::subscribe(&vrc.switches.right, pyro::sw_event_t::DOWN_TO_UP,
                             chassis_task_handle, EVENT_BIT_RESTART);
-        pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
+    pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
                             chassis_task_handle, EVENT_BIT_STEP);
+    pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_DOWN, 
+                            chassis_task_handle, EVENT_BIT_JUMP);
 
         vTaskDelete(nullptr);
     }
@@ -154,7 +156,7 @@ void gimbal_cmd()
         }
         else 
         {
-            wl_chassis_cmd_ptr->wz                       = -g2c_data.w / 31.0f * 2.0f;
+            wl_chassis_cmd_ptr->wz                       = 0.0f; //-g2c_data.w / 31.0f * 2.0f;
         }
         
         if(g2c_data.delta_leg == 0)
@@ -212,6 +214,10 @@ void chassis_dr162cmd(uint32_t notify)
     else if (notify & EVENT_BIT_STEP)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
+    }
+        else if (notify & EVENT_BIT_JUMP)
+    {
+        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::JUMP;
     }
 
 

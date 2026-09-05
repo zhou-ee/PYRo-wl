@@ -25,6 +25,7 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 Chassis/fsm/pyro_wl_align_state.cpp
                 Chassis/fsm/pyro_wl_step_state.cpp
                 Chassis/fsm/pyro_wl_balance_state.cpp
+                Chassis/fsm/pyro_wl_jump_state.cpp
 
 
                 Application/Chassis_board/pyro_wl_chassis_app.cpp
