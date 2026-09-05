@@ -238,13 +238,15 @@ void wl_chassis_t::_manual_control()
         _ctx.pid.leg_length[leg_def::L]->calculate(
             _ctx.data.leg[leg_def::L].target_leg_length,
             _ctx.data.leg[leg_def::L].current_leg_length,
-            _ctx.data.leg[leg_def::L].current_leg_speed);
+            _ctx.data.leg[leg_def::L].current_leg_speed) -
+                _ctx.data.leg[leg_def::L].gas_spring_force;
 
     _ctx.data.leg[leg_def::R].out_F_L =
         _ctx.pid.leg_length[leg_def::R]->calculate(
             _ctx.data.leg[leg_def::R].target_leg_length,
             _ctx.data.leg[leg_def::R].current_leg_length,
-            _ctx.data.leg[leg_def::R].current_leg_speed);
+            _ctx.data.leg[leg_def::R].current_leg_speed) -
+                _ctx.data.leg[leg_def::R].gas_spring_force;
 
 
     float ll_target_radps;
@@ -287,10 +289,10 @@ void wl_chassis_t::_balance_control()
     leg_L.virtual_wall_force = _calc_leg_length_wall_force(leg_L);
     leg_R.virtual_wall_force = _calc_leg_length_wall_force(leg_R);
     _ctx.data.vector.output[input_def::F_L1] = std::clamp(
-        _ctx.data.vector.output[input_def::F_L1] + leg_L.virtual_wall_force,
+        _ctx.data.vector.output[input_def::F_L1] + leg_L.virtual_wall_force - leg_L.gas_spring_force,
         -MAX_F_L, MAX_F_L);
     _ctx.data.vector.output[input_def::F_L2] = std::clamp(
-        _ctx.data.vector.output[input_def::F_L2] + leg_R.virtual_wall_force,
+        _ctx.data.vector.output[input_def::F_L2] + leg_R.virtual_wall_force - leg_R.gas_spring_force,
         -MAX_F_L, MAX_F_L);
 
 

@@ -15,6 +15,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::enter(wl_chassis_t *owner)
     owner->_ctx.data.vector.predict_state = owner->_ctx.data.vector.measured_state;
     owner->_ctx.data.vector.dist = 0.0f;
     owner->_ctx.data.vector.target_state = 0.0f;
+
+    //@TODO : 之后加底盘跟随云台
+    owner->_ctx.data.vector.target_state[state_def::PSI] = owner->_ctx.data.vector.measured_state[state_def::PSI];
     owner->_ctx.data.vector.target_state[state_def::L] =
         owner->_ctx.data.airborne.landing_recovery
             ? owner->_ctx.data.airborne.L_ref
@@ -108,7 +111,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::execute(wl_chassis_t *owner)
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
-    owner->_leso_update();
+    // owner->_leso_update();
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::exit(wl_chassis_t *owner)
