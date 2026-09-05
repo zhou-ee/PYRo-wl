@@ -2,8 +2,8 @@
 #include "stm32h7xx_hal_rcc_ex.h"
 #include <algorithm>
 #include <cmath>
-float debug1;
-float debug2;
+
+
 namespace pyro
 {
 
@@ -85,9 +85,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         reset_count = 0;
     }
 
-    debug1 = owner->_ctx.data.leg[leg_def::R].current_leg_radps - owner->_ctx.data.measured_state.dot_theta;
-    debug2 = owner->_ctx.data.leg[leg_def::R].current_leg_rad + owner->_ctx.data.measured_state.theta;
-    
 
     //自动上台阶判断
     static uint16_t auto_step_count = 0;
