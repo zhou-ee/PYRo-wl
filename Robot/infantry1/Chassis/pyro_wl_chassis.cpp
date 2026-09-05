@@ -414,7 +414,7 @@ void wl_chassis_t::_vmc_trans_v2j()
             leg.out_F_L - (_ctx.data.gas_spring_compensation_active ? leg.gas_f_l : 0.0f);
         const float t_p_motor =
             leg.out_T_p - (_ctx.data.gas_spring_compensation_active ? leg.gas_t_p : 0.0f);
-        leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force,
+        leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force ,
                                    -MAX_F_L, MAX_F_L);
         leg.motor_t_p = t_p_motor;
 

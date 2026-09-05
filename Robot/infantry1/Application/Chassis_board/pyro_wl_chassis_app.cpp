@@ -49,12 +49,12 @@ extern "C"
             
 
             
-            // if (board_ptr->check_online())
-            // {
+            if (board_ptr->check_online())
+            {
                 
-            //     gimbal_cmd();
+                gimbal_cmd();
                 
-            // }
+            }
             // else if (dr16_drv_t::instance().check_online())
             if (dr16_drv_t::instance().check_online())
             {
@@ -82,7 +82,7 @@ extern "C"
         wl_chassis_ptr->configure(*wl_chassis_deps);
         wl_chassis_ptr->start();
 
-        //*board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
+        board_ptr = &pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
 
 
         xTaskCreate(infantry1_chassis_thread, "chassis_app_thread", 256,

@@ -4,27 +4,29 @@
 #include "pyro_dji_motor_drv.h"
 #include "booster_config.h"
 #include "pyro_rw_lock.h"
-#include "pyro_shared_data_def.h"
+#include "pyro_virtual_rc.h"
+#include "pyro_rc_core.h"
+#include "pyro_vt03_rc_drv.h"
+#include "pyro_rc_base_drv.h"
 
 using namespace pyro;
 
 
-
-
-
-
+//发射机构部分
+constexpr uint32_t EVENT_BIT_FRIC_TOGGLE              = (1 << 3);
+constexpr uint32_t EVENT_BIT_SINGLE_FIRE              = (1 << 4);
+constexpr uint32_t EVENT_BIT_BURST_FIRE               = (1 << 5);
+constexpr uint32_t EVENT_BIT_BURST_END                = (1 << 6);
 
 
 static TaskHandle_t booster_task_handle = nullptr;
 static pyro::wl_booster_t *wl_booster_ptr         = nullptr;
 static pyro::wl_booster_cmd_t *wl_booster_cmd_ptr = nullptr;
 static pyro::wl_booster_deps_t *wl_booster_deps   = nullptr;
-
-GimbalBoosterShared shared_data;
-rw_lock g_booster_shared_lock;
+static virtual_rc_t vrc_t;
 
 static void motor_deps_init();
-static void booster_cmd(GimbalBoosterShared cmd);
+static void booster_cmd(virtual_rc_t vrc, uint32_t notify);
 
 
 extern "C"
@@ -33,13 +35,15 @@ extern "C"
     {
         while(true)
         {
-            GimbalBoosterShared cmd;
-            //读者
+            uint32_t notify_val = 0;
+            xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
+            if (vt03_drv_t::instance().check_online())
             {
-                pyro::read_scope_lock lock(g_booster_shared_lock);
-                cmd = shared_data;  // 拷贝一份，锁尽快释放
+                pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
+                vrc_t = pyro::rc_drv_t::read();
+                booster_cmd(vrc_t, notify_val);
             }
-            booster_cmd(cmd);
+            
             wl_booster_ptr->set_command(*wl_booster_cmd_ptr);
             vTaskDelay(pdMS_TO_TICKS(1));
         }
@@ -59,16 +63,56 @@ extern "C"
         xTaskCreate(wl_booster_thread, "infantry_booster_thread", 256, 
                     nullptr,configMAX_PRIORITIES - 1, &booster_task_handle);
 
+        auto &vrc = rc_drv_t::read();
+
+        //这里添加要订阅的按键
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_r, pyro::btn_event_t::SINGLE_CLICK, 
+                            booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.buttons.trigger, pyro::btn_event_t::SINGLE_CLICK, 
+                            booster_task_handle, EVENT_BIT_SINGLE_FIRE);
+        pyro::btn_broker::subscribe(&vrc.buttons.trigger, pyro::btn_event_t::LONG_PRESS_START, 
+                            booster_task_handle, EVENT_BIT_BURST_FIRE);
+        pyro::btn_broker::subscribe(&vrc.buttons.trigger, pyro::btn_event_t::PRESS_UP, 
+                            booster_task_handle, EVENT_BIT_BURST_END);
+
         
         vTaskDelete(nullptr);
     }
 }
 
 
-void booster_cmd(GimbalBoosterShared cmd)
+void booster_cmd(virtual_rc_t vrc, uint32_t notify)
 {
-    wl_booster_cmd_ptr->mode = (cmd_base_t::mode_t)(cmd.mode);
-    wl_booster_cmd_ptr->event = (ShootEvent)(cmd.event);
+    if(vrc.switches.gear.current_pos == pyro::sw_pos_t::UP)
+    {
+        wl_booster_cmd_ptr->mode = cmd_base_t::mode_t::PASSIVE;//Passive
+    }
+    else if(vrc.switches.gear.current_pos == pyro::sw_pos_t::MID ||
+            vrc.switches.gear.current_pos == pyro::sw_pos_t::DOWN)
+    {
+        wl_booster_cmd_ptr->mode = cmd_base_t::mode_t::ACTIVE;//Active
+    }
+
+    if(notify & EVENT_BIT_FRIC_TOGGLE)
+    {
+        wl_booster_cmd_ptr->event = ShootEvent::FRIC_TOGGLE;
+    }
+    else if(notify & EVENT_BIT_BURST_FIRE)
+    {
+        wl_booster_cmd_ptr->event = ShootEvent::SINGLE_FIRE;
+    }
+    else if(notify & EVENT_BIT_SINGLE_FIRE)
+    {
+        wl_booster_cmd_ptr->event = ShootEvent::BURST_START;
+    }
+    else if(notify & EVENT_BIT_BURST_END)
+    {
+        wl_booster_cmd_ptr->event = ShootEvent::BURST_END;
+    }
+    else 
+    {
+        wl_booster_cmd_ptr->event = ShootEvent::NONE;
+    }
 }
 
 
