@@ -55,8 +55,7 @@ extern "C"
                 gimbal_cmd();
                 
             }
-            // else if (dr16_drv_t::instance().check_online())
-            if (dr16_drv_t::instance().check_online())
+            else if (dr16_drv_t::instance().check_online())
             {
                 // 当前没有板间通信，直接检测并使用遥控器控制
                 chassis_dr162cmd(notify_val);
@@ -154,7 +153,7 @@ void gimbal_cmd()
         }
         else 
         {
-            wl_chassis_cmd_ptr->wz                       = -g2c_data.w / 31.0f * 2.0f;
+            wl_chassis_cmd_ptr->wz                       = 0.0f; //-g2c_data.w / 31.0f * 2.0f;
         }
         
         if(g2c_data.delta_leg == 0)
