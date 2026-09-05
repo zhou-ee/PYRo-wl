@@ -94,7 +94,7 @@ extern "C"
 {
     void infantry1_board_com_thread(void *argument)
     {
-        vTaskDelay(pdMS_TO_TICKS(500));
+        
         while (true)
         {
             uint32_t notify_val = 0;
@@ -106,12 +106,15 @@ extern "C"
     }
 
     void infantry1_board_com_init(void *argument)
-    {
-
+    {   // 板间通信启动
+        // 云台角色，使用 CAN1
+        
 
         board_drv_ptr = &board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
+        board_drv_ptr->start_rx();
 
-        xTaskCreate(infantry1_board_com_thread, "board_com_app", 256, nullptr,
+
+        xTaskCreate(infantry1_board_com_thread, "board_com_app", 128, nullptr,
                     configMAX_PRIORITIES - 3, &board_com_task_handl);
 
         auto &vrc = pyro::rc_drv_t::read();

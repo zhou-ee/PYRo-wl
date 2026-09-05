@@ -7,7 +7,7 @@ void pyro::wl_gimbal_t::fsm_active_t::on_enter(owner* owner) {
     instance()->set_pitchstate(owner->_ctx.data.output.pitchEn);
     instance()->set_yawstate(owner->_ctx.data.output.yawEn);
 
-    change_state(&owner->_state_active._state_manual);
+    change_state(&_state_manual);
 }
 
 void pyro::wl_gimbal_t::fsm_active_t::on_execute(owner* owner)

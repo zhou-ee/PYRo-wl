@@ -92,6 +92,7 @@ extern "C"
     void infantry1_gimbal_init(void *argument)
     {
         
+        vTaskDelay(10);
 
         wl_gimbal_cmd_ptr = new pyro::wl_gimbal_cmd_t();
         wl_gimbal_ptr     = pyro::wl_gimbal_t::instance();
@@ -100,11 +101,8 @@ extern "C"
         wl_gimbal_ptr->configure(*wl_gimbal_deps);
         wl_gimbal_ptr->start();
 
-        // 板间通信启动
-        // 云台角色，使用 CAN1
-        *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
-        board_ptr->start_rx();
 
+        *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
 
         xTaskCreate(wl_gimbal_thread, "infantry_gimbal_thread", 256, 
                     nullptr,configMAX_PRIORITIES - 1, &gimbal_task_handle);

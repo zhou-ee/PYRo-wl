@@ -73,6 +73,9 @@ extern "C"
 
     void infantry1_chassis_init(void *argument)
     {
+        
+        vTaskDelay(10);
+
         wl_chassis_cmd_ptr = new pyro::wl_chassis_cmd_t();
         wl_chassis_ptr     = pyro::wl_chassis_t::instance();
 
@@ -81,7 +84,7 @@ extern "C"
         wl_chassis_ptr->start();
 
         *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
-        board_ptr->start_rx();
+
 
         xTaskCreate(infantry1_chassis_thread, "chassis_app_thread", 256,
                     nullptr, configMAX_PRIORITIES - 1, &chassis_task_handle);

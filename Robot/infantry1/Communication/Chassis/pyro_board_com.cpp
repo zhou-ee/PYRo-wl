@@ -37,6 +37,7 @@ extern "C"
     void infantry1_board_com_init(void *argument)
     {
         board_drv_ptr = &board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
+        board_drv_ptr->start_rx();
 
         xTaskCreate(infantry1_board_com_thread, "board_com_app", 256, nullptr,
                     configMAX_PRIORITIES - 3, &board_com_task_handl);
