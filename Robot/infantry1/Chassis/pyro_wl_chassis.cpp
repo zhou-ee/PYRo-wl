@@ -225,13 +225,15 @@ void wl_chassis_t::_manual_control()
         _ctx.pid.leg_length[leg_def::L]->calculate(
             _ctx.data.leg[leg_def::L].target_leg_length,
             _ctx.data.leg[leg_def::L].current_leg_length,
-            _ctx.data.leg[leg_def::L].current_leg_speed);
+            _ctx.data.leg[leg_def::L].current_leg_speed)
+    - _ctx.data.leg[leg_def::L].gas_spring_force;
     
     _ctx.data.leg[leg_def::R].out_F_L =
         _ctx.pid.leg_length[leg_def::R]->calculate(
             _ctx.data.leg[leg_def::R].target_leg_length,
             _ctx.data.leg[leg_def::R].current_leg_length,
-            _ctx.data.leg[leg_def::R].current_leg_speed);
+            _ctx.data.leg[leg_def::R].current_leg_speed)
+    - _ctx.data.leg[leg_def::R].gas_spring_force;
 
 
     float ll_target_radps;
@@ -392,7 +394,7 @@ void wl_chassis_t::_vmc_trans_v2j()
     {
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
         leg.out_F_L = std::clamp(
-            leg.out_F_L + leg.virtual_wall_force - leg.gas_spring_force,
+            leg.out_F_L,
             -MAX_F_L, MAX_F_L);
 
         float tau_sum                        = leg.out_T_p;
