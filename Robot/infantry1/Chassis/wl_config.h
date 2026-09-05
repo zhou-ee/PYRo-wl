@@ -75,6 +75,20 @@ constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
 constexpr bool GAS_SPRING_COMPENSATION_ENABLE        = true ;
 constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 
+// 300 N 气弹簧广义力拟合，适用腿长 L 范围为 [0.18, 0.38] m。
+// x = (L - 0.28) / 0.10，F_gas(L) = sum(c[k] * x^k)。
+constexpr float GAS_SPRING_LENGTH_CENTER             = 0.28f;
+constexpr float GAS_SPRING_LENGTH_SCALE              = 0.10f;
+constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
+constexpr uint32_t GAS_SPRING_FORCE_POLY_DEGREE      = 3;
+constexpr float GAS_SPRING_FORCE_POLY_COEF[
+    GAS_SPRING_FORCE_POLY_DEGREE + 1] = {
+    119.867552440332f,
+    37.1404981279233f,
+    -4.91246097241044f,
+    2.70356625079196f,
+};
+
 // Airborne and landing detection defaults. Tune from logged support-force data.
 constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，低于上限虚拟墙
 constexpr float NORMAL_LENGTH_TARGET                 = 0.20f;

@@ -299,6 +299,8 @@ void wl_chassis_t::_vmc_trans_j2v()
         leg.current_leg_length = OJ4 * OJ8 / OJ5;
         leg.L_wp               = evaluate_polynomial_ascending(
             leg.current_leg_length, L_WP_POLY_COEF, L_WP_POLY_DEGREE);
+        leg.gas_spring_force   = _calc_gas_spring_force(
+            leg.current_leg_length);
         leg.current_leg_speed = dot_theta * leg.J_L;
 
         const float raw_beta  = leg.current_joint_rad[joint_def::HIP] + theta;
@@ -321,13 +323,15 @@ void wl_chassis_t::_manual_control()
         _ctx.pid.leg_length[leg_def::L]->calculate(
             _ctx.data.leg[leg_def::L].target_leg_length,
             _ctx.data.leg[leg_def::L].current_leg_length,
-            _ctx.data.leg[leg_def::L].current_leg_speed);
+            _ctx.data.leg[leg_def::L].current_leg_speed)
+    - _ctx.data.leg[leg_def::L].gas_spring_force;
     
     _ctx.data.leg[leg_def::R].out_F_L =
         _ctx.pid.leg_length[leg_def::R]->calculate(
             _ctx.data.leg[leg_def::R].target_leg_length,
             _ctx.data.leg[leg_def::R].current_leg_length,
-            _ctx.data.leg[leg_def::R].current_leg_speed);
+            _ctx.data.leg[leg_def::R].current_leg_speed)
+    - _ctx.data.leg[leg_def::R].gas_spring_force;
 
 
     float ll_target_radps;
@@ -370,6 +374,18 @@ float wl_chassis_t::_calc_leg_length_wall_force(const leg_ctx_t &leg) const
     }
 
     return 0.0f;
+}
+
+float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
+{
+    const float normalized_length = std::clamp(
+        (leg_length - GAS_SPRING_LENGTH_CENTER) /
+            GAS_SPRING_LENGTH_SCALE,
+        -1.0f, 1.0f);
+    return GAS_SPRING_COMPENSATION_SCALE *
+           evaluate_polynomial_ascending(
+               normalized_length, GAS_SPRING_FORCE_POLY_COEF,
+               GAS_SPRING_FORCE_POLY_DEGREE);
 }
 
 void wl_chassis_t::_gain_calculate()
@@ -520,6 +536,7 @@ void wl_chassis_t::_vmc_trans_v2j()
     for (auto &leg : _ctx.data.leg)
     {
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
+<<<<<<< HEAD
         const float f_l_before_wall =
             leg.out_F_L - (_ctx.data.gas_spring_compensation_active ? leg.gas_f_l : 0.0f);
         const float t_p_motor =
@@ -527,6 +544,11 @@ void wl_chassis_t::_vmc_trans_v2j()
         leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force,
                                    -MAX_F_L, MAX_F_L);
         leg.motor_t_p = t_p_motor;
+=======
+        leg.out_F_L = std::clamp(
+            leg.out_F_L,
+            -MAX_F_L, MAX_F_L);
+>>>>>>> upstream/double_model
 
         float tau_sum                        = leg.motor_t_p;
         float tau_diff                       = leg.motor_f_l * leg.J_L;
