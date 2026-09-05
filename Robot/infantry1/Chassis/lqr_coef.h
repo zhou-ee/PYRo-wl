@@ -885,8 +885,8 @@ constexpr float K_POLY_COEF[INPUT_DIM][STATE_DIM][K_POLY_DEGREE + 1][K_POLY_DEGR
 // Leg thrust static equilibrium feedforward polynomial (ascending powers of lambda):
 // f_l_trim = c0 + c1*lambda + c2*lambda^2 + c3*lambda^3 [N]
 constexpr float FL_U0_POLY_COEF[U0_POLY_DEGREE + 1] = {
-    1.0059390686e+02f, 4.6173437895e-01f, -2.8751243380e-01f,
-    1.3612422702e-02f};
+    -1.9273645585e+01f, -3.6678763749e+01f, 4.6249485386e+00f,
+    -2.6899538281e+00f};
 
 
 constexpr float BETA_TRIM_POLY_COEF[BETA_TRIM_POLY_DEGREE + 1] = {
