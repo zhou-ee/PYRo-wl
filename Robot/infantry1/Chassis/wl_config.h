@@ -70,14 +70,11 @@ constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 15.0f;  // N per leg
 constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
     0.2f * PI / 180.0f;
 
-// Gas-spring feedforward is independent of the generated LQR gains.
-// Keep it disabled until the table direction and scale are verified on hardware.
-constexpr bool GAS_SPRING_COMPENSATION_ENABLE        = true ;
-
 // 300 N 气弹簧广义力拟合，适用腿长 L 范围为 [0.18, 0.38] m。
 // x = (L - 0.28) / 0.10，F_gas(L) = sum(c[k] * x^k)。
 constexpr float GAS_SPRING_LENGTH_CENTER             = 0.28f;
 constexpr float GAS_SPRING_LENGTH_SCALE              = 0.10f;
+// Hardware tuning factor applied only to the motor-side cancellation.
 constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 constexpr uint32_t GAS_SPRING_FORCE_POLY_DEGREE      = 3;
 constexpr float GAS_SPRING_FORCE_POLY_COEF[

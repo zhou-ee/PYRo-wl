@@ -84,8 +84,6 @@ struct leg_ctx_t
     float virtual_wall_force;
     float gas_spring_force; // 沿腿长增大方向的被动广义力
     float out_T_p; // T_p = tau_2 + tau_1
-    float gas_f_l;
-    float gas_t_p;
     float motor_f_l;
     float motor_t_p;
     float current_F_L;
@@ -198,7 +196,6 @@ struct wl_chassis_data_ctx_t
     float _dt;
     float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
-    constexpr static bool gas_spring_compensation_active = true;
 };
 
 struct wl_chassis_ctx_t
@@ -244,7 +241,6 @@ class wl_chassis_t final
     float _calc_gas_spring_force(float leg_length) const;
     void _gain_calculate();
     void _balance_control();
-    void _apply_gas_spring_compensation();
     void _vmc_trans_v2j();
     void _send_joint_torque() const;
     void _send_wheel_torque() const;

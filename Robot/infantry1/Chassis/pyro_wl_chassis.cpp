@@ -180,6 +180,7 @@ void wl_chassis_t::_fsm_execute()
     {
         _ctx.data.flag.leg_is_should_restart = false;
     }
+    last_cmd_state = _current_cmd.cmd_function_state;
 
     if (_current_cmd.mode == cmd_base_t::mode_t::ACTIVE && (!_ctx.data.flag.leg_is_should_restart))
     {
@@ -237,15 +238,13 @@ void wl_chassis_t::_manual_control()
         _ctx.pid.leg_length[leg_def::L]->calculate(
             _ctx.data.leg[leg_def::L].target_leg_length,
             _ctx.data.leg[leg_def::L].current_leg_length,
-            _ctx.data.leg[leg_def::L].current_leg_speed)
-    - _ctx.data.leg[leg_def::L].gas_spring_force;
+            _ctx.data.leg[leg_def::L].current_leg_speed);
     
     _ctx.data.leg[leg_def::R].out_F_L =
         _ctx.pid.leg_length[leg_def::R]->calculate(
             _ctx.data.leg[leg_def::R].target_leg_length,
             _ctx.data.leg[leg_def::R].current_leg_length,
-            _ctx.data.leg[leg_def::R].current_leg_speed)
-    - _ctx.data.leg[leg_def::R].gas_spring_force;
+            _ctx.data.leg[leg_def::R].current_leg_speed);
 
 
     float ll_target_radps;
@@ -257,7 +256,7 @@ void wl_chassis_t::_manual_control()
     float rl_target_radps;
     rl_target_radps = _ctx.pid.leg_control_rad[leg_def::R]->calculate(
     0.0f, _ctx.data.leg[leg_def::R].error_leg_rad);
-    _ctx.data.leg[leg_def::R].out_T_p = _ctx.pid.leg_control_radps[leg_def::L]->calculate
+    _ctx.data.leg[leg_def::R].out_T_p = _ctx.pid.leg_control_radps[leg_def::R]->calculate
     (rl_target_radps, _ctx.data.leg[leg_def::R].current_leg_radps);
 
     // _ctx.data.leg[leg_def::L].out_T_p = _ctx.pid.leg_rad[leg_def::L]->calculate(
@@ -296,10 +295,9 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         (leg_length - GAS_SPRING_LENGTH_CENTER) /
             GAS_SPRING_LENGTH_SCALE,
         -1.0f, 1.0f);
-    return GAS_SPRING_COMPENSATION_SCALE *
-           evaluate_polynomial_ascending(
-               normalized_length, GAS_SPRING_FORCE_POLY_COEF,
-               GAS_SPRING_FORCE_POLY_DEGREE);
+    return evaluate_polynomial_ascending(
+        normalized_length, GAS_SPRING_FORCE_POLY_COEF,
+        GAS_SPRING_FORCE_POLY_DEGREE);
 }
 
 void wl_chassis_t::_gain_calculate()
@@ -410,10 +408,10 @@ void wl_chassis_t::_vmc_trans_v2j()
     for (auto &leg : _ctx.data.leg)
     {
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
-        const float f_l_before_wall =
-            leg.out_F_L - (_ctx.data.gas_spring_compensation_active ? leg.gas_f_l : 0.0f);
-        const float t_p_motor =
-            leg.out_T_p - (_ctx.data.gas_spring_compensation_active ? leg.gas_t_p : 0.0f);
+        const float f_l_before_wall = leg.out_F_L -
+                                      GAS_SPRING_COMPENSATION_SCALE *
+                                          leg.gas_spring_force;
+        const float t_p_motor = leg.out_T_p;
         leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force ,
                                    -MAX_F_L, MAX_F_L);
         leg.motor_t_p = t_p_motor;

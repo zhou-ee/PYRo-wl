@@ -90,7 +90,9 @@ extern "C"
 
         //订阅按键部分
         auto &vrc = pyro::rc_drv_t::read();
-        pyro::sw_broker::subscribe(&vrc.switches.right, pyro::sw_event_t::MID_TO_UP, 
+    pyro::sw_broker::subscribe(&vrc.switches.right, pyro::sw_event_t::MID_TO_UP, 
+                            chassis_task_handle, EVENT_BIT_RESTART);
+    pyro::sw_broker::subscribe(&vrc.switches.right, pyro::sw_event_t::DOWN_TO_UP,
                             chassis_task_handle, EVENT_BIT_RESTART);
         pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
                             chassis_task_handle, EVENT_BIT_STEP);
@@ -107,17 +109,20 @@ void gimbal_cmd()
     if(g2c_data.mode == 0)
     {
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::L] = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::R] = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::L]    = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::R]    = 0.0f;
         wl_chassis_cmd_ptr->v                            = 0.0f;
         wl_chassis_cmd_ptr->wz                           = 0.0f;
+        memcpy(&last_g2c_data, &g2c_data, sizeof(pyro::board_drv_t::g2c_data_t));
         return;
     }
     if (g2c_data.mode == 1)
     {
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
+        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
 
         // 手动通道输入控制腿长和腿度（角度）的偏置量
         //用spining按键来切换左右腿
@@ -131,10 +136,6 @@ void gimbal_cmd()
     }
     else if (g2c_data.mode == 2)//平衡模式
     {
-        if(g2c_data.mode == 2 && last_g2c_data.mode != 2)
-        {
-            wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::RESTART;
-        }
         //平衡模式下的键位判断
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
         if (g2c_data.step_mode == 1)
@@ -170,6 +171,12 @@ void gimbal_cmd()
         }
         wl_chassis_cmd_ptr->cmd_continus_state           = pyro::chassis_active_state_t::NORMAL;
 
+        if (last_g2c_data.mode != 2)
+        {
+            wl_chassis_cmd_ptr->cmd_function_state =
+                pyro::chassis_function_state_t::RESTART;
+        }
+
     }
 
     memcpy(&last_g2c_data, &g2c_data, sizeof(pyro::board_drv_t::g2c_data_t));
@@ -186,6 +193,7 @@ void chassis_dr162cmd(uint32_t notify)
     if (pyro::sw_pos_t::DOWN == vrc.switches.right.current_pos)
     {
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::L] = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::R] = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::L]    = 0.0f;
