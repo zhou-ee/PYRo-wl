@@ -8,7 +8,6 @@
 #include "pyro_bsp_can.h"
 #include "pyro_dji_motor_drv.h"
 #include "gimbal_config.h"
-#include "pyro_shared_data_def.h"
 #include "pyro_board_drv.h"
 
 
@@ -38,7 +37,7 @@ static TaskHandle_t gimbal_task_handle = nullptr;
 static pyro::wl_gimbal_t *wl_gimbal_ptr         = nullptr;
 static pyro::wl_gimbal_cmd_t *wl_gimbal_cmd_ptr = nullptr;
 static pyro::wl_gimbal_deps_t *wl_gimbal_deps   = nullptr;
-//static pyro::board_drv_t *board_ptr               = nullptr;
+static pyro::board_drv_t *board_ptr               = nullptr;
 
 static virtual_rc_t vrc_t;
 
@@ -68,6 +67,18 @@ extern "C"
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
             
 
+                        
+
+            if(board_ptr->check_online())
+            {
+                const auto& c2g_data = board_ptr->get_c2g_rx_data();
+                wl_gimbal_cmd_ptr->chassis_is_ready = c2g_data.chassis_is_align_ready;
+            }
+            else 
+            {
+                wl_gimbal_cmd_ptr->chassis_is_ready = true;
+            }
+
             if (vt03_drv_t::instance().check_online())
             {
                 pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
@@ -93,7 +104,7 @@ extern "C"
 
     void infantry1_gimbal_init(void *argument)
     {
-        
+        vTaskDelay(10);
 
         wl_gimbal_cmd_ptr = new pyro::wl_gimbal_cmd_t();
         wl_gimbal_ptr     = pyro::wl_gimbal_t::instance();
@@ -102,10 +113,9 @@ extern "C"
         wl_gimbal_ptr->configure(*wl_gimbal_deps);
         wl_gimbal_ptr->start();
 
-        // // 板间通信启动
-        // // 云台角色，使用 CAN1
-        // *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
-        // board_ptr->start_rx();
+        // 板间通信启动
+        // 云台角色，使用 CAN1
+        *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
 
 
         xTaskCreate(wl_gimbal_thread, "infantry_gimbal_thread", 256, 

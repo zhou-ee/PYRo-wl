@@ -34,6 +34,7 @@ namespace pyro
 
         owner->_ctx.motor.wheel[leg_def::L]->disable();
         owner->_ctx.motor.wheel[leg_def::R]->disable();
+        owner->_ctx.data.flag.chassis_is_align_ready =false;
     }
 
     void wl_chassis_t::fsm_active_t::state_normal_t::state_align_t::execute(wl_chassis_t *owner)
@@ -50,6 +51,7 @@ namespace pyro
         {
             if(keep_tick >=20)
             {
+                owner->_ctx.data.flag.chassis_is_align_ready = true;
                 request_switch(&owner->_state_active._state_normal._state_balance);
             }
             keep_tick++;
@@ -59,25 +61,29 @@ namespace pyro
             keep_tick = 0;
         }
 
-        if(owner->_ctx.data.leg[leg_def::L].target_leg_length >= ALIGN_TARGET_LENGTH)
-        {
-            owner->_ctx.data.leg[leg_def::L].target_leg_length -= ALIGN_DELTA_LENGTH;
-        }
-        if(owner->_ctx.data.leg[leg_def::R].target_leg_length >= ALIGN_TARGET_LENGTH)
-        {
-            owner->_ctx.data.leg[leg_def::R].target_leg_length -= ALIGN_DELTA_LENGTH;
-        }
-        if(owner->_ctx.data.leg[leg_def::L].target_leg_rad  >= ALIGN_MAX_RAD ||
-           owner->_ctx.data.leg[leg_def::L].target_leg_rad  <= ALIGN_TARGET_RAD )
-        {
-            owner->_ctx.data.leg[leg_def::L].target_leg_rad  += ALIGN_DELTA_RAD;
-        }
-        if(owner->_ctx.data.leg[leg_def::R].target_leg_rad  >= ALIGN_MAX_RAD ||
-           owner->_ctx.data.leg[leg_def::R].target_leg_rad  <= ALIGN_TARGET_RAD)
-        {
-            owner->_ctx.data.leg[leg_def::R].target_leg_rad  += ALIGN_DELTA_RAD;
-        }
+        //判断只有yaw电机在目标复位角度内才能进行腿部复位
         
+        if(fabs(owner->_ctx.data.yaw.pos) <= 0.3f)
+        {
+            if(owner->_ctx.data.leg[leg_def::L].target_leg_length >= ALIGN_TARGET_LENGTH)
+            {
+                owner->_ctx.data.leg[leg_def::L].target_leg_length -= ALIGN_DELTA_LENGTH;
+            }
+            if(owner->_ctx.data.leg[leg_def::R].target_leg_length >= ALIGN_TARGET_LENGTH)
+            {
+                owner->_ctx.data.leg[leg_def::R].target_leg_length -= ALIGN_DELTA_LENGTH;
+            }
+            if(owner->_ctx.data.leg[leg_def::L].target_leg_rad  >= ALIGN_MAX_RAD ||
+               owner->_ctx.data.leg[leg_def::L].target_leg_rad  <= ALIGN_TARGET_RAD )
+            {
+                owner->_ctx.data.leg[leg_def::L].target_leg_rad  += ALIGN_DELTA_RAD;
+            }
+            if(owner->_ctx.data.leg[leg_def::R].target_leg_rad  >= ALIGN_MAX_RAD ||
+               owner->_ctx.data.leg[leg_def::R].target_leg_rad  <= ALIGN_TARGET_RAD)
+            {
+                owner->_ctx.data.leg[leg_def::R].target_leg_rad  += ALIGN_DELTA_RAD;
+            }
+        }
 
 
         //限幅

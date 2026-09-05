@@ -23,7 +23,6 @@ struct wl_chassis_deps_t
     struct pid_deps_t
     {
         pd_ctrl_t *leg_length[2];
-        pd_ctrl_t *leg_rad[2];   
         pyro::pid_t *leg_control_rad[2];   //角度环
         pyro::pid_t *leg_control_radps[2]; //速度环
     };
@@ -112,6 +111,7 @@ struct wheel_ctx_t
 struct yaw_ctx_t
 {
     float pos;
+    float rot;
 };
 
 
@@ -177,6 +177,7 @@ struct airborne_data_t
 struct flag_data_t
 {
     bool leg_is_should_restart;  //紧急下力的标志位
+    bool chassis_is_align_ready; // 机体姿态对齐的标志位,只供给云盘读取
 };
 
 
@@ -197,7 +198,7 @@ struct wl_chassis_data_ctx_t
     float _dt;
     float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
-    bool gas_spring_compensation_active;
+    constexpr static bool gas_spring_compensation_active = true;
 };
 
 struct wl_chassis_ctx_t

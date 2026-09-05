@@ -32,7 +32,6 @@ static pyro::board_drv_t *board_ptr               = nullptr;
 
 static pyro::board_drv_t::g2c_data_t last_g2c_data;
 
-static pyro::can_msg_buffer_t can3_rx_buf(0x101);//板间通信id
 
 static void gimbal_cmd();
 static void chassis_dr162cmd(uint32_t notify);
@@ -50,13 +49,14 @@ extern "C"
             
 
             
-            if (board_ptr->check_online())
-            {
+            // if (board_ptr->check_online())
+            // {
                 
-                gimbal_cmd();
+            //     gimbal_cmd();
                 
-            }
-            else if (dr16_drv_t::instance().check_online())
+            // }
+            // else if (dr16_drv_t::instance().check_online())
+            if (dr16_drv_t::instance().check_online())
             {
                 // 当前没有板间通信，直接检测并使用遥控器控制
                 chassis_dr162cmd(notify_val);
@@ -73,6 +73,8 @@ extern "C"
 
     void infantry1_chassis_init(void *argument)
     {
+        vTaskDelay(10);
+
         wl_chassis_cmd_ptr = new pyro::wl_chassis_cmd_t();
         wl_chassis_ptr     = pyro::wl_chassis_t::instance();
 
@@ -80,8 +82,8 @@ extern "C"
         wl_chassis_ptr->configure(*wl_chassis_deps);
         wl_chassis_ptr->start();
 
-        *board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
-        board_ptr->start_rx();
+        //*board_ptr = pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
+
 
         xTaskCreate(infantry1_chassis_thread, "chassis_app_thread", 256,
                     nullptr, configMAX_PRIORITIES - 1, &chassis_task_handle);
@@ -314,10 +316,6 @@ void deps_init()
 
 
     // Leg-angle PD: output T_p (N m), limited to 32 N m.
-    wl_chassis_deps->pid.leg_rad[leg_def::L] = new pyro::pd_ctrl_t(
-        50.0f, 0.6f, 15.0f, OUTPUT_CUTOFF_HZ, 1, DERIVATIVE_CUTOFF_HZ, 1);
-    wl_chassis_deps->pid.leg_rad[leg_def::R] = new pyro::pd_ctrl_t(
-        50.0f, 0.6f, 15.0f, OUTPUT_CUTOFF_HZ, 1, DERIVATIVE_CUTOFF_HZ, 1);
 
     //双环控制的腿角度
     wl_chassis_deps->pid.leg_control_rad[leg_def::R]   = new pyro::pid_t(60.0f, 0.0f, 0.0f, 0.0f, 15.0f);

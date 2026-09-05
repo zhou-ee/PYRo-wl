@@ -55,8 +55,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     }
     // owner->_ctx.pid.leg_length[leg_def::L]->clear();
     // owner->_ctx.pid.leg_length[leg_def::R]->clear();
-    owner->_ctx.pid.leg_rad[leg_def::L]->clear();
-    owner->_ctx.pid.leg_rad[leg_def::R]->clear();
 
 
     owner->_ctx.motor.wheel[leg_def::L]->enable();

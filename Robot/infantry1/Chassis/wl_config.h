@@ -73,7 +73,6 @@ constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
 // Gas-spring feedforward is independent of the generated LQR gains.
 // Keep it disabled until the table direction and scale are verified on hardware.
 constexpr bool GAS_SPRING_COMPENSATION_ENABLE        = true ;
-constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 
 // 300 N 气弹簧广义力拟合，适用腿长 L 范围为 [0.18, 0.38] m。
 // x = (L - 0.28) / 0.10，F_gas(L) = sum(c[k] * x^k)。
@@ -117,6 +116,8 @@ constexpr float L_WP_POLY_COEF[L_WP_POLY_DEGREE + 1] = {0.0581f, 0.3760f,
                                                         0.7972f, -0.7381f};
 
 constexpr float WHEEL_RADIUS                         = 0.06f;
+
+constexpr static float YAW_OFFSET = -2.2f;
 
 
 namespace leg_def

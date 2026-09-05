@@ -33,6 +33,9 @@ struct wl_gimbal_cmd_t {
     pyro::cmd_base_t::mode_t mode;
     MotionState state_cmd;
 
+    bool chassis_is_ready;
+
+
 };
 
 
@@ -114,6 +117,9 @@ struct wl_gimbal_data_ctx_t final : public cmd_base_t
     GimbalTelemetry telem;
     float dt;
     uint8_t motionState;
+
+    bool chassis_is_ready;
+
 };
 
 struct wl_gimbal_ctx_t
