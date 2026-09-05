@@ -8,9 +8,88 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace pyro
 {
+
+namespace
+{
+
+struct leso_fit_ram_t
+{
+    uint8_t terms[LESO_EVEN_TERM_COUNT][2];
+
+    float g_mean[STATE_DIM][LESO_G_COLUMN_COUNT];
+    float g_even_modes[LESO_POD_RANK][STATE_DIM][LESO_G_COLUMN_COUNT];
+    float g_odd_modes[LESO_POD_RANK][STATE_DIM][LESO_G_COLUMN_COUNT];
+    float g_even_coefficients[LESO_POD_RANK][LESO_EVEN_TERM_COUNT];
+    float g_odd_coefficients[LESO_POD_RANK][LESO_ODD_TERM_COUNT];
+
+    float h_mean[STATE_DIM][INPUT_DIM];
+    float h_even_modes[LESO_POD_RANK][STATE_DIM][INPUT_DIM];
+    float h_odd_modes[LESO_POD_RANK][STATE_DIM][INPUT_DIM];
+    float h_even_coefficients[LESO_POD_RANK][LESO_EVEN_TERM_COUNT];
+    float h_odd_coefficients[LESO_POD_RANK][LESO_ODD_TERM_COUNT];
+
+    float ld_mean[INPUT_DIM][STATE_DIM];
+    float ld_even_modes[LESO_POD_RANK][INPUT_DIM][STATE_DIM];
+    float ld_odd_modes[LESO_POD_RANK][INPUT_DIM][STATE_DIM];
+    float ld_even_coefficients[LESO_POD_RANK][LESO_EVEN_TERM_COUNT];
+    float ld_odd_coefficients[LESO_POD_RANK][LESO_ODD_TERM_COUNT];
+};
+
+// The linker places .bss in DTCMRAM. The fit is copied from its constexpr
+// Flash image once during chassis initialization; the 1 kHz loop only reads
+// this single-cycle RAM mirror afterwards.
+alignas(32) leso_fit_ram_t leso_fit_ram;
+
+void load_leso_fit_to_ram()
+{
+    std::memcpy(leso_fit_ram.terms, LESO_TERMS,
+                sizeof(leso_fit_ram.terms));
+
+    std::memcpy(leso_fit_ram.g_mean, LESO_G_MEAN,
+                sizeof(leso_fit_ram.g_mean));
+    std::memcpy(leso_fit_ram.g_even_modes, LESO_G_EVEN_MODES,
+                sizeof(leso_fit_ram.g_even_modes));
+    std::memcpy(leso_fit_ram.g_odd_modes, LESO_G_ODD_MODES,
+                sizeof(leso_fit_ram.g_odd_modes));
+    std::memcpy(leso_fit_ram.g_even_coefficients,
+                LESO_G_EVEN_COEFFICIENTS,
+                sizeof(leso_fit_ram.g_even_coefficients));
+    std::memcpy(leso_fit_ram.g_odd_coefficients,
+                LESO_G_ODD_COEFFICIENTS,
+                sizeof(leso_fit_ram.g_odd_coefficients));
+
+    std::memcpy(leso_fit_ram.h_mean, LESO_H_MEAN,
+                sizeof(leso_fit_ram.h_mean));
+    std::memcpy(leso_fit_ram.h_even_modes, LESO_H_EVEN_MODES,
+                sizeof(leso_fit_ram.h_even_modes));
+    std::memcpy(leso_fit_ram.h_odd_modes, LESO_H_ODD_MODES,
+                sizeof(leso_fit_ram.h_odd_modes));
+    std::memcpy(leso_fit_ram.h_even_coefficients,
+                LESO_H_EVEN_COEFFICIENTS,
+                sizeof(leso_fit_ram.h_even_coefficients));
+    std::memcpy(leso_fit_ram.h_odd_coefficients,
+                LESO_H_ODD_COEFFICIENTS,
+                sizeof(leso_fit_ram.h_odd_coefficients));
+
+    std::memcpy(leso_fit_ram.ld_mean, LESO_LD_MEAN,
+                sizeof(leso_fit_ram.ld_mean));
+    std::memcpy(leso_fit_ram.ld_even_modes, LESO_LD_EVEN_MODES,
+                sizeof(leso_fit_ram.ld_even_modes));
+    std::memcpy(leso_fit_ram.ld_odd_modes, LESO_LD_ODD_MODES,
+                sizeof(leso_fit_ram.ld_odd_modes));
+    std::memcpy(leso_fit_ram.ld_even_coefficients,
+                LESO_LD_EVEN_COEFFICIENTS,
+                sizeof(leso_fit_ram.ld_even_coefficients));
+    std::memcpy(leso_fit_ram.ld_odd_coefficients,
+                LESO_LD_ODD_COEFFICIENTS,
+                sizeof(leso_fit_ram.ld_odd_coefficients));
+}
+
+} // namespace
 
 
 
@@ -34,6 +113,8 @@ status_t wl_chassis_t::_init()
 
     _ctx.data.wheel[leg_def::L].direction     = LEFT_WHEEL_DIRECTION;
     _ctx.data.wheel[leg_def::R].direction     = RIGHT_WHEEL_DIRECTION;
+
+    load_leso_fit_to_ram();
 
     return PYRO_OK;
 }
@@ -377,8 +458,8 @@ void wl_chassis_t::_gain_calculate()
     uint32_t odd_term                           = 0;
     for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
     {
-        const uint32_t p   = LESO_TERMS[term][0];
-        const uint32_t q   = LESO_TERMS[term][1];
+        const uint32_t p   = leso_fit_ram.terms[term][0];
+        const uint32_t q   = leso_fit_ram.terms[term][1];
         const float direct = leso_chebyshev[0][p] * leso_chebyshev[1][q];
         if (p == q)
         {
@@ -404,21 +485,21 @@ void wl_chassis_t::_gain_calculate()
         {
             const float basis = leso_even_basis[term];
             leso_g_even_values[mode] +=
-                LESO_G_EVEN_COEFFICIENTS[mode][term] * basis;
+                leso_fit_ram.g_even_coefficients[mode][term] * basis;
             leso_h_even_values[mode] +=
-                LESO_H_EVEN_COEFFICIENTS[mode][term] * basis;
+                leso_fit_ram.h_even_coefficients[mode][term] * basis;
             leso_ld_even_values[mode] +=
-                LESO_LD_EVEN_COEFFICIENTS[mode][term] * basis;
+                leso_fit_ram.ld_even_coefficients[mode][term] * basis;
         }
         for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
         {
             const float basis = leso_odd_basis[term];
             leso_g_odd_values[mode] +=
-                LESO_G_ODD_COEFFICIENTS[mode][term] * basis;
+                leso_fit_ram.g_odd_coefficients[mode][term] * basis;
             leso_h_odd_values[mode] +=
-                LESO_H_ODD_COEFFICIENTS[mode][term] * basis;
+                leso_fit_ram.h_odd_coefficients[mode][term] * basis;
             leso_ld_odd_values[mode] +=
-                LESO_LD_ODD_COEFFICIENTS[mode][term] * basis;
+                leso_fit_ram.ld_odd_coefficients[mode][term] * basis;
         }
     }
 
@@ -436,16 +517,18 @@ void wl_chassis_t::_gain_calculate()
         for (uint32_t scheduled_column = 0;
              scheduled_column < LESO_G_COLUMN_COUNT; ++scheduled_column)
         {
-            float value = LESO_G_MEAN[row][scheduled_column];
+            float value = leso_fit_ram.g_mean[row][scheduled_column];
             for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_g_even_values[mode] *
-                         LESO_G_EVEN_MODES[mode][row][scheduled_column];
+                         leso_fit_ram.g_even_modes[mode][row]
+                                                       [scheduled_column];
             }
             for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_g_odd_values[mode] *
-                         LESO_G_ODD_MODES[mode][row][scheduled_column];
+                         leso_fit_ram.g_odd_modes[mode][row]
+                                                      [scheduled_column];
             }
             _ctx.data.G[row][scheduled_column + LESO_G_COLUMN_OFFSET] +=
                 value;
@@ -453,16 +536,16 @@ void wl_chassis_t::_gain_calculate()
 
         for (uint32_t column = 0; column < INPUT_DIM; ++column)
         {
-            float value = LESO_H_MEAN[row][column];
+            float value = leso_fit_ram.h_mean[row][column];
             for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_h_even_values[mode] *
-                         LESO_H_EVEN_MODES[mode][row][column];
+                         leso_fit_ram.h_even_modes[mode][row][column];
             }
             for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_h_odd_values[mode] *
-                         LESO_H_ODD_MODES[mode][row][column];
+                         leso_fit_ram.h_odd_modes[mode][row][column];
             }
             _ctx.data.H[row][column] = value;
         }
@@ -478,16 +561,16 @@ void wl_chassis_t::_gain_calculate()
     {
         for (uint32_t column = 0; column < STATE_DIM; ++column)
         {
-            float value = LESO_LD_MEAN[row][column];
+            float value = leso_fit_ram.ld_mean[row][column];
             for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_ld_even_values[mode] *
-                         LESO_LD_EVEN_MODES[mode][row][column];
+                         leso_fit_ram.ld_even_modes[mode][row][column];
             }
             for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
             {
                 value += leso_ld_odd_values[mode] *
-                         LESO_LD_ODD_MODES[mode][row][column];
+                         leso_fit_ram.ld_odd_modes[mode][row][column];
             }
             _ctx.data.L_d[row][column] = value;
         }
@@ -584,7 +667,7 @@ void wl_chassis_t::_leso_update()
 
     for (uint8_t row = 0; row < INPUT_DIM; ++row)
     {
-        for (uint8_t col = 0;  col< INPUT_DIM; ++col)
+        for (uint8_t col = 0;  col< STATE_DIM; ++col)
         {
             L_dres[row] += _ctx.data.L_d[row][col] * residual[col];
         }
