@@ -116,7 +116,7 @@ void wl_chassis_t::_update_feedback()
                                &_ctx.data.ins.accel[2]);
 
     // 7. State vector feedback.
-    state_vec_t &state = _ctx.data.current_state;
+    state_vec_t &state = _ctx.data.measured_state;
 
     state.x            = _ctx.data.odom.real_x;
     state.dot_x        = (_ctx.data.odom.real_dot_x[0] + _ctx.data.odom.real_dot_x[1]) / 2;
@@ -240,7 +240,7 @@ void wl_chassis_t::_manual_control()
             _ctx.data.leg[leg_def::L].current_leg_length,
             _ctx.data.leg[leg_def::L].current_leg_speed)
     -_ctx.data.leg[leg_def::L].gas_spring_force;
-    
+
     _ctx.data.leg[leg_def::R].out_F_L =
         _ctx.pid.leg_length[leg_def::R]->calculate(
             _ctx.data.leg[leg_def::R].target_leg_length,
@@ -254,7 +254,7 @@ void wl_chassis_t::_manual_control()
         0.0f, _ctx.data.leg[leg_def::L].error_leg_rad);
     _ctx.data.leg[leg_def::L].out_T_p = _ctx.pid.leg_control_radps[leg_def::L]->calculate
         (ll_target_radps, _ctx.data.leg[leg_def::L].current_leg_radps);
-    
+
     float rl_target_radps;
     rl_target_radps = _ctx.pid.leg_control_rad[leg_def::R]->calculate(
     0.0f, _ctx.data.leg[leg_def::R].error_leg_rad);
@@ -345,6 +345,146 @@ void wl_chassis_t::_gain_calculate()
     _ctx.data.target_state.beta2 = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);
+
+        // BEGIN GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
+    // Static dimensions, modes and coefficients are in coef.h.
+    float leso_chebyshev[2][LESO_CHEBYSHEV_DEGREE + 1] = {};
+    leso_chebyshev[0][0]                               = 1.0f;
+    leso_chebyshev[1][0]                               = 1.0f;
+    leso_chebyshev[0][1]                               = norm_L1;
+    leso_chebyshev[1][1]                               = norm_L2;
+    for (uint32_t order = 2; order <= LESO_CHEBYSHEV_DEGREE; ++order)
+    {
+        for (uint32_t axis = 0; axis < 2; ++axis)
+        {
+            const float product =
+                leso_chebyshev[axis][1] * leso_chebyshev[axis][order - 1];
+            leso_chebyshev[axis][order] =
+                product + product - leso_chebyshev[axis][order - 2];
+        }
+    }
+
+    float leso_even_basis[LESO_EVEN_TERM_COUNT] = {};
+    float leso_odd_basis[LESO_ODD_TERM_COUNT]   = {};
+    uint32_t odd_term                           = 0;
+    for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
+    {
+        const uint32_t p   = LESO_TERMS[term][0];
+        const uint32_t q   = LESO_TERMS[term][1];
+        const float direct = leso_chebyshev[0][p] * leso_chebyshev[1][q];
+        if (p == q)
+        {
+            leso_even_basis[term] = direct;
+        }
+        else
+        {
+            const float exchanged = leso_chebyshev[0][q] * leso_chebyshev[1][p];
+            leso_even_basis[term] = direct + exchanged;
+            leso_odd_basis[odd_term++] = direct - exchanged;
+        }
+    }
+
+    float leso_g_even_values[LESO_POD_RANK]  = {};
+    float leso_g_odd_values[LESO_POD_RANK]   = {};
+    float leso_h_even_values[LESO_POD_RANK]  = {};
+    float leso_h_odd_values[LESO_POD_RANK]   = {};
+    float leso_ld_even_values[LESO_POD_RANK] = {};
+    float leso_ld_odd_values[LESO_POD_RANK]  = {};
+    for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
+    {
+        for (uint32_t term = 0; term < LESO_EVEN_TERM_COUNT; ++term)
+        {
+            const float basis = leso_even_basis[term];
+            leso_g_even_values[mode] +=
+                LESO_G_EVEN_COEFFICIENTS[mode][term] * basis;
+            leso_h_even_values[mode] +=
+                LESO_H_EVEN_COEFFICIENTS[mode][term] * basis;
+            leso_ld_even_values[mode] +=
+                LESO_LD_EVEN_COEFFICIENTS[mode][term] * basis;
+        }
+        for (uint32_t term = 0; term < LESO_ODD_TERM_COUNT; ++term)
+        {
+            const float basis = leso_odd_basis[term];
+            leso_g_odd_values[mode] +=
+                LESO_G_ODD_COEFFICIENTS[mode][term] * basis;
+            leso_h_odd_values[mode] +=
+                LESO_H_ODD_COEFFICIENTS[mode][term] * basis;
+            leso_ld_odd_values[mode] +=
+                LESO_LD_ODD_COEFFICIENTS[mode][term] * basis;
+        }
+    }
+
+    for (uint32_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint32_t column = 0; column < STATE_DIM; ++column)
+        {
+            _ctx.data.G[row][column] = (row == column) ? 1.0f : 0.0f;
+        }
+    }
+    _ctx.data.G[lqr_state_def::X][lqr_state_def::DOT_X]   = LESO_SAMPLE_TIME;
+    _ctx.data.G[lqr_state_def::PSI][lqr_state_def::DOT_PSI] = LESO_SAMPLE_TIME;
+    for (uint32_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint32_t scheduled_column = 0;
+             scheduled_column < LESO_G_COLUMN_COUNT; ++scheduled_column)
+        {
+            float value = LESO_G_MEAN[row][scheduled_column];
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
+            {
+                value += leso_g_even_values[mode] *
+                         LESO_G_EVEN_MODES[mode][row][scheduled_column];
+            }
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
+            {
+                value += leso_g_odd_values[mode] *
+                         LESO_G_ODD_MODES[mode][row][scheduled_column];
+            }
+            _ctx.data.G[row][scheduled_column + LESO_G_COLUMN_OFFSET] +=
+                value;
+        }
+
+        for (uint32_t column = 0; column < INPUT_DIM; ++column)
+        {
+            float value = LESO_H_MEAN[row][column];
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
+            {
+                value += leso_h_even_values[mode] *
+                         LESO_H_EVEN_MODES[mode][row][column];
+            }
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
+            {
+                value += leso_h_odd_values[mode] *
+                         LESO_H_ODD_MODES[mode][row][column];
+            }
+            _ctx.data.H[row][column] = value;
+        }
+
+        for (uint32_t column = 0; column < STATE_DIM; ++column)
+        {
+            _ctx.data.L_x[row][column] = _ctx.data.G[row][column];
+        }
+        _ctx.data.L_x[row][row] -= LESO_UNMATCHED_POLE;
+    }
+
+    for (uint32_t row = 0; row < INPUT_DIM; ++row)
+    {
+        for (uint32_t column = 0; column < STATE_DIM; ++column)
+        {
+            float value = LESO_LD_MEAN[row][column];
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
+            {
+                value += leso_ld_even_values[mode] *
+                         LESO_LD_EVEN_MODES[mode][row][column];
+            }
+            for (uint32_t mode = 0; mode < LESO_POD_RANK; ++mode)
+            {
+                value += leso_ld_odd_values[mode] *
+                         LESO_LD_ODD_MODES[mode][row][column];
+            }
+            _ctx.data.L_d[row][column] = value;
+        }
+    }
+    // END GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
 }
 
 void wl_chassis_t::_balance_control()
@@ -353,7 +493,7 @@ void wl_chassis_t::_balance_control()
     for (uint8_t state = 0; state < STATE_DIM; ++state)
     {
         error[state] = _ctx.data.target_state.data[state] -
-                       _ctx.data.current_state.data[state];
+                       _ctx.data.measured_state.data[state];
     }
     error[lqr_state_def::PSI] =
         loop_fp32_constrain(error[lqr_state_def::PSI], -PI, PI);
@@ -397,7 +537,74 @@ void wl_chassis_t::_balance_control()
     }
 }
 
+void wl_chassis_t::_leso_update()
+{
+    static float      Gxk[STATE_DIM];
+    static float      Hdk[STATE_DIM];
+    static float      Huk[STATE_DIM];
+    static float residual[STATE_DIM];
+    static float   L_xres[STATE_DIM];
+    static float   L_dres[INPUT_DIM];
 
+    for (uint8_t state = 0; state < STATE_DIM; ++state)
+    {
+        residual[state] = _ctx.data.measured_state.data[state] - _ctx.data.predict_state.data[state];
+    }
+
+    residual[lqr_state_def::PSI] =
+        loop_fp32_constrain(residual[lqr_state_def::PSI], -PI, PI);
+    for (uint8_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint8_t col = 0;  col< STATE_DIM; ++col)
+        {
+            Gxk[row] += _ctx.data.G[row][col] * _ctx.data.predict_state.data[col];
+            L_xres[row] += _ctx.data.L_x[row][col] * residual[col];
+        }
+    }
+    for (uint8_t row = 0; row < STATE_DIM; ++row)
+    {
+        for (uint8_t col = 0;  col< INPUT_DIM; ++col)
+        {
+            Hdk[row] += _ctx.data.H[row][col] * _ctx.data.dist.data[col];
+            Huk[row] += _ctx.data.H[row][col] * (_ctx.data.output.data[col] - _ctx.data.U0[col]);
+        }
+    }
+    for (uint8_t row = 0; row < STATE_DIM; ++row)
+    {
+        _ctx.data.predict_state.data[row] = Gxk[row] + L_xres[row] + Huk[row] + Huk[row];
+    }
+
+    for (uint8_t row = 0; row < INPUT_DIM; ++row)
+    {
+        for (uint8_t col = 0;  col< INPUT_DIM; ++col)
+        {
+            L_dres[row] += _ctx.data.L_d[row][col] * residual[col];
+        }
+        _ctx.data.dist.data[row] += L_dres[row];
+    }
+
+    // _ctx.data.vector.predict_state = Gxk + Hdk + Huk + L_xres;
+    // _ctx.data.vector.dist += L_dres;
+    _ctx.data.dist.data[lqr_input_def::T_W1] =
+        std::clamp(_ctx.data.dist.data[lqr_input_def::T_W1],
+                   -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
+    _ctx.data.dist.data[lqr_input_def::T_W2] =
+        std::clamp(_ctx.data.dist.data[lqr_input_def::T_W2],
+                   -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
+    _ctx.data.dist.data[lqr_input_def::T_P1] =
+        std::clamp(_ctx.data.dist.data[lqr_input_def::T_P1],
+                   -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
+    _ctx.data.dist.data[lqr_input_def::T_P2] =
+        std::clamp(_ctx.data.dist.data[lqr_input_def::T_P2],
+                   -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
+    _ctx.data.dist.data[lqr_input_def::F_L1] =
+        std::clamp(_ctx.data.dist.data[lqr_input_def::F_L1],
+                   -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
+    _ctx.data.dist.data[lqr_input_def::F_L2] =
+        std::clamp(_ctx.data.dist.data[lqr_input_def::F_L2],
+                   -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
+
+}
 
 void wl_chassis_t::_vmc_trans_v2j()
 {

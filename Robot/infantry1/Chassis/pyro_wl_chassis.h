@@ -185,10 +185,17 @@ struct wl_chassis_data_ctx_t
     leg_ctx_t leg[2];
     wheel_ctx_t wheel[2];
     state_vec_t target_state;
-    state_vec_t current_state;
+    state_vec_t measured_state;
+    state_vec_t predict_state;
     control_vec_t control;
+    control_vec_t output;
+    control_vec_t dist;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
+    float G[STATE_DIM][STATE_DIM];
+    float H[STATE_DIM][INPUT_DIM];
+    float L_x[STATE_DIM][STATE_DIM];
+    float L_d[INPUT_DIM][STATE_DIM];
     float U0[INPUT_DIM];
     odom_t odom;
     ins_data_t ins;
@@ -250,6 +257,7 @@ class wl_chassis_t final
     bool _detect_landing();
     void _execute_air_control();
     void _execute_landing_recovery();
+    void _leso_update();
 
     using owner = wl_chassis_t;
 

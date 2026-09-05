@@ -81,8 +81,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         reset_count = 0;
     }
 
-    debug1 = owner->_ctx.data.leg[leg_def::R].current_leg_radps - owner->_ctx.data.current_state.dot_theta;
-    debug2 = owner->_ctx.data.leg[leg_def::R].current_leg_rad + owner->_ctx.data.current_state.theta;
+    debug1 = owner->_ctx.data.leg[leg_def::R].current_leg_radps - owner->_ctx.data.measured_state.dot_theta;
+    debug2 = owner->_ctx.data.leg[leg_def::R].current_leg_rad + owner->_ctx.data.measured_state.theta;
     
 
     //自动上台阶判断
@@ -98,7 +98,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         press_forward_time = 0;
     }
 
-    if (owner->_ctx.data.current_state.L >= 0.30f &&
+    if (owner->_ctx.data.measured_state.L >= 0.30f &&
         owner->_ctx.data.leg[leg_def::R].current_leg_rad< 1.2f && 
         owner->_ctx.data.leg[leg_def::L].current_leg_rad< 1.2f &&
         press_forward_time >= 500)
@@ -180,7 +180,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     owner->_balance_control();
 
     const float roll_error = owner->_ctx.data.target_state.phi -
-                             owner->_ctx.data.current_state.phi;
+                             owner->_ctx.data.measured_state.phi;
     if (std::fabs(roll_error) > NORMAL_ROLL_INTEGRAL_DEADBAND)
     {
         owner->_ctx.data.normal_roll_force_trim = std::clamp(
