@@ -16,7 +16,11 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
 
     owner->_ctx.data.target_state.x         = 0;
     owner->_ctx.data.target_state.dot_x     = 0.0f;
+    #if Using_Gimbal_Cmd
+    owner->_ctx.data.target_state.psi       = owner->_ctx.data.current_state.psi;
+    #else
     owner->_ctx.data.target_state.psi       = owner->_ctx.data.ins.euler_rad[0];
+    #endif
     owner->_ctx.data.target_state.dot_psi   = 0.0f;
     owner->_ctx.data.target_state.L =
         owner->_ctx.data.airborne.landing_recovery
@@ -103,7 +107,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         owner->_ctx.data.leg[leg_def::L].current_leg_rad< 1.2f &&
         press_forward_time >= 500)
     {
-        if(auto_step_count >= 100)
+        if(auto_step_count >= 50)
         {
             request_switch(&owner->_state_active._state_normal._state_step);
         }
@@ -148,32 +152,38 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     owner->_ctx.data.target_state.x += target_vx * owner->_ctx.data._dt;
     owner->_ctx.data.target_state.dot_x = target_vx;
 
+    #if Using_Gimbal_Cmd
+    //使用云台VT03
+    //角速度设置
+
+    float target_wz;
+    target_wz = owner->_current_cmd.wz;
+    if(fabs(target_wz) <= 0.1f)
+    {
+        //底盘跟随状态
+        owner->_ctx.data.target_state.psi = 0.0f;
+        owner->_ctx.data.target_state.dot_psi = 0.0f;
+    }
+    else
+    {
+        //小陀螺状态
+        owner->_ctx.data.target_state.psi = owner->_ctx.data.current_state.psi;
+        owner->_ctx.data.target_state.psi = loop_fp32_constrain(owner->_ctx.data.target_state.psi,-PI,PI);
+        owner->_ctx.data.target_state.dot_psi = target_wz;
+    }
+
+    #else
+
+    //使用底盘dr16
     //角速度设置
     float target_wz;
     target_wz =owner->_current_cmd.wz;
-    // if(owner->_current_cmd.wz != 0)
-    // {
-    //     target_wz = owner->_current_cmd.wz;
-    // }
-    // else
-    // {
-    //     static const float WZ_KP = 3.0f;
-    //     constexpr float YAW_ALIGN_TARGET_RAD = -2.2f;
-    //     target_wz = WZ_KP * wrap2pi_f32_normalized(owner->_ctx.data.yaw.pos - YAW_ALIGN_TARGET_RAD);
-    //     if(fabs(target_wz) < 0.1f )
-    //     {
-    //         target_wz = 0;
-    //     }
-    // }
-    //
 
-
-
-
-    owner->_ctx.data.target_state.psi += target_wz * owner->_ctx.data._dt;
-    owner->_ctx.data.target_state.psi = loop_fp32_constrain(owner->_ctx.data.target_state.psi,-PI,PI);
+    owner->_ctx.data.target_state.psi    += target_wz * owner->_ctx.data._dt;
+    owner->_ctx.data.target_state.psi     = loop_fp32_constrain(owner->_ctx.data.target_state.psi,-PI,PI);
     owner->_ctx.data.target_state.dot_psi = target_wz;
 
+    #endif
     
 
     owner->_gain_calculate();

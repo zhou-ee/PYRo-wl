@@ -40,9 +40,9 @@ enum class chassis_function_state_t : uint8_t
 {
     NONE,
     RESTART,
-    ALIGN,
     STEP,
     AIR,
+    JUMP,
 };
 
 struct wl_chassis_cmd_t final : public cmd_base_t
@@ -302,6 +302,12 @@ class wl_chassis_t final
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
             };
+            struct state_jump_t final : public state_t<owner>
+            {
+                void enter(owner *owner) override;
+                void execute(owner *owner) override;
+                void exit(owner *owner) override;
+            };
 
             void on_enter(owner *owner) override;
             void on_execute(owner *owner) override;
@@ -312,6 +318,7 @@ class wl_chassis_t final
                 state_air_t     _state_air;
                 state_align_t   _state_align;
                 state_step_t    _state_step;
+                state_jump_t    _state_jump;
         };
         
         void on_enter(wl_chassis_t *ctx) override;

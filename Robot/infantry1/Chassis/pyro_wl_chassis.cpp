@@ -120,8 +120,16 @@ void wl_chassis_t::_update_feedback()
 
     state.x            = _ctx.data.odom.real_x;
     state.dot_x        = (_ctx.data.odom.real_dot_x[0] + _ctx.data.odom.real_dot_x[1]) / 2;
+
+    #if Using_Gimbal_Cmd
+    state.psi          = _ctx.data.yaw.pos;
+    state.dot_psi      = _ctx.data.yaw.rot;
+    #else
     state.psi          = _ctx.data.ins.euler_rad[0];
     state.dot_psi      = _ctx.data.ins.gyro[0];
+    #endif
+    
+
     state.theta        = _ctx.data.ins.euler_rad[1];
     state.dot_theta    = _ctx.data.ins.gyro[1];
     state.phi          = _ctx.data.ins.euler_rad[2];
