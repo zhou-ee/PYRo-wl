@@ -94,7 +94,6 @@ extern "C"
 {
     void infantry1_board_com_thread(void *argument)
     {
-        vTaskDelay(pdMS_TO_TICKS(500));
         while (true)
         {
             uint32_t notify_val = 0;
@@ -113,7 +112,7 @@ extern "C"
         board_drv_ptr->start_rx();
 
         xTaskCreate(infantry1_board_com_thread, "board_com_app", 256, nullptr,
-                    configMAX_PRIORITIES - 3, &board_com_task_handl);
+                    configMAX_PRIORITIES - 2, &board_com_task_handl);
 
         auto &vrc = pyro::rc_drv_t::read();
         //这里添加要订阅的按键

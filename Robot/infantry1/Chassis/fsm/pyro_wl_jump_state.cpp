@@ -13,7 +13,7 @@ namespace pyro
         owner->_ctx.data.target_state.x         = 0;
         owner->_ctx.data.target_state.dot_x     = 0.0f;
         #if Using_Gimbal_Cmd
-        owner->_ctx.data.target_state.psi       = owner->_ctx.data.current_state.psi;
+        owner->_ctx.data.target_state.psi       = owner->_ctx.data.measured_state.psi;
         #else
         owner->_ctx.data.target_state.psi       = owner->_ctx.data.ins.euler_rad[0];
         #endif
