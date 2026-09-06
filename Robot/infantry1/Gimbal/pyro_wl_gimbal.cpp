@@ -126,15 +126,31 @@ void wl_gimbal_t::updateYaw()
     }
 
 
-    //角度归一化
+    //控制部分
+
+
+    //角度环
     float error_rad = wrapAngle(_ctx.data.imu.yaw - _ctx.data.telem.targetYawRad);
-    float yawPosOut       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
-    float tgtYawSpd       = yawPosOut;
-    //后期要加上小陀螺转速补偿
-    float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgtYawSpd, _ctx.data.imu.gyro[0]);
-    _ctx.data.output.yawCurrent = yawSpdOut;
+    float tgt_yaw_spd       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
 
 
+    //速度环
+    static constexpr float b0    = 20.0f;
+    static constexpr float beta1 = 1000.0f;
+    static constexpr float beta2 = 250000.0f;
+    static float rot_hat         = 0.0f;
+    static float disrupt_hat     = 0.0f;
+    //计算估算误差
+    float error = rot_hat - _ctx.data.imu.gyro[0];
+    //更新观测器状态
+    
+    rot_hat = rot_hat + _ctx.data.dt * (disrupt_hat - beta1 * error + b0 * _ctx.data.output.yawCurrent);
+    disrupt_hat = disrupt_hat + _ctx.data.dt * (-beta2 * error);
+
+    float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgt_yaw_spd, rot_hat);
+
+    //最终输出
+    _ctx.data.output.yawCurrent = (yawSpdOut - disrupt_hat) / b0;
 }
 
 void wl_gimbal_t::align_updatePitch()
