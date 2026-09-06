@@ -224,6 +224,7 @@ void wl_chassis_t::_vmc_trans_j2v()
             leg.current_leg_length, L_WP_POLY_COEF, L_WP_POLY_DEGREE);
         leg.gas_spring_force   = _calc_gas_spring_force(
             leg.current_leg_length);
+        leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
         leg.current_leg_speed = dot_theta * leg.J_L;
 
         const float raw_beta  = leg.current_joint_rad[joint_def::HIP] + theta;
@@ -503,8 +504,13 @@ void wl_chassis_t::_balance_control()
     float error[STATE_DIM];
     for (uint8_t state = 0; state < STATE_DIM; ++state)
     {
+#if LESO_EN
+        error[state] = _ctx.data.target_state.data[state] -
+                       _ctx.data.predict_state.data[state];
+#else
         error[state] = _ctx.data.target_state.data[state] -
                        _ctx.data.measured_state.data[state];
+#endif
     }
     error[lqr_state_def::PSI] =
         loop_fp32_constrain(error[lqr_state_def::PSI], -PI, PI);
@@ -520,6 +526,18 @@ void wl_chassis_t::_balance_control()
                 _ctx.data.K[input][state] * error[state];
         }
     }
+#if LESO_EN
+   for (uint8_t input = 0; input < INPUT_DIM; ++input)
+   {
+       _ctx.data.output.data[input] = _ctx.data.control.data[input];
+   }
+   _ctx.data.output.data[lqr_input_def::F_L1] = _ctx.data.control.data[lqr_input_def::F_L1] + _ctx.data.leg[leg_def::L].virtual_wall_force;
+   _ctx.data.output.data[lqr_input_def::F_L2] = _ctx.data.control.data[lqr_input_def::F_L2] + _ctx.data.leg[leg_def::R].virtual_wall_force;
+#else
+    
+
+#endif
+
 
     _ctx.data.control.T_w1 =
         std::clamp(_ctx.data.control.T_w1, -MAX_T_W, MAX_T_W);
@@ -556,6 +574,17 @@ void wl_chassis_t::_leso_update()
     static float residual[STATE_DIM];
     static float   L_xres[STATE_DIM];
     static float   L_dres[INPUT_DIM];
+    for (uint8_t state = 0; state < STATE_DIM; ++state)
+    {
+        Gxk[state] = 0.0f;
+        Hdk[state] = 0.0f;
+        Huk[state] = 0.0f;
+        L_xres[state] = 0.0f;
+    }
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        L_dres[input] = 0.0f;
+    }
 
     for (uint8_t state = 0; state < STATE_DIM; ++state)
     {
@@ -587,7 +616,7 @@ void wl_chassis_t::_leso_update()
 
     for (uint8_t row = 0; row < INPUT_DIM; ++row)
     {
-        for (uint8_t col = 0;  col< INPUT_DIM; ++col)
+        for (uint8_t col = 0;  col< STATE_DIM; ++col)
         {
             L_dres[row] += _ctx.data.L_d[row][col] * residual[col];
         }
@@ -627,7 +656,7 @@ void wl_chassis_t::_vmc_trans_v2j()
 
     for (auto &leg : _ctx.data.leg)
     {
-        leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
+
         // const float f_l_before_wall = leg.out_F_L -
         //                               GAS_SPRING_COMPENSATION_SCALE *
         //                                   leg.gas_spring_force;
