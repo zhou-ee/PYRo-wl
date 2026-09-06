@@ -310,6 +310,7 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         GAS_SPRING_FORCE_POLY_DEGREE);
 }
 
+__attribute__((optimize("O3")))
 void wl_chassis_t::_gain_calculate()
 {
     // const float norm_delta_L =
