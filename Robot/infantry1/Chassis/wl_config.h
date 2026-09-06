@@ -117,7 +117,7 @@ constexpr float WHEEL_RADIUS                         = 0.06f;
 
 constexpr static float YAW_OFFSET = 0.884f;
 
-#define Using_Gimbal_Cmd 0
+#define Using_Gimbal_Cmd 1
 
 namespace leg_def
 {

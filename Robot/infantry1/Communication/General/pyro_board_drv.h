@@ -65,8 +65,8 @@ public:
     /* ======================================================= */
 
     // 周期数据基准 ID
-    static constexpr uint32_t G2C_BASE_ID     = 0x101;
-    static constexpr uint32_t C2G_BASE_ID     = 0x105;
+    static constexpr uint32_t G2C_BASE_ID     = 0x011;
+    static constexpr uint32_t C2G_BASE_ID     = 0x015;
 
     // 独立事件基准 ID
 

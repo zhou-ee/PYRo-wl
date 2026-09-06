@@ -129,7 +129,7 @@ namespace pyro
 
     void wl_chassis_t::fsm_active_t::state_normal_t::state_align_t::exit(wl_chassis_t *owner)
     {
-        (void)owner;
+        owner->_ctx.data.flag.chassis_is_align_ready = true;
     }
 
 }

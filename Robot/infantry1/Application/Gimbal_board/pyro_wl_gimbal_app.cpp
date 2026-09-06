@@ -176,8 +176,7 @@ void motor_deps_init()
     wl_gimbal_deps->motor_deps.pitch->set_rotate_range(-30.0f,30.0f); // 设定速度限位 (rad/s)
     wl_gimbal_deps->motor_deps.pitch->set_torque_range(-10.0f,10.0f); // 设定扭矩限位 (N.m)
     wl_gimbal_deps->pid_deps.pitch_pos =
-        new pyro::pid_t(DM_POS_PITCH_KP, 0.0f, DM_POS_PITCH_KD, 10.0f, 24.0f,
-            20, 1, 10, 1, 4);
+        new pyro::pid_t(DM_POS_PITCH_KP, 0.0f, DM_POS_PITCH_KD, 10.0f, 24.0f);
     wl_gimbal_deps->pid_deps.yaw_pos =
         new pyro::pid_t(YAW_POS_PID_KP, YAW_POS_PID_KI, YAW_POS_PID_KD, 10.0f, 20.0f,
             20, 1, 10, 1, 4);

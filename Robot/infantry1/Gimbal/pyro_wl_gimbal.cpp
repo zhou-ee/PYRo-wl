@@ -61,6 +61,7 @@ void wl_gimbal_t::_update_feedback()
     _ctx.data.telem.target_pitch_vel   = _current_cmd.pitchVel;
     _ctx.data.motionState              = _current_cmd.state_cmd;
     _ctx.data.mode                     = _current_cmd.mode;
+    _ctx.data.chassis_is_ready         = _current_cmd.chassis_is_ready;
 
     static uint32_t dwtCnt;
     _ctx.data.dt = pyro::dwt_drv_t::get_delta_t(&dwtCnt);
@@ -174,6 +175,14 @@ void wl_gimbal_t::align_updateYaw()
     //角度归一化
     float error_rad = wrapAngle(_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD);
     float yawPosOut       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
+    if(yawPosOut >= 6.0f)
+    {
+        yawPosOut = 6.0f;
+    }
+    if(yawPosOut <= -6.0f)
+    {
+        yawPosOut = -6.0f;
+    }
     float tgtYawSpd       = yawPosOut;
     float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgtYawSpd, _ctx.data.imu.gyro[0]);
     _ctx.data.output.yawCurrent = yawSpdOut;
