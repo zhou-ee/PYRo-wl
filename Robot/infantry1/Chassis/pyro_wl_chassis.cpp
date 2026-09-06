@@ -309,7 +309,7 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         normalized_length, GAS_SPRING_FORCE_POLY_COEF,
         GAS_SPRING_FORCE_POLY_DEGREE);
 }
-
+#define LESO_PARAMS_FIT 1
 __attribute__((optimize("O3")))
 void wl_chassis_t::_gain_calculate()
 {
@@ -354,7 +354,7 @@ void wl_chassis_t::_gain_calculate()
     _ctx.data.target_state.beta2 = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);
-
+#if LESO_PARAMS_FIT
         // BEGIN GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
     // Static dimensions, modes and coefficients are in coef.h.
     float leso_chebyshev[2][LESO_CHEBYSHEV_DEGREE + 1] = {};
@@ -494,6 +494,8 @@ void wl_chassis_t::_gain_calculate()
         }
     }
     // END GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
+#endif
+
 }
 
 void wl_chassis_t::_balance_control()
