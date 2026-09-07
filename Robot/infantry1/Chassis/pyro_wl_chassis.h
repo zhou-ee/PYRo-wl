@@ -190,6 +190,7 @@ struct wl_chassis_data_ctx_t
     control_vec_t control;
     control_vec_t output;
     control_vec_t dist;
+    control_vec_t current;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
     float G[STATE_DIM][STATE_DIM];
