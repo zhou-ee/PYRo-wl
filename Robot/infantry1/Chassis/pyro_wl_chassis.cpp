@@ -248,14 +248,14 @@ void wl_chassis_t::_manual_control()
             _ctx.data.leg[leg_def::L].target_leg_length,
             _ctx.data.leg[leg_def::L].current_leg_length,
             _ctx.data.leg[leg_def::L].current_leg_speed)
-    -_ctx.data.leg[leg_def::L].gas_spring_force;
+    -_ctx.data.leg[leg_def::L].gas_spring_force + _ctx.data.leg[leg_def::L].virtual_wall_force;
 
     _ctx.data.leg[leg_def::R].out_F_L =
         _ctx.pid.leg_length[leg_def::R]->calculate(
             _ctx.data.leg[leg_def::R].target_leg_length,
             _ctx.data.leg[leg_def::R].current_leg_length,
             _ctx.data.leg[leg_def::R].current_leg_speed)
-    -_ctx.data.leg[leg_def::R].gas_spring_force;
+    -_ctx.data.leg[leg_def::R].gas_spring_force + _ctx.data.leg[leg_def::R].virtual_wall_force;
 
 
     float ll_target_radps;
@@ -529,43 +529,45 @@ void wl_chassis_t::_balance_control()
 #if LESO_EN
    for (uint8_t input = 0; input < INPUT_DIM; ++input)
    {
-       _ctx.data.output.data[input] = _ctx.data.control.data[input];
+       _ctx.data.output.data[input] = _ctx.data.control.data[input] - _ctx.data.dist.data[input];
    }
-   _ctx.data.output.data[lqr_input_def::F_L1] = _ctx.data.control.data[lqr_input_def::F_L1] + _ctx.data.leg[leg_def::L].virtual_wall_force;
-   _ctx.data.output.data[lqr_input_def::F_L2] = _ctx.data.control.data[lqr_input_def::F_L2] + _ctx.data.leg[leg_def::R].virtual_wall_force;
 #else
-    
-
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        _ctx.data.output.data[input] = _ctx.data.control.data[input];
+    }
 #endif
+    _ctx.data.output.data[lqr_input_def::F_L1] = _ctx.data.control.data[lqr_input_def::F_L1] + _ctx.data.leg[leg_def::L].virtual_wall_force;
+    _ctx.data.output.data[lqr_input_def::F_L2] = _ctx.data.control.data[lqr_input_def::F_L2] + _ctx.data.leg[leg_def::R].virtual_wall_force;
 
 
-    _ctx.data.control.T_w1 =
-        std::clamp(_ctx.data.control.T_w1, -MAX_T_W, MAX_T_W);
-    _ctx.data.control.T_w2 =
-        std::clamp(_ctx.data.control.T_w2, -MAX_T_W, MAX_T_W);
-    _ctx.data.control.T_p1 =
-        std::clamp(_ctx.data.control.T_p1, -MAX_T_P, MAX_T_P);
-    _ctx.data.control.T_p2 =
-        std::clamp(_ctx.data.control.T_p2, -MAX_T_P, MAX_T_P);
-    _ctx.data.control.F_l1 =
-        std::clamp(_ctx.data.control.F_l1, -MAX_F_L, MAX_F_L);
-    _ctx.data.control.F_l2 =
-        std::clamp(_ctx.data.control.F_l2, -MAX_F_L, MAX_F_L);
+    _ctx.data.output.T_w1 =
+        std::clamp(_ctx.data.output.T_w1, -MAX_T_W, MAX_T_W);
+    _ctx.data.output.T_w2 =
+        std::clamp(_ctx.data.output.T_w2, -MAX_T_W, MAX_T_W);
+    _ctx.data.output.T_p1 =
+        std::clamp(_ctx.data.output.T_p1, -MAX_T_P, MAX_T_P);
+    _ctx.data.output.T_p2 =
+        std::clamp(_ctx.data.output.T_p2, -MAX_T_P, MAX_T_P);
+    _ctx.data.output.F_l1 =
+        std::clamp(_ctx.data.output.F_l1, -MAX_F_L, MAX_F_L);
+    _ctx.data.output.F_l2 =
+        std::clamp(_ctx.data.output.F_l2, -MAX_F_L, MAX_F_L);
 
-    _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.control.T_p1;
-    _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.control.T_p2;
-    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.control.F_l1;
-    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.control.F_l2;
+    _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.output.T_p1;
+    _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.output.T_p2;
+    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.output.F_l1;
+    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.output.F_l2;
 
-    _ctx.data.wheel[leg_def::L].out_T_w = _ctx.data.control.T_w1;
-    _ctx.data.wheel[leg_def::R].out_T_w = _ctx.data.control.T_w2;
+    _ctx.data.wheel[leg_def::L].out_T_w = _ctx.data.output.T_w1;
+    _ctx.data.wheel[leg_def::R].out_T_w = _ctx.data.output.T_w2;
     for (auto &wheel : _ctx.data.wheel)
     {
         wheel.out_current =
             std::clamp(wheel.out_T_w * (1 / K_t), -MAX_CURRENT, MAX_CURRENT);
     }
 }
-
+__attribute__((optimize("O3")))
 void wl_chassis_t::_leso_update()
 {
     static float      Gxk[STATE_DIM];
@@ -611,7 +613,7 @@ void wl_chassis_t::_leso_update()
     }
     for (uint8_t row = 0; row < STATE_DIM; ++row)
     {
-        _ctx.data.predict_state.data[row] = Gxk[row] + L_xres[row] + Huk[row] + Huk[row];
+        _ctx.data.predict_state.data[row] = Gxk[row] + L_xres[row] + Huk[row] + Hdk[row];
     }
 
     for (uint8_t row = 0; row < INPUT_DIM; ++row)
@@ -649,27 +651,13 @@ void wl_chassis_t::_leso_update()
 void wl_chassis_t::_vmc_trans_v2j()
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
-
     // Every active mode eventually reaches this VMC-to-joint conversion.
     // Apply the passive gas-spring contribution here so ALIGN, MANUAL, AIR,
     // STEP and BALANCE all use the same motor-side compensation.
-
     for (auto &leg : _ctx.data.leg)
     {
-
-        // const float f_l_before_wall = leg.out_F_L -
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
-        const float f_l_before_wall = leg.out_F_L ;
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
-        const float t_p_motor = leg.out_T_p;
-        leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force ,
-                                   -MAX_F_L, MAX_F_L);
-        leg.motor_t_p = t_p_motor;
-
-        float tau_sum                        = leg.motor_t_p;
-        float tau_diff                       = leg.motor_f_l * leg.J_L;
+        float tau_sum                        = leg.out_T_p;
+        float tau_diff                       = leg.out_F_L * leg.J_L;
         leg.out_joint_torque[joint_def::HIP] = std::clamp(
             (tau_sum - tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
         leg.out_joint_torque[joint_def::KNEE] = std::clamp(
