@@ -1,10 +1,20 @@
 {
-  "cfg_path": "C:\\Users\\ssyss\\AppData\\Roaming\\EmbeddedTool\\user_configs\\stm32g4_daplink .cfg",
+  "cfg_path": "E:\\Software\\Develop\\Embeded\\Config\\stm32h7_daplink.cfg",
   "flash_mode": "Run",
   "cmake_options": "-DROBOT_ID=3 -DINFANTRY1_BOARD=CHASSIS_BOARD",
   "backend_type": "OpenOCD",
   "target_type": "stm32g431cbux",
   "svd_path": "E:\\Develop\\Cmake_pack\\openocd_test\\STM32G431.svd",
   "build_type": "Debug",
-  "breakpoints": []
+  "breakpoints": [
+    {
+      "addr": 134281500,
+      "label": "pyro_mission_planer.cpp:29",
+      "condition": "",
+      "enabled": true,
+      "hit_count": 1,
+      "source_file": "E:\\Software\\Develop\\RM\\Wheel_leg\\PYRo-wl\\Robot\\infantry1\\pyro_mission_planer.cpp",
+      "source_line": 29
+    }
+  ]
 }

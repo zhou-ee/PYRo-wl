@@ -31,7 +31,7 @@ extern "C"
         while (true)
         {
             chassis_feedback();
-            board_drv_ptr->send_data();
+            // board_drv_ptr->send_data();
             vTaskDelay(pdMS_TO_TICKS(1));
         }
     }

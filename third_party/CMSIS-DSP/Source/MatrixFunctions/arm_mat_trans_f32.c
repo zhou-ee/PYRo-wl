@@ -1,4 +1,4 @@
-﻿/* ----------------------------------------------------------------------
+/* ----------------------------------------------------------------------
  * Project:      CMSIS DSP Library
  * Title:        arm_mat_trans_f32.c
  * Description:  Floating-point matrix transpose
