@@ -534,15 +534,19 @@ void wl_chassis_t::_balance_control()
         }
     }
 #if LESO_EN
-   _ctx.data.ratio += 0.0005f;
-   if (_ctx.data.ratio > 1.0f)
-   {
-       _ctx.data.ratio = 1.0f;
-   }
-   for (uint8_t input = 0; input < INPUT_DIM; ++input)
-   {
-       _ctx.data.control.data[input] -= _ctx.data.dist.data[input];
-   }
+    _ctx.data.ratio = std::min(_ctx.data.ratio + 0.0005f, 1.0f);
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        // Keep the observer's raw disturbance estimate separate from the
+        // low-pass signal injected into the actuator command.
+        _ctx.data.dist_comp.data[input] +=
+            LESO_COMPENSATION_FILTER_ALPHA *
+            (_ctx.data.dist.data[input] -
+             _ctx.data.dist_comp.data[input]);
+        _ctx.data.control.data[input] -=
+            _ctx.data.ratio * LESO_COMPENSATION_GAIN[input] *
+            _ctx.data.dist_comp.data[input];
+    }
 #endif
 
     _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.control.T_p1;
@@ -607,7 +611,10 @@ void wl_chassis_t::_leso_update()
     {
         for (uint8_t col = 0;  col< INPUT_DIM; ++col)
         {
-            Hdk[row] += _ctx.data.H[row][col] * _ctx.data.ratio * _ctx.data.dist.data[col];
+            // dist estimates the physical matched disturbance and is not
+            // scaled by the compensation ramp or the output low-pass filter.
+            Hdk[row] += _ctx.data.H[row][col] *
+                        _ctx.data.dist.data[col];
             Huk[row] += _ctx.data.H[row][col] * (_ctx.data.output.data[col] - _ctx.data.U0[col]);
         }
     }

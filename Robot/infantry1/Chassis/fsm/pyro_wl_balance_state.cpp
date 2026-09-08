@@ -45,7 +45,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     {
         owner->_ctx.data.U0[input] = 0.0f;
         owner->_ctx.data.dist.data[input] = 0.0f;
-
+        owner->_ctx.data.dist_comp.data[input] = 0.0f;
     }
     owner->_ctx.data.ratio = 0.0f;
 
