@@ -94,6 +94,8 @@ struct leg_ctx_t
     float current_joint_radps[2];
     float current_joint_torque[2];
     float out_joint_torque[2];
+    float actual_out_F_L;
+    float actual_out_T_p;
 };
 
 struct wheel_ctx_t
@@ -190,7 +192,6 @@ struct wl_chassis_data_ctx_t
     control_vec_t control;
     control_vec_t output;
     control_vec_t dist;
-    control_vec_t current;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
     float G[STATE_DIM][STATE_DIM];

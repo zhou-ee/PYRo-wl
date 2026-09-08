@@ -171,15 +171,6 @@ void wl_chassis_t::_update_feedback()
         leg.previous_leg_radps = beta_dot;
     }
 
-    // 8.Control Vec feedback Update
-    control_vec_t &control = _ctx.data.current;
-    control.F_l1 = _ctx.data.leg[leg_def::L].current_F_L - _ctx.data.U0[lqr_input_def::F_L1];
-    control.F_l2 = _ctx.data.leg[leg_def::R].current_F_L - _ctx.data.U0[lqr_input_def::F_L2];
-    control.T_p1 = _ctx.data.leg[leg_def::L].current_T_p;
-    control.T_p2 = _ctx.data.leg[leg_def::R].current_T_p;
-    control.T_w1 = _ctx.data.wheel[leg_def::L].current_T_w;
-    control.T_w2 = _ctx.data.wheel[leg_def::R].current_T_w;
-
     _update_accel_heading_frame();
     // Refresh with the current body pitch before support-force estimation.
     // The takeoff detector must account for force carried by the gas spring,
@@ -526,7 +517,7 @@ void wl_chassis_t::_balance_control()
 
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
-        _ctx.data.control.data[input] = 0.0f;
+        _ctx.data.control.data[input] = _ctx.data.U0[input];
         for (uint8_t state = 0; state < STATE_DIM; ++state)
         {
             _ctx.data.control.data[input] +=
@@ -536,21 +527,16 @@ void wl_chassis_t::_balance_control()
 #if LESO_EN
    for (uint8_t input = 0; input < INPUT_DIM; ++input)
    {
-       _ctx.data.output.data[input] = _ctx.data.control.data[input] + _ctx.data.U0[input] - _ctx.data.dist.data[input];
+       _ctx.data.control.data[input] -= _ctx.data.dist.data[input];
    }
-#else
-    for (uint8_t input = 0; input < INPUT_DIM; ++input)
-    {
-        _ctx.data.output.data[input] = _ctx.data.control.data[input];
-    }
 #endif
 
-    _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.output.T_p1;
-    _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.output.T_p2;
-    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.output.F_l1;
-    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.output.F_l2;
-    _ctx.data.wheel[leg_def::L].out_T_w = _ctx.data.output.T_w1;
-    _ctx.data.wheel[leg_def::R].out_T_w = _ctx.data.output.T_w2;
+    _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.control.T_p1;
+    _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.control.T_p2;
+    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.control.F_l1;
+    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.control.F_l2;
+    _ctx.data.wheel[leg_def::L].out_T_w = std::clamp(_ctx.data.control.T_w1,-MAX_T_W,MAX_T_W);
+    _ctx.data.wheel[leg_def::R].out_T_w = std::clamp(_ctx.data.control.T_w2,-MAX_T_W,MAX_T_W);
     for (auto &wheel : _ctx.data.wheel)
     {
         wheel.out_current =
@@ -577,6 +563,12 @@ void wl_chassis_t::_leso_update()
     {
         L_dres[input] = 0.0f;
     }
+    _ctx.data.output.data[lqr_input_def::F_L1] = _ctx.data.leg[leg_def::L].actual_out_F_L;
+    _ctx.data.output.data[lqr_input_def::F_L2] = _ctx.data.leg[leg_def::R].actual_out_F_L;
+    _ctx.data.output.data[lqr_input_def::T_P1] = _ctx.data.leg[leg_def::L].actual_out_T_p;
+    _ctx.data.output.data[lqr_input_def::T_P2] = _ctx.data.leg[leg_def::R].actual_out_T_p;
+    _ctx.data.output.data[lqr_input_def::T_W1] = _ctx.data.wheel[leg_def::L].out_T_w;
+    _ctx.data.output.data[lqr_input_def::T_W2] = _ctx.data.wheel[leg_def::R].out_T_w;
 
     for (uint8_t state = 0; state < STATE_DIM; ++state)
     {
@@ -598,7 +590,7 @@ void wl_chassis_t::_leso_update()
         for (uint8_t col = 0;  col< INPUT_DIM; ++col)
         {
             Hdk[row] += _ctx.data.H[row][col] * _ctx.data.dist.data[col];
-            Huk[row] += _ctx.data.H[row][col] * _ctx.data.current.data[col];
+            Huk[row] += _ctx.data.H[row][col] * _ctx.data.output.data[col];
         }
     }
     for (uint8_t row = 0; row < STATE_DIM; ++row)
@@ -654,6 +646,11 @@ void wl_chassis_t::_vmc_trans_v2j()
             (tau_sum - tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
         leg.out_joint_torque[joint_def::KNEE] = std::clamp(
             (tau_sum + tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
+        leg.actual_out_F_L = (leg.out_joint_torque[joint_def::KNEE] -
+                           leg.out_joint_torque[joint_def::HIP]) /
+                          leg.J_L;
+        leg.actual_out_T_p = leg.out_joint_torque[joint_def::KNEE] +
+                          leg.out_joint_torque[joint_def::HIP];
     }
 }
 
