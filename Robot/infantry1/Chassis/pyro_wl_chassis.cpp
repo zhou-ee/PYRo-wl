@@ -222,10 +222,10 @@ void wl_chassis_t::_vmc_trans_j2v()
         leg.current_leg_length = OJ4 * OJ8 / OJ5;
         leg.L_wp               = evaluate_polynomial_ascending(
             leg.current_leg_length, L_WP_POLY_COEF, L_WP_POLY_DEGREE);
+        leg.current_leg_speed = dot_theta * leg.J_L;
         leg.gas_spring_force   = _calc_gas_spring_force(
             leg.current_leg_length);
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
-        leg.current_leg_speed = dot_theta * leg.J_L;
 
         const float raw_beta  = leg.current_joint_rad[joint_def::HIP] + theta;
         const float beta      = loop_fp32_constrain(raw_beta, -PI, PI);
