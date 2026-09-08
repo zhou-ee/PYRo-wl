@@ -189,6 +189,7 @@ struct wl_chassis_data_ctx_t
     state_vec_t target_state;
     state_vec_t measured_state;
     state_vec_t predict_state;
+    state_vec_t equilibrium_state;
     control_vec_t control;
     control_vec_t output;
     control_vec_t dist;
@@ -202,6 +203,7 @@ struct wl_chassis_data_ctx_t
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;
+    float ratio;
     float _dt;
     float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态

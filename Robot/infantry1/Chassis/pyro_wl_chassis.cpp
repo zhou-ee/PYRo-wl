@@ -347,12 +347,21 @@ void wl_chassis_t::_gain_calculate()
         evaluate_polynomial_ascending(norm_L1, FL_U0_POLY_COEF, U0_POLY_DEGREE);
     _ctx.data.U0[lqr_input_def::F_L2] =
         evaluate_polynomial_ascending(norm_L2, FL_U0_POLY_COEF, U0_POLY_DEGREE);
-    _ctx.data.target_state.beta1 = evaluate_polynomial_ascending(
+    for (uint32_t state = 0; state < STATE_DIM; ++state)
+    {
+        _ctx.data.equilibrium_state.data[state] = 0.0f;
+    }
+    _ctx.data.equilibrium_state.L =
+        0.5f * (_ctx.data.leg[leg_def::L].current_leg_length +
+                _ctx.data.leg[leg_def::R].current_leg_length);
+    _ctx.data.equilibrium_state.beta1 = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::L].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);
-    _ctx.data.target_state.beta2 = evaluate_polynomial_ascending(
+    _ctx.data.equilibrium_state.beta2 = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);
+    _ctx.data.target_state.beta1 = _ctx.data.equilibrium_state.beta1;
+    _ctx.data.target_state.beta2 = _ctx.data.equilibrium_state.beta2;
 #if LESO_PARAMS_FIT
         // BEGIN GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
     // Static dimensions, modes and coefficients are in coef.h.
@@ -525,6 +534,11 @@ void wl_chassis_t::_balance_control()
         }
     }
 #if LESO_EN
+   _ctx.data.ratio += 0.0005f;
+   if (_ctx.data.ratio > 1.0f)
+   {
+       _ctx.data.ratio = 1.0f;
+   }
    for (uint8_t input = 0; input < INPUT_DIM; ++input)
    {
        _ctx.data.control.data[input] -= _ctx.data.dist.data[input];
@@ -554,7 +568,9 @@ void wl_chassis_t::_leso_update()
     static float   L_dres[INPUT_DIM];
     for (uint8_t state = 0; state < STATE_DIM; ++state)
     {
-        Gxk[state] = 0.0f;
+        // G is the discrete perturbation model around equilibrium_state.
+        // Seed the absolute-state prediction with x0 before propagating xhat-x0.
+        Gxk[state] = _ctx.data.equilibrium_state.data[state];
         Hdk[state] = 0.0f;
         Huk[state] = 0.0f;
         L_xres[state] = 0.0f;
@@ -581,7 +597,9 @@ void wl_chassis_t::_leso_update()
     {
         for (uint8_t col = 0;  col< STATE_DIM; ++col)
         {
-            Gxk[row] += _ctx.data.G[row][col] * _ctx.data.predict_state.data[col];
+            Gxk[row] += _ctx.data.G[row][col] *
+                        (_ctx.data.predict_state.data[col] -
+                         _ctx.data.equilibrium_state.data[col]);
             L_xres[row] += _ctx.data.L_x[row][col] * residual[col];
         }
     }
@@ -589,7 +607,7 @@ void wl_chassis_t::_leso_update()
     {
         for (uint8_t col = 0;  col< INPUT_DIM; ++col)
         {
-            Hdk[row] += _ctx.data.H[row][col] * _ctx.data.dist.data[col];
+            Hdk[row] += _ctx.data.H[row][col] * _ctx.data.ratio * _ctx.data.dist.data[col];
             Huk[row] += _ctx.data.H[row][col] * (_ctx.data.output.data[col] - _ctx.data.U0[col]);
         }
     }
