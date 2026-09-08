@@ -159,10 +159,6 @@ void gimbal_vt03cmd(virtual_rc_t vrc, uint32_t notify)
 
 
 
-
-
-
-
 void motor_deps_init()
 {
     wl_gimbal_deps = new pyro::wl_gimbal_deps_t();
@@ -175,8 +171,12 @@ void motor_deps_init()
     wl_gimbal_deps->motor_deps.pitch->set_position_range(-PI,PI); // 设定位置限位 (rad)
     wl_gimbal_deps->motor_deps.pitch->set_rotate_range(-30.0f,30.0f); // 设定速度限位 (rad/s)
     wl_gimbal_deps->motor_deps.pitch->set_torque_range(-10.0f,10.0f); // 设定扭矩限位 (N.m)
+    wl_gimbal_deps->pid_deps.pitch_spd =
+        new pyro::pid_t(DM_SPD_PITCH_KP, 0.0f, DM_SPD_PITCH_KD, 0.0f, 7.0f,
+            50, 1, 25, 1, 4);
     wl_gimbal_deps->pid_deps.pitch_pos =
-        new pyro::pid_t(DM_POS_PITCH_KP, 0.0f, DM_POS_PITCH_KD, 10.0f, 24.0f);
+        new pyro::pid_t(DM_POS_PITCH_KP, 0.0f, DM_POS_PITCH_KD, 0.0f, 10.0f,
+            50, 1, 25, 1, 4);
     wl_gimbal_deps->pid_deps.yaw_pos =
         new pyro::pid_t(YAW_POS_PID_KP, YAW_POS_PID_KI, YAW_POS_PID_KD, 10.0f, 20.0f,
             20, 1, 10, 1, 4);
@@ -185,8 +185,8 @@ void motor_deps_init()
             20, 1, 10, 1, 4);
     
     // 设置 MIT 模式下的阻抗参数 (若使用串级PID输出扭矩，Kp和Kd必须设为0)
-    wl_gimbal_deps->motor_deps.pitch->set_runtime_kp(DM_MOT_PITCH_KP);
-    wl_gimbal_deps->motor_deps.pitch->set_runtime_kd(DM_MOT_PITCH_KD);
-    // wl_gimbal_deps->motor_deps.pitch->set_runtime_kp(0);
-    // wl_gimbal_deps->motor_deps.pitch->set_runtime_kd(0);
+    // wl_gimbal_deps->motor_deps.pitch->set_runtime_kp(DM_MOT_PITCH_KP);
+    // wl_gimbal_deps->motor_deps.pitch->set_runtime_kd(DM_MOT_PITCH_KD);
+    wl_gimbal_deps->motor_deps.pitch->set_runtime_kp(0);
+    wl_gimbal_deps->motor_deps.pitch->set_runtime_kd(0);
 }

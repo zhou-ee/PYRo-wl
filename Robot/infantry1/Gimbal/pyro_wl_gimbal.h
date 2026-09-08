@@ -52,6 +52,7 @@ struct wl_gimbal_deps_t
     // 算法对象 (串级 PID)
     struct pid_deps_t
     {
+        pid_t *pitch_spd{nullptr};
         pid_t *pitch_pos{nullptr};
         pid_t *yaw_pos{nullptr};
         pid_t *yaw_spd{nullptr};
@@ -91,9 +92,6 @@ struct GimbalState {
 
 struct GimbalOutput {
     float yawCurrent;
-
-    float targetPitchPos;
-    float targetPitchSpeed;
     float pitchTorque;
 
     bool pitchEn;

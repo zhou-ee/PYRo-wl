@@ -9,7 +9,7 @@ namespace pyro
 
     
 
-    static constexpr float ALIGN_MAX_RAD       = 1.2f;
+    static constexpr float ALIGN_MAX_RAD       = 1.4f;
     static constexpr float ALIGN_MIN_RAD       = 0.75f;
     static constexpr float ALIGN_TARGET_RAD    = 0.9f;
     static constexpr float ALIGN_TARGET_LENGTH = 0.20f;
