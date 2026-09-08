@@ -90,7 +90,7 @@ void wl_chassis_t::_update_feedback()
                                 wheel_ctx.direction * rec_reduction_ratio;
     }
 
-    _ctx.data.yaw.pos = _ctx.motor.yaw->get_current_position() - YAW_OFFSET;
+    _ctx.data.yaw.pos = loop_fp32_constrain(_ctx.motor.yaw->get_current_position() - YAW_OFFSET,-PI, PI) ;
     _ctx.data.yaw.rot = _ctx.motor.yaw->get_current_rotate();
 
     // 4. Convert joint-space feedback to virtual-mechanism feedback.
@@ -122,8 +122,8 @@ void wl_chassis_t::_update_feedback()
     state.dot_x        = (_ctx.data.odom.real_dot_x[0] + _ctx.data.odom.real_dot_x[1]) / 2;
 
     #if Using_Gimbal_Cmd
-    state.psi          = _ctx.data.yaw.pos;
-    state.dot_psi      = _ctx.data.yaw.rot;
+    state.psi          = -_ctx.data.yaw.pos;
+    state.dot_psi      = -_ctx.data.yaw.rot;
     #else
     state.psi          = _ctx.data.ins.euler_rad[0];
     state.dot_psi      = _ctx.data.ins.gyro[0];

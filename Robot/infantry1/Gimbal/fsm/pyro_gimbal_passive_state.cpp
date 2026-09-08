@@ -1,10 +1,8 @@
 #include "pyro_wl_gimbal.h"
 
 void pyro::wl_gimbal_t::state_passive_t::enter(owner* owner) {
-    owner->_ctx.data.output.targetPitchSpeed       = 0.0f;
     owner->_ctx.data.output.pitchTorque = 0.0f;
     owner->_ctx.data.output.yawCurrent             = 0.0f;
-    owner->_ctx.data.output.targetPitchPos         = owner->_ctx.data.state.pitch.pos;
     owner->_ctx.data.telem.targetYawRad            = owner->_ctx.data.imu.yaw;
     owner->_ctx.data.telem.targetPitchRad          = owner->_ctx.data.imu.pitch;
     owner->_ctx.data.output.pitchEn                = false;
@@ -30,10 +28,7 @@ void pyro::wl_gimbal_t::state_passive_t::execute(owner* owner)
     owner->set_pitchstate(owner->_ctx.data.output.pitchEn);
     owner->_ctx.data.telem.targetYawRad            = owner->_ctx.data.imu.yaw;
     owner->_ctx.data.telem.targetPitchRad          = owner->_ctx.data.imu.pitch;
-    owner->_ctx.data.output.targetPitchSpeed       = 0.0f;
     owner->_ctx.data.output.pitchTorque = 0.0f;
-    owner->_ctx.data.output.targetPitchPos         = owner->_ctx.data.state.pitch.pos;
-    owner->_ctx.data.output.targetPitchSpeed       = 0.0f;
     if(owner->_ctx.data.mode == cmd_base_t::mode_t::ACTIVE)
     {
         request_switch(&instance()->_state_active);
