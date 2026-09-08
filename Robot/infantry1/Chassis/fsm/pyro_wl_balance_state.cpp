@@ -37,6 +37,16 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     owner->_ctx.data.target_state.dot_beta2 = 0.0f;
     owner->_ctx.data.normal_roll_force_trim = 0.0f;
 
+    for (uint8_t state = 0; state < STATE_DIM; state++)
+    {
+        owner->_ctx.data.predict_state.data[state] = owner->_ctx.data.measured_state.data[state];
+    }
+    for (uint8_t input = 0 ; input < INPUT_DIM; input++)
+    {
+        owner->_ctx.data.U0[input] = 0.0f;
+        owner->_ctx.data.dist.data[input] = 0.0f;
+    }
+
 
     for (float & i : owner->_ctx.data.U0)
     {

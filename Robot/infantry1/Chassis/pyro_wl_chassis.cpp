@@ -590,7 +590,7 @@ void wl_chassis_t::_leso_update()
         for (uint8_t col = 0;  col< INPUT_DIM; ++col)
         {
             Hdk[row] += _ctx.data.H[row][col] * _ctx.data.dist.data[col];
-            Huk[row] += _ctx.data.H[row][col] * _ctx.data.output.data[col];
+            Huk[row] += _ctx.data.H[row][col] * (_ctx.data.output.data[col] - _ctx.data.U0[col]);
         }
     }
     for (uint8_t row = 0; row < STATE_DIM; ++row)
