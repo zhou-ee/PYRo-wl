@@ -2,7 +2,7 @@
 #define __LESO_COEF_H__
 
 
-static constexpr float DIST_RATIO = 0.5f;
+static constexpr float DIST_RATIO = 0.2f;
 constexpr uint32_t LESO_CHEBYSHEV_DEGREE = 4;
 constexpr uint32_t LESO_EVEN_TERM_COUNT = 9;
 constexpr uint32_t LESO_ODD_TERM_COUNT = 6;

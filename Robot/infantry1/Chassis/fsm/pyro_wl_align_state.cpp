@@ -62,6 +62,7 @@ namespace pyro
         }
 
         //判断只有yaw电机在目标复位角度内才能进行腿部复位
+#if Using_Gimbal_Cmd
         
         if(fabs(owner->_ctx.data.yaw.pos) <= 0.3f)
         {
@@ -84,7 +85,26 @@ namespace pyro
                 owner->_ctx.data.leg[leg_def::R].target_leg_rad  += ALIGN_DELTA_RAD;
             }
         }
-
+#else
+        if(owner->_ctx.data.leg[leg_def::L].target_leg_length >= ALIGN_TARGET_LENGTH)
+        {
+            owner->_ctx.data.leg[leg_def::L].target_leg_length -= ALIGN_DELTA_LENGTH;
+        }
+        if(owner->_ctx.data.leg[leg_def::R].target_leg_length >= ALIGN_TARGET_LENGTH)
+        {
+            owner->_ctx.data.leg[leg_def::R].target_leg_length -= ALIGN_DELTA_LENGTH;
+        }
+        if(owner->_ctx.data.leg[leg_def::L].target_leg_rad  >= ALIGN_MAX_RAD ||
+           owner->_ctx.data.leg[leg_def::L].target_leg_rad  <= ALIGN_TARGET_RAD )
+        {
+            owner->_ctx.data.leg[leg_def::L].target_leg_rad  += ALIGN_DELTA_RAD;
+        }
+        if(owner->_ctx.data.leg[leg_def::R].target_leg_rad  >= ALIGN_MAX_RAD ||
+           owner->_ctx.data.leg[leg_def::R].target_leg_rad  <= ALIGN_TARGET_RAD)
+        {
+            owner->_ctx.data.leg[leg_def::R].target_leg_rad  += ALIGN_DELTA_RAD;
+        }
+#endif
 
         //限幅
         owner->_ctx.data.leg[leg_def::L].target_leg_rad =
