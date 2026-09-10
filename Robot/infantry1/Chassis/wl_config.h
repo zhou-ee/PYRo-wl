@@ -6,7 +6,7 @@
 
 namespace pyro
 {
-#define LESO_EN 1
+#define LESO_EN 0
 constexpr float loop_fp32_PI(float val)
 {
     while (val > PI)
