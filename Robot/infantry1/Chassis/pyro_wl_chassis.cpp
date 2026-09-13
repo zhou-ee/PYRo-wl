@@ -124,6 +124,15 @@ void wl_chassis_t::_update_feedback()
     #if Using_Gimbal_Cmd
     state.psi          = -_ctx.data.yaw.pos;
     state.dot_psi      = -_ctx.data.yaw.rot;
+
+    if(abs(state.psi) < 0.1f)
+    {
+        state.psi = 0.0f;
+    }
+    if (state.dot_psi < 0.1f) 
+    {
+        state.dot_psi = 0.0f;
+    }
     #else
     state.psi          = _ctx.data.ins.euler_rad[0];
     state.dot_psi      = _ctx.data.ins.gyro[0];

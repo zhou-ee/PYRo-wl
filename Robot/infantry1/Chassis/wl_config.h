@@ -27,13 +27,13 @@ constexpr float HIP_CALIBRATION_OFFSET  = -2.44899;
 constexpr float KNEE_CALIBRATION_OFFSET = 2.62047f;
 
 constexpr float LEFT_HIP_OFFSET =
-    -loop_fp32_PI(3.07832f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(2.76845f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(0.25690f + KNEE_CALIBRATION_OFFSET);
-constexpr float RIGHT_HIP_OFFSET = 
-    -loop_fp32_PI(-0.99730f + HIP_CALIBRATION_OFFSET);
-constexpr float RIGHT_KNEE_OFFSET = 
-    -loop_fp32_PI(2.71408f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.93924f + KNEE_CALIBRATION_OFFSET);
+constexpr float RIGHT_HIP_OFFSET =
+    -loop_fp32_PI(0.49898f + HIP_CALIBRATION_OFFSET);
+constexpr float RIGHT_KNEE_OFFSET =
+    -loop_fp32_PI(-1.91909f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;

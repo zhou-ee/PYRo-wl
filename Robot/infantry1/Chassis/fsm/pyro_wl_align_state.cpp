@@ -9,10 +9,10 @@ namespace pyro
 
     
 
-    static constexpr float ALIGN_MAX_RAD       = 1.4f;
+    static constexpr float ALIGN_MAX_RAD       = 1.65f;
     static constexpr float ALIGN_MIN_RAD       = 0.75f;
     static constexpr float ALIGN_TARGET_RAD    = 0.9f;
-    static constexpr float ALIGN_TARGET_LENGTH = 0.20f;
+    static constexpr float ALIGN_TARGET_LENGTH = 0.2f;
     static constexpr float ALIGN_DELTA_LENGTH  = 0.0003f;
     static constexpr float ALIGN_DELTA_RAD     = 0.003f;
     
@@ -45,8 +45,8 @@ namespace pyro
            owner->_ctx.data.leg[leg_def::L].current_leg_rad >= ALIGN_MIN_RAD &&
            owner->_ctx.data.leg[leg_def::R].current_leg_rad <= ALIGN_MAX_RAD &&
            owner->_ctx.data.leg[leg_def::R].current_leg_rad >= ALIGN_MIN_RAD &&
-           owner->_ctx.data.leg[leg_def::L].current_leg_length <=MIN_LEG_LENGTH+0.03f&&
-           owner->_ctx.data.leg[leg_def::R].current_leg_length <=MIN_LEG_LENGTH+0.03f&&
+           owner->_ctx.data.leg[leg_def::L].current_leg_length <=MIN_LEG_LENGTH+0.06f&&
+           owner->_ctx.data.leg[leg_def::R].current_leg_length <=MIN_LEG_LENGTH+0.06f&&
            abs(owner->_ctx.data.leg[leg_def::L].current_leg_rad-owner->_ctx.data.leg[leg_def::R].current_leg_rad)<=0.2f)
         {
             if(keep_tick >=20)
