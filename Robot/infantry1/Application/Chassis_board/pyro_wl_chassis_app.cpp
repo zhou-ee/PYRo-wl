@@ -50,11 +50,11 @@ extern "C"
             
 
             
-            // if (board_ptr->check_online())
-            // {
-            //     gimbal_cmd();
-            // }
-            if (dr16_drv_t::instance().check_online())
+            if (board_ptr->check_online())
+            {
+                gimbal_cmd();
+            }
+            else if (dr16_drv_t::instance().check_online())
             {
                 // 当前没有板间通信，直接检测并使用遥控器控制
                 chassis_dr162cmd(notify_val);
@@ -213,7 +213,7 @@ void chassis_dr162cmd(uint32_t notify)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
     }
-        else if (notify & EVENT_BIT_JUMP)
+    else if (notify & EVENT_BIT_JUMP)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::JUMP;
     }

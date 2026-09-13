@@ -29,9 +29,9 @@ void pyro_init_thread(void *argument)
     ins_config_t ins_cfg;
     ins_cfg.calibrate = IMU_CALIBRATION_EN;
     ins_cfg.direct = ins_config_t::imu_direct_t::DIRECT_3;
-    ins_cfg.gx_offset = 0.00275493739f;
-    ins_cfg.gy_offset = 0.000510261336f;
-    ins_cfg.gz_offset = 0.00282844482f;
+    ins_cfg.gx_offset = 0.00132003485f;
+    ins_cfg.gy_offset = 0.00487931306f;
+    ins_cfg.gz_offset = -8.64639369e-05f;
     ins_cfg.g_norm = 9.83213902f;
     ins_drv->init(ins_cfg);
 
