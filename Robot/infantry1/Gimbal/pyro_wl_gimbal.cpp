@@ -96,23 +96,33 @@ void wl_gimbal_t::updatePitch()
     {
         targetMotorRaw = PITCH_LIMIT_MIN;
     }
+    _ctx.data.telem.targetPitchRad = targetMotorRaw - offsetPitch;
 
 
-    //再还原回imu的角度用来pid计算
-    float target_imu_rad = targetMotorRaw - offsetPitch;
-    _ctx.data.telem.targetPitchRad = target_imu_rad;
-
-    float pos_error = _ctx.data.imu.pitch - _ctx.data.telem.targetPitchRad;
+    float pos_error = _ctx.data.state.pitch.pos - targetMotorRaw;
     pos_error = wrapAngle(pos_error);
     float tgt_spd = _module_deps.pid_deps.pitch_pos->calculate(0.0f, pos_error);
 
-    float spd_error = _ctx.data.imu.gyro[1] - tgt_spd;
-    float pitch_torque = _module_deps.pid_deps.pitch_spd->calculate(0.0f, spd_error);
+    //速度环
+    static constexpr float omega_0 = 30.0f;
+    static constexpr float b0    = 11.0f;
+    static constexpr float beta1 = 2 * omega_0;
+    static constexpr float beta2 = omega_0 * omega_0;
+    static float rot_hat         = 0.0f;
+    static float disrupt_hat     = 0.0f;
+
+    //计算估算误差
+    float spd_error = rot_hat - _ctx.data.imu.gyro[1];
+    //更新观测器状态
+    rot_hat = rot_hat + _ctx.data.dt * (disrupt_hat - beta1 * spd_error + b0 * _ctx.data.output.pitchTorque);
+    disrupt_hat = disrupt_hat + _ctx.data.dt * (-beta2 * spd_error);
+
+    float pitch_torque = _module_deps.pid_deps.pitch_spd->calculate(tgt_spd, _ctx.data.imu.gyro[1]);
 
     //云台俯仰轴的重力补偿和位置控制
     float gravityFf           = PITCH_K_GRAVITY_COS * arm_cos_f32(_ctx.data.imu.pitch) + PITCH_K_GRAVITY_SIN * arm_sin_f32(_ctx.data.imu.pitch);
 
-    _ctx.data.output.pitchTorque            = gravityFf + pitch_torque;
+    _ctx.data.output.pitchTorque            = gravityFf + pitch_torque - (disrupt_hat) / b0 * 0.2f;
     _ctx.data.output.pitchEn                = true;
 }
 
@@ -133,46 +143,26 @@ void wl_gimbal_t::updateYaw()
     //控制部分
 
 
-
-
-
-    //角度归一化
+    //角度环
     float error_rad = wrapAngle(_ctx.data.imu.yaw - _ctx.data.telem.targetYawRad);
-    float yawPosOut       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
-    float tgtYawSpd       = yawPosOut;
-    //后期要加上小陀螺转速补偿
-    float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgtYawSpd, _ctx.data.imu.gyro[0]);
-    _ctx.data.output.yawCurrent = yawSpdOut;
-
-
-
-
-
-
-
-
-
-    // //角度环
-    // float error_rad = wrapAngle(_ctx.data.imu.yaw - _ctx.data.telem.targetYawRad);
-    // float tgt_yaw_spd       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
-    // //速度环
-    // static constexpr float omega_0 = 100.0f;
-    // static constexpr float b0    = 30.122f;
-    // static constexpr float beta1 = 2 * omega_0;
-    // static constexpr float beta2 = omega_0 * omega_0;
-    // static float rot_hat         = 0.0f;
-    // static float disrupt_hat     = 0.0f;
-    // //计算估算误差
-    // float error = rot_hat - _ctx.data.imu.gyro[0];
-    // //更新观测器状态
+    float tgt_yaw_spd       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
+    //速度环
+    static constexpr float omega_0 = 30.0f;
+    static constexpr float b0    = 30.122f;
+    static constexpr float beta1 = 2 * omega_0;
+    static constexpr float beta2 = omega_0 * omega_0;
+    static float rot_hat         = 0.0f;
+    static float disrupt_hat     = 0.0f;
+    //计算估算误差
+    float error = rot_hat - _ctx.data.imu.gyro[0];
+    //更新观测器状态
     
-    // rot_hat = rot_hat + _ctx.data.dt * (disrupt_hat - beta1 * error + b0 * _ctx.data.output.yawCurrent);
-    // disrupt_hat = disrupt_hat + _ctx.data.dt * (-beta2 * error);
+    rot_hat = rot_hat + _ctx.data.dt * (disrupt_hat - beta1 * error + b0 * _ctx.data.output.yawCurrent);
+    disrupt_hat = disrupt_hat + _ctx.data.dt * (-beta2 * error);
 
-    // float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgt_yaw_spd, _ctx.data.imu.gyro[0]);
-
-    // //最终输出
-    // _ctx.data.output.yawCurrent = yawSpdOut - (disrupt_hat) / b0 * 0.8f;
+    float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgt_yaw_spd, _ctx.data.imu.gyro[0]);
+    //最终输出
+    _ctx.data.output.yawCurrent = yawSpdOut - (disrupt_hat) / b0 * 0.1f;
 
 
 }
@@ -210,20 +200,37 @@ void wl_gimbal_t::align_updateYaw()
         _ctx.data.output.yawCurrent = 0.0f;
         return;
     }
+
     //角度归一化
     float error_rad = wrapAngle(_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD);
-    float yawPosOut       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
-    if(yawPosOut >= 6.0f)
+    float tgt_yaw_spd       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
+    //速度环
+    static constexpr float omega_0 = 30.0f;
+    static constexpr float b0    = 30.122f;
+    static constexpr float beta1 = 2 * omega_0;
+    static constexpr float beta2 = omega_0 * omega_0;
+    static float rot_hat         = 0.0f;
+    static float disrupt_hat     = 0.0f;
+    //计算估算误差
+    float error = rot_hat - _ctx.data.imu.gyro[0];
+    //更新观测器状态
+    
+    rot_hat = rot_hat + _ctx.data.dt * (disrupt_hat - beta1 * error + b0 * _ctx.data.output.yawCurrent);
+    disrupt_hat = disrupt_hat + _ctx.data.dt * (-beta2 * error);
+
+    if(tgt_yaw_spd >= 6.0f)
     {
-        yawPosOut = 6.0f;
+        tgt_yaw_spd = 6.0f;
     }
-    if(yawPosOut <= -6.0f)
+    if(tgt_yaw_spd <= -6.0f)
     {
-        yawPosOut = -6.0f;
+        tgt_yaw_spd = -6.0f;
     }
-    float tgtYawSpd       = yawPosOut;
-    float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgtYawSpd, _ctx.data.imu.gyro[0]);
-    _ctx.data.output.yawCurrent = yawSpdOut;
+
+    float yawSpdOut       = _module_deps.pid_deps.yaw_spd->calculate(tgt_yaw_spd, _ctx.data.imu.gyro[0]);
+    //最终输出
+    _ctx.data.output.yawCurrent = yawSpdOut - (disrupt_hat) / b0 * 0.5f;
+
 
 }
 
