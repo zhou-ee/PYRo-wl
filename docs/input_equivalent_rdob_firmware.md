@@ -16,42 +16,43 @@
 x, psi, theta, phi, L_bar, beta1, beta2
 ```
 
-位置误差相对上一区间的 LQR 配平 `q0` 计算；速度误差相对移动配平速度
-计算。正常行进、旋转和变腿长时，`dot_x`、`dot_psi`、`dot_L` 分别使用当前
-目标速度，因此名义运动不会被当作扰动。`psi` 的差值按 `[-pi, pi]` 回绕。
+位置误差相对当前 LQR 配平 `q0` 计算；速度误差相对移动配平速度计算。正常
+行进、旋转和变腿长时，`dot_x`、`dot_psi`、`dot_L` 分别使用当前目标速度，
+因此名义运动不会被当作扰动。`psi` 的差值按 `[-pi, pi]` 回绕。
 
-## 一个控制周期的时序
+## 原有下位机框架中的计算
 
-1. 到达新测量时，`_gain_calculate()` 生成当前 LQR 配平和增益。
-2. `_rdob_update()` 用上一区间保存的系数、两端测量和实际总输入更新
-   `z`，并得到当前 `d_hat`。
-3. 用当前 `L1,L2` 系数按
-   `z = d_hat - Gamma_current * delta_v_current` 重基准化；这不会使
-   `d_hat` 在调度切换时跳变。
-4. `_balance_control()` 保持原 LESO 控制链；RDOB 默认只写入
-   `rdob_dist`，不改变 `u`。
-5. `_vmc_trans_v2j()` 完成关节力矩限幅；随后
-   `_rdob_capture_applied_input()` 缓存实际总输入，供下一次更新使用。
-
-离散更新为：
+`_gain_calculate()` 在原有控制参数调度后，直接将当前 `L1,L2` 代入
+`rdob_coef.h` 的 Horner 多项式：
 
 ```
-z[k+1] = Az*z[k]
-       + Cq*(delta_q[k] + delta_q[k+1])
-       + Cv*(delta_v[k] + delta_v[k+1])
-       + Cu*delta_u_applied[k]
+Gamma[6][7]  <- 三次全张量
+B_q[6][0:2]  <- 0
+B_q[6][2:7]  <- 二维总阶三次
 ```
 
-其中 `delta_u_applied` 绝不使用未经限幅的 LQR 原始指令。腿力输入使用
-`actual_out_F_L + gas_spring_force`；同样，LQR 的主动 `U0[F_L]` 也加回
-气弹簧模型力后才构成 RDOB 的总配平输入。这保证观测器内的输入定义与
-线性化模型一致。
+`_rdob_update()` 沿用已有的 `delta_q0`、`delta_dot_q0`、`z`、`dot_z`
+缓存。它在 VMC 限幅和发送电机命令后，与 LESO 在同一控制周期更新。
+RDOB 默认只写入 `rdob_dist`，不改变 `u`。
+
+连续方程和显式 Euler 递推为：
+
+```
+dot_z = -Lambda * (z + Gamma * delta_dot_q)
+      + B_q * delta_q
+      - Lambda * delta_u
+z += dt * dot_z
+d_hat = z + Gamma * delta_dot_q
+```
+
+其中 `delta_u` 使用 VMC、关节力矩和轮端限幅后的实际输出。腿力的实际
+输出和 LQR 的 `U0[F_L]` 都是主动电机等效力；在两边加上同一当前气弹簧
+模型力后相消，因此它们的差就是总广义腿力增量。
 
 ## 启动、越界与补偿选择
 
 进入平衡状态时，观测器以 `d_hat=0` 初始化，即
-`z=-Gamma*delta_v`。腿长非有限或离开 `[0.18, 0.38] m` 时，系数求值拒绝
-该样本，RDOB 清零并等待下一次有效初始化。
+`z=-Gamma*delta_v`。调度输入沿用既有 LQR 的腿长归一化与边界钳位。
 
 默认 `LESO_EN=1`、`RDOB_EN=1`：`dist` 是 LESO 的原始输入扰动估计，
 `rdob_dist` 是 RDOB 的原始输入等效扰动估计，两者在同一控制周期更新，
