@@ -201,12 +201,18 @@ struct wl_chassis_data_ctx_t
     float L_x[STATE_DIM][STATE_DIM];
     float L_d[INPUT_DIM][STATE_DIM];
     float U0[INPUT_DIM];
-    float Gamma[INPUT_DIM][GENERAL_STATE_DIM];
-    float B_q[INPUT_DIM][GENERAL_STATE_DIM];
-    float delta_q0[GENERAL_STATE_DIM];
-    float delta_dot_q0[GENERAL_STATE_DIM];
+    // The coefficient/measurement snapshots implement the scheduled RDOB
+    // update over [k, k+1).  The applied input is always the actual TOTAL
+    // generalized input after VMC, torque/current limits and gas springs.
+    wheel_leg_rdob_schedule::Coefficients rdob_coefficients;
+    float rdob_previous_position[GENERAL_STATE_DIM];
+    float rdob_previous_velocity[GENERAL_STATE_DIM];
+    float rdob_previous_trim_position[GENERAL_STATE_DIM];
+    float rdob_previous_trim_velocity[GENERAL_STATE_DIM];
+    float rdob_previous_trim_total_input[INPUT_DIM];
+    float rdob_applied_total_input[INPUT_DIM];
     float z[INPUT_DIM];
-    float dot_z[INPUT_DIM];
+    bool rdob_initialized;
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;
@@ -270,6 +276,7 @@ class wl_chassis_t final
     void _execute_landing_recovery();
     void _leso_update();
     void _rdob_update();
+    void _rdob_capture_applied_input();
 
     using owner = wl_chassis_t;
 

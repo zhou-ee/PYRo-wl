@@ -3,11 +3,22 @@
 #include "pyro_algo_common.h"
 #include "lqr_coef.h"
 #include "leso_coef.h"
+#include "rdob_coef.h"
 
 namespace pyro
 {
+// The RDOB is the active balance-mode observer.  Set RDOB_EN to zero to
+// restore the retained LESO path without changing any source code.
 #define LESO_EN 1
 #define RDOB_EN 1
+
+// Per-input disturbance-feedback gains in T_w1, T_w2, T_p1, T_p2, F_L1,
+// F_L2 order.  The observer always estimates all six channels.  This build
+// requests full Tw+Tp+FL compensation; change an entry to zero to observe a
+// channel without feeding it back.
+constexpr float RDOB_COMPENSATION_GAIN[INPUT_DIM] = {
+    1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+};
 constexpr float loop_fp32_PI(float val)
 {
     while (val > PI)

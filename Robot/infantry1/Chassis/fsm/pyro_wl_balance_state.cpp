@@ -46,7 +46,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
         owner->_ctx.data.U0[input] = 0.0f;
         owner->_ctx.data.dist.data[input] = 0.0f;
         owner->_ctx.data.dist_comp.data[input] = 0.0f;
+        owner->_ctx.data.z[input] = 0.0f;
+        owner->_ctx.data.rdob_applied_total_input[input] = 0.0f;
     }
+    owner->_ctx.data.rdob_initialized = false;
     owner->_ctx.data.ratio = 0.0f;
 
     for (float & i : owner->_ctx.data.U0)
@@ -195,6 +198,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     
 
     owner->_gain_calculate();
+#if RDOB_EN
+    // Update z with the preceding interval before using d_hat in this cycle.
+    owner->_rdob_update();
+#endif
     owner->_balance_control();
     // const float roll_error = owner->_ctx.data.target_state.phi -
     //                          owner->_ctx.data.measured_state.phi;
@@ -219,9 +226,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     // owner->_ctx.data.leg[leg_def::R].out_F_L =
     //     owner->_ctx.data.control.F_l2;
     owner->_vmc_trans_v2j();
+#if RDOB_EN
+    // Save the limited, total input held until the next feedback sample.
+    owner->_rdob_capture_applied_input();
+#endif
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
+#if !RDOB_EN && LESO_EN
     owner->_leso_update();
+#endif
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::exit(wl_chassis_t *owner)
