@@ -309,6 +309,7 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         GAS_SPRING_FORCE_POLY_DEGREE);
 }
 #define LESO_PARAMS_FIT 1
+#define RDOB_PARAMS_FIT 1
 __attribute__((optimize("O3")))
 void wl_chassis_t::_gain_calculate()
 {
@@ -503,7 +504,11 @@ void wl_chassis_t::_gain_calculate()
     }
     // END GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
 #endif
+#if RDOB_PARAMS_FIT
 
+
+
+#endif
 }
 
 void wl_chassis_t::_balance_control()
@@ -652,6 +657,29 @@ void wl_chassis_t::_leso_update()
     _ctx.data.dist.data[lqr_input_def::F_L2] =
         std::clamp(_ctx.data.dist.data[lqr_input_def::F_L2],
                    -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
+
+}
+
+void wl_chassis_t::_rdob_update()
+{
+    for (uint32_t row = 0; row < STATE_DIM; ++row)
+    {
+        if (row % 2)
+        {
+            _ctx.data.delta_dot_q0[row] = _ctx.data.target_state.data[row] - _ctx.data.measured_state.data[row];
+        }
+        else
+        {
+            _ctx.data.delta_q0[row] = _ctx.data.target_state.data[row] - _ctx.data.measured_state.data[row];
+        }
+    }
+    _ctx.data.output.data[lqr_input_def::F_L1] = _ctx.data.leg[leg_def::L].actual_out_F_L;
+    _ctx.data.output.data[lqr_input_def::F_L2] = _ctx.data.leg[leg_def::R].actual_out_F_L;
+    _ctx.data.output.data[lqr_input_def::T_P1] = _ctx.data.leg[leg_def::L].actual_out_T_p;
+    _ctx.data.output.data[lqr_input_def::T_P2] = _ctx.data.leg[leg_def::R].actual_out_T_p;
+    _ctx.data.output.data[lqr_input_def::T_W1] = _ctx.data.wheel[leg_def::L].out_T_w;
+    _ctx.data.output.data[lqr_input_def::T_W2] = _ctx.data.wheel[leg_def::R].out_T_w;
+
 
 }
 
