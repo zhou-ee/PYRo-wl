@@ -192,7 +192,8 @@ struct wl_chassis_data_ctx_t
     state_vec_t equilibrium_state;
     control_vec_t control;
     control_vec_t output;
-    control_vec_t dist;
+    control_vec_t dist; // Existing LESO estimate, retained for comparison.
+    control_vec_t rdob_dist; // Input-equivalent RDOB estimate, raw SI input units.
     control_vec_t dist_comp;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];

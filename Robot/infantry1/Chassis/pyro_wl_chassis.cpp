@@ -308,7 +308,7 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         normalized_length, GAS_SPRING_FORCE_POLY_COEF,
         GAS_SPRING_FORCE_POLY_DEGREE);
 }
-#define LESO_PARAMS_FIT (LESO_EN && !RDOB_EN)
+#define LESO_PARAMS_FIT LESO_EN
 __attribute__((optimize("O3")))
 void wl_chassis_t::_gain_calculate()
 {
@@ -517,9 +517,9 @@ void wl_chassis_t::_balance_control()
     float error[STATE_DIM];
     for (uint8_t state = 0; state < STATE_DIM; ++state)
     {
-#if LESO_EN && !RDOB_EN
+#if LESO_EN
         error[state] = _ctx.data.target_state.data[state] -
-                       _ctx.data.predict_state.data[state];
+                       _ctx.data.measured_state.data[state];
 #else
         error[state] = _ctx.data.target_state.data[state] -
                        _ctx.data.measured_state.data[state];
@@ -539,11 +539,11 @@ void wl_chassis_t::_balance_control()
                 _ctx.data.K[input][state] * error[state];
         }
     }
-#if RDOB_EN
+#if RDOB_COMPENSATION_EN
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
         _ctx.data.control.data[input] -=
-            RDOB_COMPENSATION_GAIN[input] * _ctx.data.dist.data[input];
+            RDOB_COMPENSATION_GAIN[input] * _ctx.data.rdob_dist.data[input];
     }
 #elif LESO_EN
     _ctx.data.ratio = std::min(_ctx.data.ratio + 0.0005f, 1.0f);
@@ -680,7 +680,7 @@ void wl_chassis_t::_rdob_update()
         for (uint8_t input = 0; input < INPUT_DIM; ++input)
         {
             _ctx.data.z[input] = 0.0f;
-            _ctx.data.dist.data[input] = 0.0f;
+            _ctx.data.rdob_dist.data[input] = 0.0f;
         }
         return;
     }
@@ -726,7 +726,7 @@ void wl_chassis_t::_rdob_update()
             }
             // z = d_hat - Gamma*delta_v, initialized with d_hat=0.
             _ctx.data.z[input] = -gamma_velocity;
-            _ctx.data.dist.data[input] = 0.0f;
+            _ctx.data.rdob_dist.data[input] = 0.0f;
         }
     }
     else
@@ -790,7 +790,7 @@ void wl_chassis_t::_rdob_update()
                 estimate += _ctx.data.rdob_coefficients.gamma[index] *
                     next_delta_velocity[coordinate];
             }
-            _ctx.data.dist.data[input] = estimate;
+            _ctx.data.rdob_dist.data[input] = estimate;
 
             float current_gamma_velocity = 0.0f;
             for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM;

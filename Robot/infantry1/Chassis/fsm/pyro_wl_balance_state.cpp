@@ -45,6 +45,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     {
         owner->_ctx.data.U0[input] = 0.0f;
         owner->_ctx.data.dist.data[input] = 0.0f;
+        owner->_ctx.data.rdob_dist.data[input] = 0.0f;
         owner->_ctx.data.dist_comp.data[input] = 0.0f;
         owner->_ctx.data.z[input] = 0.0f;
         owner->_ctx.data.rdob_applied_total_input[input] = 0.0f;
@@ -232,7 +233,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 #endif
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
-#if !RDOB_EN && LESO_EN
+#if LESO_EN
     owner->_leso_update();
 #endif
 }

@@ -28,7 +28,8 @@ x, psi, theta, phi, L_bar, beta1, beta2
 3. 用当前 `L1,L2` 系数按
    `z = d_hat - Gamma_current * delta_v_current` 重基准化；这不会使
    `d_hat` 在调度切换时跳变。
-4. `_balance_control()` 计算 `u = u_lqr - G*d_hat`。
+4. `_balance_control()` 保持原 LESO 控制链；RDOB 默认只写入
+   `rdob_dist`，不改变 `u`。
 5. `_vmc_trans_v2j()` 完成关节力矩限幅；随后
    `_rdob_capture_applied_input()` 缓存实际总输入，供下一次更新使用。
 
@@ -52,7 +53,15 @@ z[k+1] = Az*z[k]
 `z=-Gamma*delta_v`。腿长非有限或离开 `[0.18, 0.38] m` 时，系数求值拒绝
 该样本，RDOB 清零并等待下一次有效初始化。
 
-`wl_config.h` 中默认 `RDOB_EN=1`，`RDOB_COMPENSATION_GAIN` 为六个 `1`，
-即全 Tw+Tp+FL 补偿。将任一元素改为 `0` 可继续观测该通道但不反馈补偿。
-本版本没有远离平衡态衰减、低通滤波或启动渐变。将 `RDOB_EN` 设为 `0`
-可恢复原 LESO 路径。
+默认 `LESO_EN=1`、`RDOB_EN=1`：`dist` 是 LESO 的原始输入扰动估计，
+`rdob_dist` 是 RDOB 的原始输入等效扰动估计，两者在同一控制周期更新，
+可直接记录比较。默认 `RDOB_COMPENSATION_EN=0`，因此 RDOB 不改变控制；
+LESO 仍维持原有预测与补偿链路。
+
+`dist` 保留原 LESO 的 `DIST_RATIO` 限幅，而 `rdob_dist` 不限幅。比较估计
+幅值时应优先选取 LESO 未触及限幅的区间；触及限幅时，二者只能比较符号、
+变化趋势和收敛时间，不能将幅值差直接归因于观测器性能。
+
+准备接入 RDOB 时，将 `RDOB_COMPENSATION_EN` 设为 `1`。此时
+`RDOB_COMPENSATION_GAIN` 的六个 `1` 表示全 Tw+Tp+FL 补偿；将任一元素
+改为 `0` 可继续观测该通道但不反馈补偿。本版本没有远离平衡态衰减。
