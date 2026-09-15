@@ -19,11 +19,11 @@ constexpr float YAW_POS_PID_KD = 0.0f;
 
 
 //pitch轴位置环pid
-constexpr float DM_POS_PITCH_KP = 1.5f;
+constexpr float DM_POS_PITCH_KP = 10.0f;
 constexpr float DM_POS_PITCH_KD = 0.0f;
 
 //pitch轴速度环pid
-constexpr float DM_SPD_PITCH_KP = 2.5f;
+constexpr float DM_SPD_PITCH_KP = 2.0f;
 constexpr float DM_SPD_PITCH_KD = 0.0f;
 
 
@@ -37,7 +37,7 @@ constexpr float PITCH_LIMIT_MIN = 3.0f;
 
 
 //复位角度设置
-constexpr float PITCH_ALIGN_TARGET_RAD = 2.0f;
+constexpr float PITCH_ALIGN_TARGET_RAD = -2.0f;
 constexpr float YAW_ALIGN_TARGET_RAD   = 0.884f;
 
 constexpr float PITCH_K_GRAVITY_COS = -0.8f; // 水平方向质心补偿
