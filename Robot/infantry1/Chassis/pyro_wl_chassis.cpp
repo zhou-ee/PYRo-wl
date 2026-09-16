@@ -692,7 +692,7 @@ void wl_chassis_t::_leso_update()
                    -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
 
 }
-
+__attribute__((optimize("O3")))
 void wl_chassis_t::_rdob_update()
 {
     for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM; ++coordinate)

@@ -18,7 +18,7 @@ namespace pyro
 // Keep every entry at one for a later full Tw+Tp+FL compensation test; change
 // an entry to zero to observe that channel without feeding it back.
 constexpr float RDOB_COMPENSATION_GAIN[INPUT_DIM] = {
-    1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
 };
 constexpr float loop_fp32_PI(float val)
 {
@@ -41,13 +41,13 @@ constexpr float HIP_CALIBRATION_OFFSET  = -2.44899;
 constexpr float KNEE_CALIBRATION_OFFSET = 2.62047f;
 
 constexpr float LEFT_HIP_OFFSET =
-    -loop_fp32_PI(3.07832f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(2.76845f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(0.25690f + KNEE_CALIBRATION_OFFSET);
-constexpr float RIGHT_HIP_OFFSET = 
-    -loop_fp32_PI(-0.99730f + HIP_CALIBRATION_OFFSET);
-constexpr float RIGHT_KNEE_OFFSET = 
-    -loop_fp32_PI(2.71408f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.93924f + KNEE_CALIBRATION_OFFSET);
+constexpr float RIGHT_HIP_OFFSET =
+    -loop_fp32_PI(0.49898f + HIP_CALIBRATION_OFFSET);
+constexpr float RIGHT_KNEE_OFFSET =
+    -loop_fp32_PI(-1.91909f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
@@ -131,7 +131,7 @@ constexpr float WHEEL_RADIUS                         = 0.06f;
 
 constexpr static float YAW_OFFSET = 0.884f;
 
-#define Using_Gimbal_Cmd 0
+#define Using_Gimbal_Cmd 1
 
 namespace leg_def
 {

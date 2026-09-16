@@ -50,10 +50,10 @@ extern "C"
             
 
             
-            // if (board_ptr->check_online())
-            // {
-            //     gimbal_cmd();
-            // }
+            if (board_ptr->check_online())
+            {
+                gimbal_cmd();
+            }
             if (dr16_drv_t::instance().check_online())
             {
                 // 当前没有板间通信，直接检测并使用遥控器控制
