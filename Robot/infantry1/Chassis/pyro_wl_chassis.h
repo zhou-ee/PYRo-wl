@@ -202,15 +202,17 @@ struct wl_chassis_data_ctx_t
     float L_x[STATE_DIM][STATE_DIM];
     float L_d[INPUT_DIM][STATE_DIM];
     float U0[INPUT_DIM];
-    // RDOB follows the original chassis observer layout.  _gain_calculate()
-    // schedules Gamma/B_q; _rdob_update() owns delta_q, delta_dot_q, z and
-    // dot_z.  rdob_dist is kept separate from the existing LESO estimate.
-    float Gamma[INPUT_DIM][GENERAL_STATE_DIM];
-    float B_q[INPUT_DIM][GENERAL_STATE_DIM];
-    float delta_q0[GENERAL_STATE_DIM];
-    float delta_dot_q0[GENERAL_STATE_DIM];
+    // These snapshots describe one complete [k, k+1) interval.  Its frozen
+    // coefficients, trim and actually applied total input are used before z
+    // is rebased into the newly scheduled endpoint coordinates.
+    wheel_leg_rdob_schedule::Coefficients rdob_coefficients;
+    float rdob_previous_position[GENERAL_STATE_DIM];
+    float rdob_previous_velocity[GENERAL_STATE_DIM];
+    float rdob_previous_trim_position[GENERAL_STATE_DIM];
+    float rdob_previous_trim_velocity[GENERAL_STATE_DIM];
+    float rdob_previous_trim_total_input[INPUT_DIM];
+    float rdob_applied_total_input[INPUT_DIM];
     float z[INPUT_DIM];
-    float dot_z[INPUT_DIM];
     bool rdob_initialized;
     odom_t odom;
     ins_data_t ins;
@@ -275,6 +277,7 @@ class wl_chassis_t final
     void _execute_landing_recovery();
     void _leso_update();
     void _rdob_update();
+    void _rdob_capture_applied_input();
 
     using owner = wl_chassis_t;
 

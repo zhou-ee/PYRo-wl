@@ -309,7 +309,6 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         GAS_SPRING_FORCE_POLY_DEGREE);
 }
 #define LESO_PARAMS_FIT LESO_EN
-#define RDOB_PARAMS_FIT RDOB_EN
 __attribute__((optimize("O3")))
 void wl_chassis_t::_gain_calculate()
 {
@@ -511,31 +510,6 @@ void wl_chassis_t::_gain_calculate()
     }
     // END GENERATED LESO POD-CHEBYSHEV RUNTIME FIT
 #endif
-#if RDOB_PARAMS_FIT
-    // Gamma is a direct L1/L2 cubic tensor; B_q has a direct total-degree
-    // cubic over its five nonzero generalized-coordinate columns.  Keep the
-    // values in the chassis-owned matrices rather than a separate scheduler
-    // object so the RDOB update below uses the original observer framework.
-    for (uint8_t input = 0; input < INPUT_DIM; ++input)
-    {
-        for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM;
-             ++coordinate)
-        {
-            const uint8_t index = input * GENERAL_STATE_DIM + coordinate;
-            _ctx.data.Gamma[input][coordinate] =
-                wheel_leg_rdob_schedule::evaluate_gamma(
-                    wheel_leg_rdob_schedule::kGammaCoefficients[index],
-                    norm_L1, norm_L2);
-            _ctx.data.B_q[input][coordinate] =
-                (coordinate < 2U)
-                    ? 0.0f
-                    : wheel_leg_rdob_schedule::evaluate_total_cubic(
-                          wheel_leg_rdob_schedule::kPositionGainCoefficients[
-                              input * 5U + coordinate - 2U],
-                          norm_L1, norm_L2);
-        }
-    }
-#endif
 }
 
 void wl_chassis_t::_balance_control()
@@ -545,7 +519,7 @@ void wl_chassis_t::_balance_control()
     {
 #if LESO_EN
         error[state] = _ctx.data.target_state.data[state] -
-                       _ctx.data.predict_state.data[state];
+                       _ctx.data.measured_state.data[state];
 #else
         error[state] = _ctx.data.target_state.data[state] -
                        _ctx.data.measured_state.data[state];
@@ -672,99 +646,214 @@ void wl_chassis_t::_leso_update()
 
     // _ctx.data.vector.predict_state = Gxk + Hdk + Huk + L_xres;
     // _ctx.data.vector.dist += L_dres;
-    _ctx.data.dist.data[lqr_input_def::T_W1] =
-        std::clamp(_ctx.data.dist.data[lqr_input_def::T_W1],
-                   -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
-    _ctx.data.dist.data[lqr_input_def::T_W2] =
-        std::clamp(_ctx.data.dist.data[lqr_input_def::T_W2],
-                   -DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W);
-    _ctx.data.dist.data[lqr_input_def::T_P1] =
-        std::clamp(_ctx.data.dist.data[lqr_input_def::T_P1],
-                   -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
-    _ctx.data.dist.data[lqr_input_def::T_P2] =
-        std::clamp(_ctx.data.dist.data[lqr_input_def::T_P2],
-                   -DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P);
-    _ctx.data.dist.data[lqr_input_def::F_L1] =
-        std::clamp(_ctx.data.dist.data[lqr_input_def::F_L1],
-                   -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
-    _ctx.data.dist.data[lqr_input_def::F_L2] =
-        std::clamp(_ctx.data.dist.data[lqr_input_def::F_L2],
-                   -DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L);
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        _ctx.data.dist.data[input] = std::clamp(
+            _ctx.data.dist.data[input],
+            -OBSERVER_DISTURBANCE_LIMIT[input],
+            OBSERVER_DISTURBANCE_LIMIT[input]);
+    }
 
 }
 __attribute__((optimize("O3")))
 void wl_chassis_t::_rdob_update()
 {
+    const float l1 = _ctx.data.leg[leg_def::L].current_leg_length;
+    const float l2 = _ctx.data.leg[leg_def::R].current_leg_length;
+    float current_position[GENERAL_STATE_DIM] = {};
+    float current_velocity[GENERAL_STATE_DIM] = {};
+    float current_trim_position[GENERAL_STATE_DIM] = {};
+    float current_trim_velocity[GENERAL_STATE_DIM] = {};
+    float current_trim_total_input[INPUT_DIM] = {};
     for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM; ++coordinate)
     {
         const uint8_t state = 2U * coordinate;
-        _ctx.data.delta_q0[coordinate] =
-            _ctx.data.measured_state.data[state] -
+        current_position[coordinate] = _ctx.data.measured_state.data[state];
+        current_velocity[coordinate] =
+            _ctx.data.measured_state.data[state + 1U];
+        current_trim_position[coordinate] =
             _ctx.data.equilibrium_state.data[state];
-        _ctx.data.delta_dot_q0[coordinate] =
-            _ctx.data.measured_state.data[state + 1U] -
+        current_trim_velocity[coordinate] =
             _ctx.data.equilibrium_state.data[state + 1U];
     }
-    _ctx.data.delta_q0[1] =
-        loop_fp32_constrain(_ctx.data.delta_q0[1], -PI, PI);
-
-    // Preserve the chassis's existing actual-input capture.  F_L and U0 are
-    // both motor-side active forces; adding the same current gas-spring model
-    // to each makes their difference exactly the total-input delta used here.
-    _ctx.data.output.data[lqr_input_def::F_L1] =
-        _ctx.data.leg[leg_def::L].actual_out_F_L;
-    _ctx.data.output.data[lqr_input_def::F_L2] =
-        _ctx.data.leg[leg_def::R].actual_out_F_L;
-    _ctx.data.output.data[lqr_input_def::T_P1] =
-        _ctx.data.leg[leg_def::L].actual_out_T_p;
-    _ctx.data.output.data[lqr_input_def::T_P2] =
-        _ctx.data.leg[leg_def::R].actual_out_T_p;
-    _ctx.data.output.data[lqr_input_def::T_W1] =
-        _ctx.data.wheel[leg_def::L].out_T_w;
-    _ctx.data.output.data[lqr_input_def::T_W2] =
-        _ctx.data.wheel[leg_def::R].out_T_w;
+    // LQR exports active motor F_L trim.  RDOB is derived for total
+    // generalized F_L, so add the same passive force model acting on the plant.
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        current_trim_total_input[input] = _ctx.data.U0[input];
+    }
+    current_trim_total_input[lqr_input_def::F_L1] +=
+        _ctx.data.leg[leg_def::L].gas_spring_force;
+    current_trim_total_input[lqr_input_def::F_L2] +=
+        _ctx.data.leg[leg_def::R].gas_spring_force;
 
     if (!_ctx.data.rdob_initialized)
     {
+        if (!wheel_leg_rdob_schedule::evaluate(
+                l1, l2, _ctx.data.rdob_coefficients))
+        {
+            for (uint8_t input = 0; input < INPUT_DIM; ++input)
+            {
+                _ctx.data.z[input] = 0.0f;
+                _ctx.data.rdob_dist.data[input] = 0.0f;
+            }
+            return;
+        }
         for (uint8_t input = 0; input < INPUT_DIM; ++input)
         {
             float gamma_velocity = 0.0f;
             for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM;
                  ++coordinate)
             {
-                gamma_velocity += _ctx.data.Gamma[input][coordinate] *
-                    _ctx.data.delta_dot_q0[coordinate];
+                const float delta_velocity = current_velocity[coordinate] -
+                    current_trim_velocity[coordinate];
+                gamma_velocity += _ctx.data.rdob_coefficients.gamma[
+                    input * GENERAL_STATE_DIM + coordinate] * delta_velocity;
             }
+            // Initialize d_hat=0 in the current scheduled coordinates.
             _ctx.data.z[input] = -gamma_velocity;
-            _ctx.data.dot_z[input] = 0.0f;
             _ctx.data.rdob_dist.data[input] = 0.0f;
         }
-        _ctx.data.rdob_initialized = true;
-        return;
     }
-
-    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    else
     {
-        float gamma_velocity = 0.0f;
-        float position_term = 0.0f;
+        float next_z[INPUT_DIM] = {};
+        float previous_delta_position[GENERAL_STATE_DIM] = {};
+        float next_delta_position[GENERAL_STATE_DIM] = {};
+        float previous_delta_velocity[GENERAL_STATE_DIM] = {};
+        float next_delta_velocity[GENERAL_STATE_DIM] = {};
         for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM;
              ++coordinate)
         {
-            gamma_velocity += _ctx.data.Gamma[input][coordinate] *
-                _ctx.data.delta_dot_q0[coordinate];
-            position_term += _ctx.data.B_q[input][coordinate] *
-                _ctx.data.delta_q0[coordinate];
+            // Both interval endpoints use the frozen trim from its beginning.
+            previous_delta_position[coordinate] =
+                _ctx.data.rdob_previous_position[coordinate] -
+                _ctx.data.rdob_previous_trim_position[coordinate];
+            next_delta_position[coordinate] = current_position[coordinate] -
+                _ctx.data.rdob_previous_trim_position[coordinate];
+            previous_delta_velocity[coordinate] =
+                _ctx.data.rdob_previous_velocity[coordinate] -
+                _ctx.data.rdob_previous_trim_velocity[coordinate];
+            next_delta_velocity[coordinate] = current_velocity[coordinate] -
+                _ctx.data.rdob_previous_trim_velocity[coordinate];
         }
-        const float input_delta = _ctx.data.output.data[input] -
-            _ctx.data.U0[input];
-        const float rate = wheel_leg_rdob_schedule::kRates[input];
-        _ctx.data.dot_z[input] = -rate *
-                (_ctx.data.z[input] + gamma_velocity) + position_term -
-            rate * input_delta;
-        _ctx.data.z[input] += _ctx.data._dt * _ctx.data.dot_z[input];
-        _ctx.data.rdob_dist.data[input] =
-            _ctx.data.z[input] + gamma_velocity;
+        previous_delta_position[1] = loop_fp32_constrain(
+            previous_delta_position[1], -PI, PI);
+        next_delta_position[1] = loop_fp32_constrain(
+            next_delta_position[1], -PI, PI);
+
+        for (uint8_t input = 0; input < INPUT_DIM; ++input)
+        {
+            float position_sum = 0.0f;
+            float velocity_sum = 0.0f;
+            for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM;
+                 ++coordinate)
+            {
+                const uint8_t index = input * GENERAL_STATE_DIM + coordinate;
+                position_sum +=
+                    _ctx.data.rdob_coefficients.step_position_gain[index] *
+                    (previous_delta_position[coordinate] +
+                     next_delta_position[coordinate]);
+                velocity_sum +=
+                    _ctx.data.rdob_coefficients.step_velocity_gain[index] *
+                    (previous_delta_velocity[coordinate] +
+                     next_delta_velocity[coordinate]);
+            }
+            const float input_delta =
+                _ctx.data.rdob_applied_total_input[input] -
+                _ctx.data.rdob_previous_trim_total_input[input];
+            next_z[input] = _ctx.data.rdob_coefficients.step_poles[input] *
+                    _ctx.data.z[input] + position_sum + velocity_sum +
+                _ctx.data.rdob_coefficients.step_input_gain[input] *
+                    input_delta;
+        }
+
+        for (uint8_t input = 0; input < INPUT_DIM; ++input)
+        {
+            float estimate = next_z[input];
+            for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM;
+                 ++coordinate)
+            {
+                const uint8_t index = input * GENERAL_STATE_DIM + coordinate;
+                estimate += _ctx.data.rdob_coefficients.gamma[index] *
+                    next_delta_velocity[coordinate];
+            }
+            // Clamp the physical estimate before rebasing z.  This keeps the
+            // internal state consistent with the published, LESO-matched
+            // limit and avoids hidden windup behind an output-only clamp.
+            estimate = std::clamp(
+                estimate, -OBSERVER_DISTURBANCE_LIMIT[input],
+                OBSERVER_DISTURBANCE_LIMIT[input]);
+            _ctx.data.rdob_dist.data[input] = estimate;
+        }
+
+        // The old interval is now complete, so its coefficients may be
+        // overwritten in place.  This avoids an 888-byte coefficient object
+        // on the 1 KiB chassis task stack.
+        if (!wheel_leg_rdob_schedule::evaluate(
+                l1, l2, _ctx.data.rdob_coefficients))
+        {
+            _ctx.data.rdob_initialized = false;
+            for (uint8_t input = 0; input < INPUT_DIM; ++input)
+            {
+                _ctx.data.z[input] = 0.0f;
+                _ctx.data.rdob_dist.data[input] = 0.0f;
+            }
+            return;
+        }
+        for (uint8_t input = 0; input < INPUT_DIM; ++input)
+        {
+            float current_gamma_velocity = 0.0f;
+            for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM;
+                 ++coordinate)
+            {
+                const uint8_t index = input * GENERAL_STATE_DIM + coordinate;
+                current_gamma_velocity +=
+                    _ctx.data.rdob_coefficients.gamma[index] *
+                    (current_velocity[coordinate] -
+                     current_trim_velocity[coordinate]);
+            }
+            // Preserve d_hat while changing both Gamma and the moving trim.
+            _ctx.data.z[input] = _ctx.data.rdob_dist.data[input] -
+                current_gamma_velocity;
+        }
     }
+
+    for (uint8_t coordinate = 0; coordinate < GENERAL_STATE_DIM; ++coordinate)
+    {
+        _ctx.data.rdob_previous_position[coordinate] =
+            current_position[coordinate];
+        _ctx.data.rdob_previous_velocity[coordinate] =
+            current_velocity[coordinate];
+        _ctx.data.rdob_previous_trim_position[coordinate] =
+            current_trim_position[coordinate];
+        _ctx.data.rdob_previous_trim_velocity[coordinate] =
+            current_trim_velocity[coordinate];
+    }
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        _ctx.data.rdob_previous_trim_total_input[input] =
+            current_trim_total_input[input];
+    }
+    _ctx.data.rdob_initialized = true;
+}
+
+void wl_chassis_t::_rdob_capture_applied_input()
+{
+    _ctx.data.rdob_applied_total_input[lqr_input_def::T_W1] =
+        _ctx.data.wheel[leg_def::L].out_T_w;
+    _ctx.data.rdob_applied_total_input[lqr_input_def::T_W2] =
+        _ctx.data.wheel[leg_def::R].out_T_w;
+    _ctx.data.rdob_applied_total_input[lqr_input_def::T_P1] =
+        _ctx.data.leg[leg_def::L].actual_out_T_p;
+    _ctx.data.rdob_applied_total_input[lqr_input_def::T_P2] =
+        _ctx.data.leg[leg_def::R].actual_out_T_p;
+    _ctx.data.rdob_applied_total_input[lqr_input_def::F_L1] =
+        _ctx.data.leg[leg_def::L].actual_out_F_L +
+        _ctx.data.leg[leg_def::L].gas_spring_force;
+    _ctx.data.rdob_applied_total_input[lqr_input_def::F_L2] =
+        _ctx.data.leg[leg_def::R].actual_out_F_L +
+        _ctx.data.leg[leg_def::R].gas_spring_force;
 }
 
 void wl_chassis_t::_vmc_trans_v2j()

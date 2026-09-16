@@ -15,11 +15,29 @@ namespace pyro
 
 // Per-input disturbance-feedback gains in T_w1, T_w2, T_p1, T_p2, F_L1,
 // F_L2 order.  These gains take effect only when RDOB_COMPENSATION_EN is set.
-// Keep every entry at one for a later full Tw+Tp+FL compensation test; change
-// an entry to zero to observe that channel without feeding it back.
+// Keep them at zero for the current data-only comparison.  A later control
+// test must explicitly enable the switch and select its feedback channels.
 constexpr float RDOB_COMPENSATION_GAIN[INPUT_DIM] = {
     0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
 };
+constexpr bool observer_poles_match(const float lhs, const float rhs)
+{
+    return lhs - rhs < 1.0e-6f && rhs - lhs < 1.0e-6f;
+}
+static_assert(
+    observer_poles_match(wheel_leg_rdob_schedule::kStepPoles[0],
+                         LESO_DISTURBANCE_POLE) &&
+    observer_poles_match(wheel_leg_rdob_schedule::kStepPoles[1],
+                         LESO_DISTURBANCE_POLE) &&
+    observer_poles_match(wheel_leg_rdob_schedule::kStepPoles[2],
+                         LESO_DISTURBANCE_POLE) &&
+    observer_poles_match(wheel_leg_rdob_schedule::kStepPoles[3],
+                         LESO_DISTURBANCE_POLE) &&
+    observer_poles_match(wheel_leg_rdob_schedule::kStepPoles[4],
+                         LESO_DISTURBANCE_POLE) &&
+    observer_poles_match(wheel_leg_rdob_schedule::kStepPoles[5],
+                         LESO_DISTURBANCE_POLE),
+    "RDOB and LESO disturbance poles must match for comparison tests");
 constexpr float loop_fp32_PI(float val)
 {
     while (val > PI)
@@ -79,6 +97,13 @@ constexpr float MAX_F_L                              = 300.0f;
 constexpr float MAX_T_P                              = 60.0f;
 constexpr float MAX_CURRENT                          = 15.0f;
 constexpr float MAX_T_W                              = K_t * MAX_CURRENT;
+// Shared LESO/RDOB estimate limits in physical input units.  Keeping one
+// table prevents comparison settings from drifting apart.
+constexpr float OBSERVER_DISTURBANCE_LIMIT[INPUT_DIM] = {
+    DIST_RATIO * MAX_T_W, DIST_RATIO * MAX_T_W,
+    DIST_RATIO * MAX_T_P, DIST_RATIO * MAX_T_P,
+    DIST_RATIO * MAX_F_L, DIST_RATIO * MAX_F_L,
+};
 // Normal/Balance roll integral: positive trim adds to left and subtracts right.
 constexpr float NORMAL_ROLL_INTEGRAL_KI              = 120.0f; // N/(rad*s)
 constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 15.0f;  // N per leg
