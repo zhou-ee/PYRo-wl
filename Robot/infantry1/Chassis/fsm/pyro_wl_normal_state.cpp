@@ -11,7 +11,15 @@ namespace pyro
 
 void wl_chassis_t::fsm_active_t::state_normal_t::on_enter(wl_chassis_t *owner)
 {
-    change_state(&_state_align);
+    if(owner->_ctx.data.flag.resume_balance_after_spin)
+    {
+        owner->_ctx.data.flag.resume_balance_after_spin = false;
+        change_state(&_state_balance);
+    }
+    else
+    {
+        change_state(&_state_align);
+    }
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)

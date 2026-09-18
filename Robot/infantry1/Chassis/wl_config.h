@@ -65,6 +65,11 @@ constexpr float MAX_F_L                              = 300.0f;
 constexpr float MAX_T_P                              = 60.0f;
 constexpr float MAX_CURRENT                          = 15.0f;
 constexpr float MAX_T_W                              = K_t * MAX_CURRENT;
+constexpr float SPIN_YAW_ACCEL                       = 10.0f; // rad/s^2
+constexpr float SPIN_YAW_DECEL                       = 10.0f; // rad/s^2
+constexpr float SPIN_EXIT_DECEL_TIME                 = 0.2f;  // s
+constexpr float SPIN_RECOVERY_YAW_KP                 = 2.0f;
+constexpr float SPIN_RECOVERY_ANGLE_EPSILON          = 0.05f; // rad
 // Normal/Balance roll integral: positive trim adds to left and subtracts right.
 constexpr float NORMAL_ROLL_INTEGRAL_KI              = 120.0f; // N/(rad*s)
 constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 15.0f;  // N per leg

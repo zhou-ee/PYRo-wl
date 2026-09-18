@@ -34,6 +34,7 @@ enum class chassis_active_state_t : uint8_t
 {
     NORMAL,
     MANUAL,
+    SPIN,
 };
 
 enum class chassis_function_state_t : uint8_t
@@ -175,7 +176,8 @@ struct airborne_data_t
 struct flag_data_t
 {
     bool leg_is_should_restart;  //紧急下力的标志位
-    bool chassis_is_align_ready = true; // 机体姿态对齐的标志位,只供给云盘读取
+    bool chassis_is_align_ready = false; // 机体姿态对齐的标志位,只供给云盘读取
+    bool resume_balance_after_spin = false;
 };
 
 
@@ -202,6 +204,13 @@ struct wl_chassis_data_ctx_t
     airborne_data_t airborne;
     float _dt;
     float normal_roll_force_trim;
+    float spin_speed_ref;
+    float spin_decay_speed;
+    float spin_decay_elapsed;
+    float spin_direction;
+    float spin_recovery_speed_limit;
+    bool spin_decay_active;
+    bool spin_recovery_active;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
 };
 
@@ -276,6 +285,12 @@ class wl_chassis_t final
             void execute(owner *owner) override;
             void exit(owner *owner) override;
         };
+        struct state_spin_t final : public state_t<owner>
+        {
+            void enter(owner *owner) override;
+            void execute(owner *owner) override;
+            void exit(owner *owner) override;
+        };
         struct state_normal_t final : public fsm_t<owner>
         {
             struct state_balance_t final : public state_t<owner>
@@ -328,6 +343,7 @@ class wl_chassis_t final
       private:
         state_manual_t _state_manual;
         state_normal_t _state_normal;
+        state_spin_t _state_spin;
 
     };
 

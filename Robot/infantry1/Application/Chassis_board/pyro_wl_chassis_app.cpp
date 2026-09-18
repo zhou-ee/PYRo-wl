@@ -153,10 +153,13 @@ void gimbal_cmd()
         if(g2c_data.spining)
         {
             wl_chassis_cmd_ptr->wz                       = 6.5f;
+
+            wl_chassis_cmd_ptr->cmd_continus_state       = pyro::chassis_active_state_t::SPIN;
         }
         else 
         {
             wl_chassis_cmd_ptr->wz                       = 0.0f; //-g2c_data.w / 31.0f * 2.0f;
+            wl_chassis_cmd_ptr->cmd_continus_state       = pyro::chassis_active_state_t::NORMAL;
         }
         
         if(g2c_data.delta_leg == 0)
@@ -171,8 +174,6 @@ void gimbal_cmd()
         {
             wl_chassis_cmd_ptr->dot_L                    = -0.3f;
         }
-        wl_chassis_cmd_ptr->cmd_continus_state           = pyro::chassis_active_state_t::NORMAL;
-
         if (last_g2c_data.mode != 2)
         {
             wl_chassis_cmd_ptr->cmd_function_state =

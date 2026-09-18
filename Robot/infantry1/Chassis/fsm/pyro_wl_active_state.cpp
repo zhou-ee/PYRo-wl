@@ -32,6 +32,17 @@ void wl_chassis_t::fsm_active_t::on_execute(wl_chassis_t *ctx)
     {
         change_state(&_state_normal);
     }
+    else if(ctx->_current_cmd.cmd_continus_state == pyro::chassis_active_state_t::SPIN)
+    {
+        if(ctx->_ctx.data.flag.chassis_is_align_ready)
+        {
+            change_state(&_state_spin);
+        }
+        else
+        {
+            change_state(&_state_normal);
+        }
+    }
 
 
 }

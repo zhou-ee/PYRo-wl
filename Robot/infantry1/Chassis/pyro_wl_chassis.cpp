@@ -129,7 +129,7 @@ void wl_chassis_t::_update_feedback()
     {
         state.psi = 0.0f;
     }
-    if (state.dot_psi < 0.1f) 
+    if (fabsf(state.dot_psi) < 0.1f)
     {
         state.dot_psi = 0.0f;
     }
