@@ -122,17 +122,19 @@ void wl_chassis_t::_update_feedback()
     state.dot_x        = (_ctx.data.odom.real_dot_x[0] + _ctx.data.odom.real_dot_x[1]) / 2;
 
     #if Using_Gimbal_Cmd
-    state.psi          = -_ctx.data.yaw.pos;
-    state.dot_psi      = -_ctx.data.yaw.rot;
+    float psi_lambda = 0.3951f;
+    float dot_psi_lambda = 0.3951f;
+    state.psi          = psi_lambda * (-_ctx.data.yaw.pos)  + (1.0f - psi_lambda) * state.psi;
+    state.dot_psi      = dot_psi_lambda * (-_ctx.data.yaw.rot) + (1.0f - dot_psi_lambda) * state.dot_psi;
 
-    if(abs(state.psi) < 0.1f)
-    {
-        state.psi = 0.0f;
-    }
-    if (state.dot_psi < 0.1f) 
-    {
-        state.dot_psi = 0.0f;
-    }
+    // if(abs(state.psi) < 0.05f)
+    // {
+    //     state.psi = 0.0f;
+    // }
+    // if (abs(state.dot_psi) < 0.3f) 
+    // {
+    //     state.dot_psi = 0.0f;
+    // }
     #else
     state.psi          = _ctx.data.ins.euler_rad[0];
     state.dot_psi      = _ctx.data.ins.gyro[0];

@@ -38,7 +38,7 @@ constexpr float PITCH_LIMIT_MIN = -1.2f;
 
 //复位角度设置
 constexpr float PITCH_ALIGN_TARGET_RAD = -2.0f;
-constexpr float YAW_ALIGN_TARGET_RAD   = 0.884f;
+constexpr float YAW_ALIGN_TARGET_RAD   = 0.95f;
 
 constexpr float PITCH_K_GRAVITY_COS = -0.8f; // 水平方向质心补偿
 constexpr float PITCH_K_GRAVITY_SIN = 0.0f; // 垂直方向质心补偿
