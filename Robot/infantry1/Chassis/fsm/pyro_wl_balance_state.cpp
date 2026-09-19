@@ -116,15 +116,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     }
 
     //离地检测
-    // if (!owner->_ctx.data.airborne.landing_recovery &&
-    //     owner->_detect_takeoff())
-    // {
-    //     owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
-    //     owner->_ctx.data.airborne.takeoff_counter = 0;
-    //     owner->_ctx.data.airborne.landing_counter = 0;
-    //     request_switch(&owner->_state_active._state_normal._state_air);
-    //     return;
-    // }
+     if (!owner->_ctx.data.airborne.landing_recovery &&
+         owner->_detect_takeoff())
+     {
+         owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
+         owner->_ctx.data.airborne.takeoff_counter = 0;
+         owner->_ctx.data.airborne.landing_counter = 0;
+         request_switch(&owner->_state_active._state_normal._state_air);
+         return;
+     }
 
     //落地回复
     if (owner->_ctx.data.airborne.landing_recovery)
@@ -151,22 +151,99 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 
     #if Using_Gimbal_Cmd
     //使用云台VT03
-    //角速度设置
-
-    float target_wz;
-    target_wz = owner->_current_cmd.wz;
-    if(fabs(target_wz) <= 0.1f)
+    // 退出小陀螺时先短暂减速；若云台跟随会反转，则沿原方向绕回中心。
+    if(owner->_ctx.data.spin_decay_active)
     {
-        //底盘跟随状态
-        owner->_ctx.data.target_state.psi = 0.0f;
-        owner->_ctx.data.target_state.dot_psi = 0.0f;
+        const float gimbal_psi = owner->_ctx.data.measured_state.psi;
+        const float decay_step = SPIN_YAW_DECEL * owner->_ctx.data._dt;
+        if(owner->_ctx.data.spin_decay_speed > decay_step)
+        {
+            owner->_ctx.data.spin_decay_speed -= decay_step;
+        }
+        else if(owner->_ctx.data.spin_decay_speed < -decay_step)
+        {
+            owner->_ctx.data.spin_decay_speed += decay_step;
+        }
+        else
+        {
+            owner->_ctx.data.spin_decay_speed = 0.0f;
+        }
+
+        owner->_ctx.data.measured_state.psi =
+            owner->_ctx.data.ins.euler_rad[0];
+        owner->_ctx.data.measured_state.dot_psi =
+            owner->_ctx.data.ins.gyro[0];
+        owner->_ctx.data.target_state.psi =
+            owner->_ctx.data.measured_state.psi;
+        owner->_ctx.data.target_state.dot_psi =
+            owner->_ctx.data.spin_decay_speed;
+
+        owner->_ctx.data.spin_decay_elapsed += owner->_ctx.data._dt;
+        if(owner->_ctx.data.spin_decay_elapsed >= SPIN_EXIT_DECEL_TIME)
+        {
+            owner->_ctx.data.spin_decay_active = false;
+            const float follow_error = loop_fp32_constrain(
+                -gimbal_psi, -PI, PI);
+            owner->_ctx.data.spin_recovery_active =
+                follow_error * owner->_ctx.data.spin_direction < 0.0f;
+            owner->_ctx.data.spin_recovery_speed_limit = std::max(
+                std::fabs(owner->_ctx.data.spin_decay_speed), 0.5f);
+        }
+    }
+    else if(owner->_ctx.data.spin_recovery_active)
+    {
+        const float gimbal_psi = owner->_ctx.data.measured_state.psi;
+        if(std::fabs(gimbal_psi) <= SPIN_RECOVERY_ANGLE_EPSILON)
+        {
+            owner->_ctx.data.spin_recovery_active = false;
+            owner->_ctx.data.target_state.psi = 0.0f;
+            owner->_ctx.data.target_state.dot_psi = 0.0f;
+        }
+        else
+        {
+            float directed_error = -gimbal_psi;
+            if(owner->_ctx.data.spin_direction > 0.0f)
+            {
+                if(directed_error < 0.0f)
+                {
+                    directed_error += 2.0f * PI;
+                }
+            }
+            else if(directed_error > 0.0f)
+            {
+                directed_error -= 2.0f * PI;
+            }
+
+            const float recovery_wz = std::clamp(
+                SPIN_RECOVERY_YAW_KP * directed_error,
+                -owner->_ctx.data.spin_recovery_speed_limit,
+                owner->_ctx.data.spin_recovery_speed_limit);
+            owner->_ctx.data.measured_state.psi =
+                owner->_ctx.data.ins.euler_rad[0];
+            owner->_ctx.data.measured_state.dot_psi =
+                owner->_ctx.data.ins.gyro[0];
+            owner->_ctx.data.target_state.psi =
+                owner->_ctx.data.measured_state.psi;
+            owner->_ctx.data.target_state.dot_psi = recovery_wz;
+        }
     }
     else
     {
-        //小陀螺状态
-        owner->_ctx.data.target_state.psi = owner->_ctx.data.measured_state.psi;
-        owner->_ctx.data.target_state.psi = loop_fp32_constrain(owner->_ctx.data.target_state.psi,-PI,PI);
-        owner->_ctx.data.target_state.dot_psi = target_wz;
+        const float target_wz = owner->_current_cmd.wz;
+        if(fabs(target_wz) <= 0.1f)
+        {
+            //底盘跟随状态
+            owner->_ctx.data.target_state.psi = 0.0f;
+            owner->_ctx.data.target_state.dot_psi = 0.0f;
+        }
+        else
+        {
+            owner->_ctx.data.target_state.psi =
+                owner->_ctx.data.measured_state.psi;
+            owner->_ctx.data.target_state.psi = loop_fp32_constrain(
+                owner->_ctx.data.target_state.psi, -PI, PI);
+            owner->_ctx.data.target_state.dot_psi = target_wz;
+        }
     }
 
     #else
