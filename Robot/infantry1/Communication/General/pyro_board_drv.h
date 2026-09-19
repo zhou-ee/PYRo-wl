@@ -33,14 +33,15 @@ public:
      */
     struct g2c_data_t
     {
-        uint32_t mode      : 2;//0下力，1手动(新遥控器下废除)，2平衡
+        uint32_t mode             : 2;//0下力，1手动(新遥控器下废除)，2平衡
 
-        int32_t vx        : 6;
-        int32_t w         : 6;
+        int32_t vx                : 6;
+        int32_t w                 : 6;
+        int32_t imu_yaw_radps_100 : 16;
 
-        uint32_t delta_leg : 2;//0不变，1增大，2减小
-        uint32_t step_mode : 1;
-        uint32_t spining   : 1;
+        uint32_t delta_leg        : 2;//0不变，1增大，2减小
+        uint32_t step_mode        : 1;
+        uint32_t spining          : 1;
     };
 
     /**

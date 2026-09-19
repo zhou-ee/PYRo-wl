@@ -5,6 +5,7 @@
 #include "pyro_ins.h"
 #include "dsp/fast_math_functions.h"
 #include "wl_config.h"
+#include "pyro_board_drv.h"
 
 #include <algorithm>
 #include <cmath>
@@ -122,19 +123,12 @@ void wl_chassis_t::_update_feedback()
     state.dot_x        = (_ctx.data.odom.real_dot_x[0] + _ctx.data.odom.real_dot_x[1]) / 2;
 
     #if Using_Gimbal_Cmd
-    float psi_lambda = 0.3951f;
-    float dot_psi_lambda = 0.3951f;
-    state.psi          = psi_lambda * (-_ctx.data.yaw.pos)  + (1.0f - psi_lambda) * state.psi;
-    state.dot_psi      = dot_psi_lambda * (-_ctx.data.yaw.rot) + (1.0f - dot_psi_lambda) * state.dot_psi;
+    //更新yaw的反馈
+    const auto& board_ptr = &pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::CHASSIS,pyro::bsp_can::can3);
+    const auto& g2c_data = board_ptr->get_g2c_rx_data();
 
-    // if(abs(state.psi) < 0.05f)
-    // {
-    //     state.psi = 0.0f;
-    // }
-    // if (abs(state.dot_psi) < 0.3f) 
-    // {
-    //     state.dot_psi = 0.0f;
-    // }
+    state.psi          = -_ctx.data.yaw.pos;
+    state.dot_psi = _ctx.data.ins.gyro[0] - g2c_data.imu_yaw_radps_100 * 0.01f;
     #else
     state.psi          = _ctx.data.ins.euler_rad[0];
     state.dot_psi      = _ctx.data.ins.gyro[0];

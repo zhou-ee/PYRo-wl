@@ -215,7 +215,7 @@ void chassis_dr162cmd(uint32_t notify)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
     }
-        else if (notify & EVENT_BIT_JUMP)
+    else if (notify & EVENT_BIT_JUMP)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::JUMP;
     }

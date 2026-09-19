@@ -179,7 +179,7 @@ void motor_deps_init()
         new pyro::pid_t(YAW_POS_PID_KP, YAW_POS_PID_KI, YAW_POS_PID_KD, 10.0f, 20.0f,
             20, 1, 10, 1, 4);
     wl_gimbal_deps->pid_deps.yaw_spd =
-        new pyro::pid_t(YAW_SPEED_PID_KP, YAW_SPEED_PID_KI, YAW_SPEED_PID_KD, 0.0f, 20.0f,
+        new pyro::pid_t(YAW_SPEED_PID_KP, YAW_SPEED_PID_KI, YAW_SPEED_PID_KD, 0.0f, 3.0f,
             20, 1, 10, 1, 4);
     
     // 设置 MIT 模式下的阻抗参数 (若使用串级PID输出扭矩，Kp和Kd必须设为0)

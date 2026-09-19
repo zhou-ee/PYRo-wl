@@ -2,6 +2,7 @@
 #include "pyro_module_base.h"
 #include "pyro_rc_base_drv.h"
 #include "pyro_vt03_rc_drv.h"
+#include "pyro_wl_gimbal.h"
 
 using namespace pyro;
 
@@ -23,6 +24,10 @@ void chassis_vt03cmd(uint32_t notify)
     //判断当前模式
     if(vt03_drv_t::instance().check_online())
     {
+        //更新一些基础反馈
+        tx_data.imu_yaw_radps_100 = (int)(pyro::wl_gimbal_t::instance()->get_ctx().data.imu.gyro[0] * 100);
+
+        //更新指令信息
         if(vrc.switches.gear.current_pos == pyro::sw_pos_t::UP)
         {
             tx_data.mode      = 0;
