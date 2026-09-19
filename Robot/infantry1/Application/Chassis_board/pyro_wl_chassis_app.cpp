@@ -138,11 +138,21 @@ void gimbal_cmd()
     }
     else if (g2c_data.mode == 2)//平衡模式
     {
+
         //平衡模式下的键位判断
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::NONE;
         if (g2c_data.step_mode == 1)
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
+        }
+        if(g2c_data.spining)
+        {
+            wl_chassis_cmd_ptr->wz                       = 6.5f;
+            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::SPIN;
+        }
+        else 
+        {
+            wl_chassis_cmd_ptr->wz                       = 0.0f;
         }
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::L] = 0.0f;
@@ -150,17 +160,8 @@ void gimbal_cmd()
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::R] = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::R]    = 0.0f;
         wl_chassis_cmd_ptr->v                            = g2c_data.vx / 31.0f;
-        if(g2c_data.spining)
-        {
-            wl_chassis_cmd_ptr->wz                       = 6.5f;
+        wl_chassis_cmd_ptr->cmd_continus_state           = pyro::chassis_active_state_t::NORMAL;
 
-            wl_chassis_cmd_ptr->cmd_continus_state       = pyro::chassis_active_state_t::SPIN;
-        }
-        else 
-        {
-            wl_chassis_cmd_ptr->wz                       = 0.0f; //-g2c_data.w / 31.0f * 2.0f;
-            wl_chassis_cmd_ptr->cmd_continus_state       = pyro::chassis_active_state_t::NORMAL;
-        }
         
         if(g2c_data.delta_leg == 0)
         {

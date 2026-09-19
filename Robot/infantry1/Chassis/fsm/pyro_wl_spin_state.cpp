@@ -6,7 +6,7 @@
 namespace pyro
 {
 
-void wl_chassis_t::fsm_active_t::state_spin_t::enter(wl_chassis_t *owner)
+void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_t *owner)
 {
     owner->_ctx.data.odom.real_x = 0.0f;
     owner->_ctx.data.spin_decay_active = false;
@@ -56,8 +56,16 @@ void wl_chassis_t::fsm_active_t::state_spin_t::enter(wl_chassis_t *owner)
     owner->_ctx.motor.wheel[leg_def::R]->enable();
 }
 
-void wl_chassis_t::fsm_active_t::state_spin_t::execute(wl_chassis_t *owner)
+void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassis_t *owner)
 {
+    //退出机制
+    if(owner->_ctx.data.current_function != chassis_function_state_t::SPIN)
+    {
+        
+
+        request_switch(&owner->_state_active._state_normal._state_balance);
+    }
+
     static uint16_t reset_count = 0;
     if(std::fabs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
        std::fabs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
@@ -127,7 +135,7 @@ void wl_chassis_t::fsm_active_t::state_spin_t::execute(wl_chassis_t *owner)
     owner->_send_wheel_torque();
 }
 
-void wl_chassis_t::fsm_active_t::state_spin_t::exit(wl_chassis_t *owner)
+void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::exit(wl_chassis_t *owner)
 {
     owner->_ctx.data.target_state.x = owner->_ctx.data.measured_state.x;
     owner->_ctx.data.target_state.dot_x = 0.0f;
@@ -135,7 +143,6 @@ void wl_chassis_t::fsm_active_t::state_spin_t::exit(wl_chassis_t *owner)
     owner->_ctx.data.target_state.dot_psi = 0.0f;
     const bool resume_normal = owner->_current_cmd.cmd_continus_state ==
                                chassis_active_state_t::NORMAL;
-    owner->_ctx.data.flag.resume_balance_after_spin = resume_normal;
     owner->_ctx.data.spin_decay_speed = owner->_ctx.data.ins.gyro[0];
     owner->_ctx.data.spin_decay_elapsed = 0.0f;
     const float spin_direction_source =
