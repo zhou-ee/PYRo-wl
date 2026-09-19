@@ -128,10 +128,15 @@ void gimbal_cmd()
 
         // 手动通道输入控制腿长和腿度（角度）的偏置量
         //用spining按键来切换左右腿
-        wl_chassis_cmd_ptr->delta_leg_length[!g2c_data.spining]= 0;
-        wl_chassis_cmd_ptr->delta_leg_rad[!g2c_data.spining]   = 0;
-        wl_chassis_cmd_ptr->delta_leg_length[g2c_data.spining] = g2c_data.vx / 31.0f * 0.001f;
-        wl_chassis_cmd_ptr->delta_leg_rad[g2c_data.spining]    = g2c_data.w  / 31.0f * 0.001f;
+        static int which_leg = 0;
+        if(g2c_data.spining)
+        {
+            which_leg = !which_leg;
+        }
+        wl_chassis_cmd_ptr->delta_leg_length[!which_leg]= 0;
+        wl_chassis_cmd_ptr->delta_leg_rad[!which_leg]   = 0;
+        wl_chassis_cmd_ptr->delta_leg_length[which_leg] = g2c_data.vx / 31.0f * 0.001f;
+        wl_chassis_cmd_ptr->delta_leg_rad[which_leg]    = g2c_data.w  / 31.0f * 0.001f;
         wl_chassis_cmd_ptr->v                           = 0.0f;
         wl_chassis_cmd_ptr->wz                          = 0.0f;
         wl_chassis_cmd_ptr->cmd_continus_state          = pyro::chassis_active_state_t::MANUAL;
@@ -145,15 +150,11 @@ void gimbal_cmd()
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
         }
-        if(g2c_data.spining)
+        if (g2c_data.spining == 1)
         {
-            wl_chassis_cmd_ptr->wz                       = 6.5f;
-            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::SPIN;
+            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::SPIN_TOGGLE;
         }
-        else 
-        {
-            wl_chassis_cmd_ptr->wz                       = 0.0f;
-        }
+
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
         wl_chassis_cmd_ptr->delta_leg_length[leg_def::L] = 0.0f;
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::L]    = 0.0f;

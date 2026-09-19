@@ -7,9 +7,9 @@
 using namespace pyro;
 
 //底盘部分
-constexpr uint32_t EVENT_BIT_STEPCLIMB                = (1 << 0);     // - 左上按钮双击 上台阶
-constexpr uint32_t EVENT_BIT_SPINING                  = (1 << 1);     // - pause键 小陀螺
-constexpr uint32_t EVENT_BIT_LEG_LENGTH_MODE          = (1 << 2);     // - 左上按钮单击切换腿长变长变短或不动
+constexpr uint32_t EVENT_BIT_STEPCLIMB                       = (1 << 0);     // - 左上按钮双击 上台阶
+constexpr uint32_t EVENT_BIT_SPINING_TOGGLE                  = (1 << 1);     // - pause键 小陀螺
+constexpr uint32_t EVENT_BIT_LEG_LENGTH_MODE                 = (1 << 2);     // - 左上按钮单击切换腿长变长变短或不动
 
 static TaskHandle_t board_com_task_handl    = nullptr;
 static board_drv_t *board_drv_ptr           = nullptr;
@@ -45,9 +45,13 @@ void chassis_vt03cmd(uint32_t notify)
             tx_data.vx        = vrc.axes.rx * 31.0f;
             tx_data.w         = vrc.axes.ry * 31.0f;
 
-            if(notify & EVENT_BIT_SPINING)
+            if(notify & EVENT_BIT_SPINING_TOGGLE)
             {
-                tx_data.spining   = !tx_data.spining;
+                tx_data.spining   = 1;
+            }
+            else 
+            {
+                tx_data.spining   = 0;
             }
         }
         else if(vrc.switches.gear.current_pos == pyro::sw_pos_t::DOWN)
@@ -57,9 +61,13 @@ void chassis_vt03cmd(uint32_t notify)
             tx_data.vx        = vrc.axes.ry * 31.0f;
             tx_data.w         = vrc.axes.rx * 31.0f;
 
-            if(notify & EVENT_BIT_SPINING)
+            if(notify & EVENT_BIT_SPINING_TOGGLE)
             {
-                tx_data.spining   = !tx_data.spining;
+                tx_data.spining   = 1;
+            }
+            else 
+            {
+                tx_data.spining   = 0;
             }
             //腿长命令逻辑遵循以下循环：不变->变长->不变->变短，循环往复
             static int count = 0;
@@ -126,7 +134,7 @@ extern "C"
         pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::SINGLE_CLICK, 
                             board_com_task_handl, EVENT_BIT_LEG_LENGTH_MODE);
         pyro::btn_broker::subscribe(&vrc.buttons.pause, pyro::btn_event_t::SINGLE_CLICK, 
-                            board_com_task_handl, EVENT_BIT_SPINING);
+                            board_com_task_handl, EVENT_BIT_SPINING_TOGGLE);
 
         vTaskDelete(nullptr);
     }

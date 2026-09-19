@@ -37,7 +37,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
     {
         change_state(&_state_jump);
     }
-    else if(owner->_ctx.data.current_function == chassis_function_state_t::SPIN)
+    else if(owner->_ctx.data.current_function == chassis_function_state_t::SPIN_TOGGLE)
     {
         change_state(&_state_spin);
     }

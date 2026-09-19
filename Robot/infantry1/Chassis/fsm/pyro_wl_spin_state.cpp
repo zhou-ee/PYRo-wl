@@ -6,18 +6,24 @@
 namespace pyro
 {
 
+constexpr static float WZ = 12.0f;
+constexpr static float TARGET_RECOVERY_WZ = 5.0f;
+constexpr static float SPIN_RECOVERY_ANGLE_EPSILON    = 1.0f; // rad
+
+static float spin_speed_ref = 0.0f;
+static bool if_exit_spin = false;
+static int convert_count = 0; 
+static bool is_add_speed = 0; // 是否是加速阶段
+
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_t *owner)
 {
     owner->_ctx.data.odom.real_x = 0.0f;
-    owner->_ctx.data.spin_decay_active = false;
-    owner->_ctx.data.spin_recovery_active = false;
-    owner->_ctx.data.spin_speed_ref = owner->_ctx.data.ins.gyro[0];
-
     auto &target = owner->_ctx.data.target_state;
     target.x = owner->_ctx.data.measured_state.x;
     target.dot_x = 0.0f;
     target.psi = owner->_ctx.data.measured_state.psi;
-    target.dot_psi = owner->_ctx.data.spin_speed_ref;
+    target.dot_psi = owner->_ctx.data.ins.gyro[0];
+    spin_speed_ref = owner->_ctx.data.ins.gyro[0];
     target.L = owner->_ctx.data.airborne.landing_recovery
                    ? owner->_ctx.data.airborne.L_ref
                    : NORMAL_LENGTH_TARGET;
@@ -54,72 +60,129 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_
 
     owner->_ctx.motor.wheel[leg_def::L]->enable();
     owner->_ctx.motor.wheel[leg_def::R]->enable();
+
+    if_exit_spin = false;
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassis_t *owner)
 {
     //退出机制
-    if(owner->_ctx.data.current_function != chassis_function_state_t::SPIN)
+    if(owner->_ctx.data.current_function == chassis_function_state_t::SPIN_TOGGLE || if_exit_spin)
     {
+        //之后都要来这里
+        if_exit_spin = true;
+
+        const float gimbal_psi = owner->_ctx.data.measured_state.psi;
+        if ((std::fabs(gimbal_psi) <= SPIN_RECOVERY_ANGLE_EPSILON) &&
+            owner->_ctx.data.measured_state.dot_psi <= TARGET_RECOVERY_WZ + 1.0f)
+        {
+            owner->_ctx.data.target_state.psi = 0.0f;
+            owner->_ctx.data.target_state.dot_psi = 0.0f;
+            if_exit_spin = false;
+            request_switch(&owner->_state_active._state_normal._state_balance);
+        }
+        else
+        {
+            float directed_error = -gimbal_psi;
+            if(directed_error < 0.0f)
+            {
+                directed_error += 2.0f * PI;
+            }
+
+
+            if(spin_speed_ref >= TARGET_RECOVERY_WZ)
+            {
+                const float spin_accel_step = 4.0f * SPIN_YAW_ACCEL * owner->_ctx.data._dt;
+                spin_speed_ref -= spin_accel_step;
+            }
+            else 
+            {
+                spin_speed_ref = TARGET_RECOVERY_WZ;
+            }
+            
+        }
+        
+    }
+    else
+    {
+        //此时不是退出
+        //紧急下力
+        static uint16_t reset_count = 0;
+        if(std::fabs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
+           std::fabs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
+        {
+            if(reset_count >= 50)
+            {
+                owner->_ctx.data.flag.leg_is_should_restart = true;
+                return;
+            }
+            ++reset_count;
+        }
+        else
+        {
+            reset_count = 0;
+        }
+
+        //落地恢复
+        if(owner->_ctx.data.airborne.landing_recovery)
+        {
+            owner->_execute_landing_recovery();
+        }
+        else
+        {
+            const float target_dot_L = owner->_current_cmd.dot_L;
+            owner->_ctx.data.target_state.dot_L = target_dot_L;
+            owner->_ctx.data.target_state.L = std::clamp(
+                owner->_ctx.data.target_state.L +
+                    target_dot_L * owner->_ctx.data._dt,
+                MIN_LEG_LENGTH, MAX_LEG_LENGTH);
+        }
+
+        //缓加速
+        if(is_add_speed)
+        {
+            //小陀螺加速时的小量
+            const float spin_accel_step = SPIN_YAW_ACCEL * owner->_ctx.data._dt;
+            if(spin_speed_ref < WZ - spin_accel_step)
+            {
+                spin_speed_ref += spin_accel_step;
+            }
+            else if(spin_speed_ref > WZ + spin_accel_step)
+            {
+                spin_speed_ref -= spin_accel_step;
+            }
+            else
+            {
+                spin_speed_ref = WZ;
+                convert_count++;
+
+                convert_count = 0;
+                is_add_speed = false;
+                
+            }
+        }
+        else 
+        {
+            spin_speed_ref = owner->_ctx.data.measured_state.dot_psi;
+            if(owner->_ctx.data.measured_state.dot_psi <= 6.0f)
+            {
+                is_add_speed = true;
+            }
+        }
         
 
-        request_switch(&owner->_state_active._state_normal._state_balance);
+
     }
 
-    static uint16_t reset_count = 0;
-    if(std::fabs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
-       std::fabs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
-    {
-        if(reset_count >= 50)
-        {
-            owner->_ctx.data.flag.leg_is_should_restart = true;
-            return;
-        }
-        ++reset_count;
-    }
-    else
-    {
-        reset_count = 0;
-    }
+    
 
-    if(owner->_ctx.data.airborne.landing_recovery)
-    {
-        owner->_execute_landing_recovery();
-    }
-    else
-    {
-        const float target_dot_L = owner->_current_cmd.dot_L;
-        owner->_ctx.data.target_state.dot_L = target_dot_L;
-        owner->_ctx.data.target_state.L = std::clamp(
-            owner->_ctx.data.target_state.L +
-                target_dot_L * owner->_ctx.data._dt,
-            MIN_LEG_LENGTH, MAX_LEG_LENGTH);
-    }
-
-    // Decouple accumulated displacement and yaw angle while retaining
-    // velocity feedback for translation damping and spin-rate tracking.
-    const float spin_accel_step = SPIN_YAW_ACCEL * owner->_ctx.data._dt;
-    if(owner->_ctx.data.spin_speed_ref <
-       owner->_current_cmd.wz - spin_accel_step)
-    {
-        owner->_ctx.data.spin_speed_ref += spin_accel_step;
-    }
-    else if(owner->_ctx.data.spin_speed_ref >
-            owner->_current_cmd.wz + spin_accel_step)
-    {
-        owner->_ctx.data.spin_speed_ref -= spin_accel_step;
-    }
-    else
-    {
-        owner->_ctx.data.spin_speed_ref = owner->_current_cmd.wz;
-    }
-
+    //无视其它状态
     owner->_ctx.data.measured_state.psi = owner->_ctx.data.ins.euler_rad[0];
     owner->_ctx.data.measured_state.dot_psi = owner->_ctx.data.ins.gyro[0];
     owner->_ctx.data.target_state.x = owner->_ctx.data.measured_state.x;
     owner->_ctx.data.target_state.dot_x = 0.0f;
     owner->_ctx.data.target_state.psi = owner->_ctx.data.measured_state.psi;
-    owner->_ctx.data.target_state.dot_psi = owner->_ctx.data.spin_speed_ref;
+    owner->_ctx.data.target_state.dot_psi = spin_speed_ref;
     owner->_ctx.data.normal_roll_force_trim = 0.0f;
 
     owner->_gain_calculate();
@@ -137,22 +200,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::exit(wl_chassis_t *owner)
 {
-    owner->_ctx.data.target_state.x = owner->_ctx.data.measured_state.x;
-    owner->_ctx.data.target_state.dot_x = 0.0f;
-    owner->_ctx.data.target_state.psi = owner->_ctx.data.measured_state.psi;
-    owner->_ctx.data.target_state.dot_psi = 0.0f;
-    const bool resume_normal = owner->_current_cmd.cmd_continus_state ==
-                               chassis_active_state_t::NORMAL;
-    owner->_ctx.data.spin_decay_speed = owner->_ctx.data.ins.gyro[0];
-    owner->_ctx.data.spin_decay_elapsed = 0.0f;
-    const float spin_direction_source =
-        std::fabs(owner->_current_cmd.wz) > 0.1f
-            ? owner->_current_cmd.wz
-            : owner->_ctx.data.ins.gyro[0];
-    owner->_ctx.data.spin_direction =
-        spin_direction_source >= 0.0f ? 1.0f : -1.0f;
-    owner->_ctx.data.spin_recovery_active = false;
-    owner->_ctx.data.spin_decay_active = resume_normal;
+    (void)owner;
 }
 
 } // namespace pyro
+
+
+
+
+
+
+

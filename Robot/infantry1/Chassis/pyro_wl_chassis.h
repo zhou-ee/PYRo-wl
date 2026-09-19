@@ -44,7 +44,7 @@ enum class chassis_function_state_t : uint8_t
     STEP,
     AIR,
     JUMP,
-    SPIN,
+    SPIN_TOGGLE,
 
 };
 
@@ -178,7 +178,7 @@ struct airborne_data_t
 struct flag_data_t
 {
     bool leg_is_should_restart;  //紧急下力的标志位
-    bool chassis_is_align_ready = false; // 机体姿态对齐的标志位,只供给云盘读取
+    bool chassis_is_align_ready = true; // 机体姿态对齐的标志位,只供给云盘读取
 };
 
 
@@ -205,13 +205,6 @@ struct wl_chassis_data_ctx_t
     airborne_data_t airborne;
     float _dt;
     float normal_roll_force_trim;
-    float spin_speed_ref;
-    float spin_decay_speed;
-    float spin_decay_elapsed;
-    float spin_direction;
-    float spin_recovery_speed_limit;
-    bool spin_decay_active;
-    bool spin_recovery_active;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
 };
 
