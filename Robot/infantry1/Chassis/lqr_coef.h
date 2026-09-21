@@ -19,6 +19,7 @@
 
 constexpr uint32_t STATE_DIM                                         = 14;
 constexpr uint32_t INPUT_DIM                                         = 6;
+constexpr uint32_t GENERAL_STATE_DIM                                 = 7;
 constexpr uint32_t K_POLY_DEGREE                                     = 3;
 constexpr uint32_t U0_POLY_DEGREE                                    = 3;
 constexpr uint32_t BETA_TRIM_POLY_DEGREE                             = 3;

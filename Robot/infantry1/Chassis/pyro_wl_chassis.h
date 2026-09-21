@@ -181,6 +181,17 @@ struct flag_data_t
     bool chassis_is_align_ready = true; // 机体姿态对齐的标志位,只供给云盘读取
 };
 
+struct rdob_data_t
+{
+    float gamma[INPUT_DIM][GENERAL_STATE_DIM];
+    float bq[INPUT_DIM][GENERAL_STATE_DIM - 2U];
+    float z[INPUT_DIM];
+    control_vec_t dist;
+    float prev_delta_q[GENERAL_STATE_DIM];
+    float prev_delta_v[GENERAL_STATE_DIM];
+    float prev_trim_q[GENERAL_STATE_DIM];
+    float prev_trim_v[GENERAL_STATE_DIM];
+};
 
 struct wl_chassis_data_ctx_t
 {
@@ -254,6 +265,7 @@ class wl_chassis_t final
     bool _detect_landing();
     void _execute_air_control();
     void _execute_landing_recovery();
+    void _rdob_update();
 
     using owner = wl_chassis_t;
 

@@ -410,6 +410,11 @@ void wl_chassis_t::_balance_control()
     }
 }
 
+void wl_chassis_t::_rdob_update()
+{
+    
+}
+
 void wl_chassis_t::_vmc_trans_v2j()
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
