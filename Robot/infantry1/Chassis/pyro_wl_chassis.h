@@ -97,6 +97,8 @@ struct leg_ctx_t
     float current_joint_radps[2];
     float current_joint_torque[2];
     float out_joint_torque[2];
+    float actual_out_F_L;
+    float actual_out_T_p;
 };
 
 struct wheel_ctx_t
@@ -266,6 +268,7 @@ class wl_chassis_t final
     void _execute_air_control();
     void _execute_landing_recovery();
     void _rdob_update();
+    void _actual_output_update();
 
     using owner = wl_chassis_t;
 

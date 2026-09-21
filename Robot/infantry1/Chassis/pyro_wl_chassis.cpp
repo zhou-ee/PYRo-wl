@@ -155,6 +155,7 @@ void wl_chassis_t::_update_feedback()
         0.5f * (_ctx.data.leg[leg_def::L].current_leg_speed  +
                 _ctx.data.leg[leg_def::R].current_leg_speed );
 
+
     const float accel_alpha =
         _ctx.data._dt / (0.01f + _ctx.data._dt);
     for (auto &leg : _ctx.data.leg)
@@ -227,9 +228,10 @@ void wl_chassis_t::_vmc_trans_j2v()
         leg.current_leg_length = OJ4 * OJ8 / OJ5;
         leg.L_wp               = evaluate_polynomial_ascending(
             leg.current_leg_length, L_WP_POLY_COEF, L_WP_POLY_DEGREE);
+        leg.current_leg_speed = dot_theta * leg.J_L;
         leg.gas_spring_force   = _calc_gas_spring_force(
             leg.current_leg_length);
-        leg.current_leg_speed = dot_theta * leg.J_L;
+        leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
 
         const float raw_beta  = leg.current_joint_rad[joint_def::HIP] + theta;
         const float beta      = loop_fp32_constrain(raw_beta, -PI, PI);
@@ -415,34 +417,37 @@ void wl_chassis_t::_rdob_update()
 
 }
 
+void wl_chassis_t::_actual_output_update()
+{
+    _ctx.data.output.data[lqr_input_def::F_L1] = _ctx.data.leg[leg_def::L].actual_out_F_L;
+    _ctx.data.output.data[lqr_input_def::F_L2] = _ctx.data.leg[leg_def::R].actual_out_F_L;
+    _ctx.data.output.data[lqr_input_def::T_P1] = _ctx.data.leg[leg_def::L].actual_out_T_p;
+    _ctx.data.output.data[lqr_input_def::T_P2] = _ctx.data.leg[leg_def::R].actual_out_T_p;
+    _ctx.data.output.data[lqr_input_def::T_W1] = _ctx.data.wheel[leg_def::L].out_T_w;
+    _ctx.data.output.data[lqr_input_def::T_W2] = _ctx.data.wheel[leg_def::R].out_T_w;
+}
+
 void wl_chassis_t::_vmc_trans_v2j()
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
-
     // Every active mode eventually reaches this VMC-to-joint conversion.
     // Apply the passive gas-spring contribution here so ALIGN, MANUAL, AIR,
     // STEP and BALANCE all use the same motor-side compensation.
-
     for (auto &leg : _ctx.data.leg)
     {
-        leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
-        // const float f_l_before_wall = leg.out_F_L -
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
-        const float f_l_before_wall = leg.out_F_L ;
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
-        const float t_p_motor = leg.out_T_p;
-        leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force ,
-                                   -MAX_F_L, MAX_F_L);
-        leg.motor_t_p = t_p_motor;
-
-        float tau_sum                        = leg.motor_t_p;
-        float tau_diff                       = leg.motor_f_l * leg.J_L;
+        float F_L = std::clamp(leg.out_F_L + leg.virtual_wall_force,-MAX_F_L,MAX_F_L);
+        float T_p = std::clamp(leg.out_T_p , -MAX_T_P, MAX_T_P);
+        float tau_sum                        = T_p;
+        float tau_diff                       = F_L * leg.J_L;
         leg.out_joint_torque[joint_def::HIP] = std::clamp(
             (tau_sum - tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
         leg.out_joint_torque[joint_def::KNEE] = std::clamp(
             (tau_sum + tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
+        leg.actual_out_F_L = (leg.out_joint_torque[joint_def::KNEE] -
+                           leg.out_joint_torque[joint_def::HIP]) /
+                          leg.J_L;
+        leg.actual_out_T_p = leg.out_joint_torque[joint_def::KNEE] +
+                          leg.out_joint_torque[joint_def::HIP];
     }
 }
 
