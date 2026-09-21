@@ -128,7 +128,7 @@ void wl_chassis_t::_update_feedback()
     const auto& g2c_data = board_ptr->get_g2c_rx_data();
 
     state.psi          = -_ctx.data.yaw.pos;
-    state.dot_psi = _ctx.data.ins.gyro[0] - g2c_data.imu_yaw_radps_100 * 0.01f;
+    state.dot_psi = _ctx.data.ins.gyro[0] - static_cast<float>(g2c_data.imu_yaw_radps_100) * 0.01f;
     #else
     state.psi          = _ctx.data.ins.euler_rad[0];
     state.dot_psi      = _ctx.data.ins.gyro[0];
@@ -412,7 +412,7 @@ void wl_chassis_t::_balance_control()
 
 void wl_chassis_t::_rdob_update()
 {
-    
+
 }
 
 void wl_chassis_t::_vmc_trans_v2j()
