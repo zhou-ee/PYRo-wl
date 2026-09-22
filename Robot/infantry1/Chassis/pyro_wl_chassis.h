@@ -48,6 +48,15 @@ enum class chassis_function_state_t : uint8_t
 
 };
 
+enum class jump_phase_t : uint8_t
+{
+    PRE_COMPRESS,
+    JUMP,
+    RECOVERY,
+    AIR,
+    RETURN,
+};
+
 struct wl_chassis_cmd_t final : public cmd_base_t
 {
     float delta_leg_length[2];
@@ -203,6 +212,12 @@ struct wl_chassis_data_ctx_t
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;
+    jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
+    float jump_phase_time = 0.0f;
+    float jump_heading_ref = 0.0f;
+    uint16_t jump_recovery_hold_ticks = 0;
+    uint16_t jump_landing_counter = 0;
+    bool jump_virtual_wall_bypass = false;
     float _dt;
     float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
@@ -254,6 +269,7 @@ class wl_chassis_t final
     void _vmc_trans_v2j();
     void _send_joint_torque() const;
     void _send_wheel_torque() const;
+    float _jump_beta_torque(uint8_t leg_index, float limit) const;
     void _update_accel_heading_frame();
     void _calc_support_force();
     bool _detect_takeoff();

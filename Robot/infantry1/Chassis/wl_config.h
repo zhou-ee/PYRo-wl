@@ -97,7 +97,7 @@ constexpr float NORMAL_LENGTH_TARGET                 = 0.20f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
 constexpr float AIR_TAKEOFF_FORCE_ON                 = 60.0f;//单腿支持力阈值，越小越易离地
-constexpr float AIR_CONTACT_FORCE_OFF                = 35.0f;
+constexpr float AIR_CONTACT_FORCE_OFF                = 45.0f;
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
 constexpr float AIR_LENGTH_RECOVERY_RATE             = 0.20f;
@@ -110,6 +110,24 @@ constexpr float SUPPORT_FORCE_BIAS[2]                = {0.0f, 0.0f};
 constexpr uint16_t AIR_TAKEOFF_DEBOUNCE_TICKS        = 75;
 constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 
+// Active jump state machine. These values are separate from passive airborne
+// detection so a commanded jump never depends on a takeoff-force threshold.
+constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.19f; // 预压缩目标腿长 (m)
+constexpr float JUMP_PUSH_END_LENGTH                  = 0.34f; // 正常蹬腿结束腿长 (m)
+constexpr float JUMP_HARD_LENGTH                      = 0.37f; // 任一腿达到即结束蹬腿 (m)
+constexpr float JUMP_AIR_LENGTH                       = 0.20f; // 收腿/空中腿长目标 (m)
+constexpr float JUMP_TAU                               = 13.0f; // 单腿起跳关节力矩基准 (N m)
+constexpr float JUMP_RECOVERY_TAU                      = 5.0f; // 保留参数：收腿姿态力矩基准 (N m)
+constexpr float JUMP_PRECOMPRESS_TIME                 = 0.08f; // 预压缩最长时间 (s)
+constexpr float JUMP_PUSH_TIMEOUT                     = 0.5f;  // 蹬腿最长时间 (s)
+constexpr float JUMP_RECOVERY_TIMEOUT                 = 0.5f;  // 收腿最长时间 (s)
+constexpr float JUMP_AIR_MIN_TIME                     = 0.06f; // 最短空中确认时间 (s)
+constexpr float JUMP_TOTAL_TIMEOUT                    = 2.0f;  // 空中阶段最长时间 (s)
+constexpr float JUMP_RECOVERY_PD_SCALE                = 1.5f;  // 收腿 PD 输出倍率
+constexpr float JUMP_RECOVERY_FORCE_MAX               = 120.0f; // 收腿力限幅 (N)
+constexpr uint16_t JUMP_LANDING_TICKS                 = 8; // 落地候选连续确认周期
+constexpr uint16_t JUMP_RECOVERY_HOLD_TICKS           = 10; // 收腿长度连续保持周期
+constexpr float JUMP_T_P_LIMIT = 8.0f;
 
 constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 
