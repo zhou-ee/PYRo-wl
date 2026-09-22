@@ -386,6 +386,17 @@ void wl_chassis_t::_balance_control()
         loop_fp32_constrain(error[lqr_state_def::PSI], -PI, PI);
 
     // calculate control data
+#if RDOB_EN
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        _ctx.data.control.data[input] = _ctx.data.U0[input] - _ctx.data.rdob.dist.data[input];
+        for (uint8_t state = 0; state < STATE_DIM; ++state)
+        {
+            _ctx.data.control.data[input] +=
+                _ctx.data.K[input][state] * error[state];
+        }
+    }
+#else
 
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
@@ -396,6 +407,7 @@ void wl_chassis_t::_balance_control()
                 _ctx.data.K[input][state] * error[state];
         }
     }
+#endif
 
     _ctx.data.control.T_w1 =
         std::clamp(_ctx.data.control.T_w1, -MAX_T_W, MAX_T_W);
@@ -519,6 +531,12 @@ __attribute__((optimize("O3")))
 void wl_chassis_t::_rdob_update()
 {
     rdob_data_t &rdob = _ctx.data.rdob;
+
+    if (!rdob.initialized)
+    {
+        _rdob_init();
+        return;
+    }
 
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {

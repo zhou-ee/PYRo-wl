@@ -60,7 +60,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     // owner->_ctx.pid.leg_length[leg_def::R]->clear();
 #if RDOB_EN
     owner->_ctx.data.rdob = rdob_data_t{};
-    owner->_rdob_init();
 #endif
 
 
