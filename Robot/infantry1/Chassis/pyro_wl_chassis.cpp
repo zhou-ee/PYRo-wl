@@ -375,6 +375,7 @@ void wl_chassis_t::_gain_calculate()
 
 void wl_chassis_t::_balance_control()
 {
+
     float error[STATE_DIM];
     for (uint8_t state = 0; state < STATE_DIM; ++state)
     {
@@ -558,6 +559,8 @@ void wl_chassis_t::_rdob_update()
             estimate, -RDOB_DISTURBANCE_LIMIT[input],
             RDOB_DISTURBANCE_LIMIT[input]);
     }
+
+    _rdob_coef_fit();
 
     // Rebase z so the limited physical estimate is continuous after Gamma or
     // moving-trim changes.

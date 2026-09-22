@@ -11,9 +11,10 @@ static int reset_count;
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
-
+#if RDOB_EN
     owner->_ctx.data.rdob = rdob_data_t{};
-
+    owner->_rdob_init();
+#endif
     owner->_ctx.data.odom.real_x            = 0;
 
     owner->_ctx.data.target_state.x         = 0;
@@ -188,7 +189,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     
 
     owner->_gain_calculate();
+#if RDOB_EN
     owner->_rdob_update();
+#endif
     owner->_balance_control();
 
     const float roll_error = owner->_ctx.data.target_state.phi -

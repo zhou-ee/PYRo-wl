@@ -3,6 +3,8 @@
 #include "pyro_algo_common.h"
 #include "lqr_coef.h"
 
+#define RDOB_EN 1
+
 namespace pyro
 {
 constexpr float loop_fp32_PI(float val)
