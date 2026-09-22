@@ -12,6 +12,8 @@ static int reset_count;
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
 
+    owner->_ctx.data.rdob = rdob_data_t{};
+
     owner->_ctx.data.odom.real_x            = 0;
 
     owner->_ctx.data.target_state.x         = 0;
@@ -186,6 +188,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     
 
     owner->_gain_calculate();
+    owner->_rdob_update();
     owner->_balance_control();
 
     const float roll_error = owner->_ctx.data.target_state.phi -
@@ -212,13 +215,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         owner->_ctx.data.control.F_l2;
 
     owner->_vmc_trans_v2j();
+    owner->_actual_output_update();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::exit(wl_chassis_t *owner)
 {
-    (void)owner;
+    owner->_ctx.data.rdob = rdob_data_t{};
 }
 
 } // namespace pyro

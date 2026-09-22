@@ -4,6 +4,7 @@
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
 #include "dsp/fast_math_functions.h"
+#include "rdob_coef.h"
 #include "wl_config.h"
 #include "pyro_board_drv.h"
 
@@ -13,9 +14,19 @@
 namespace pyro
 {
 
+namespace
+{
+constexpr float RDOB_DISTURBANCE_LIMIT[INPUT_DIM] = {
+    0.1f * MAX_T_W, 0.1f * MAX_T_W,
+    0.1f * MAX_T_P, 0.1f * MAX_T_P,
+    0.1f * MAX_F_L, 0.1f * MAX_F_L,
+};
+
+}
 
 
-wl_chassis_t::wl_chassis_t() : module_base_t("wl_chassis")
+
+wl_chassis_t::wl_chassis_t() : module_base_t("wl_chassis", 512, 512)
 {
 }
 
@@ -412,9 +423,169 @@ void wl_chassis_t::_balance_control()
     }
 }
 
+__attribute__((optimize("O3")))
+void wl_chassis_t::_rdob_coef_fit()
+{
+    const float norm_L1 =
+        std::clamp((_ctx.data.leg[leg_def::L].current_leg_length -
+                    0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH)) *
+                       (1.0f / (0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH))),
+                   -1.0f, 1.0f);
+    const float norm_L2 =
+        std::clamp((_ctx.data.leg[leg_def::R].current_leg_length -
+                    0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH)) *
+                       (1.0f / (0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH))),
+                   -1.0f, 1.0f);
+
+    rdob_data_t &rdob = _ctx.data.rdob;
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        for (uint8_t state = 0; state < GENERAL_STATE_DIM; ++state)
+        {
+            const float (&coefficient)[4][4] =
+                kGammaCoefficients[
+                    input * GENERAL_STATE_DIM + state];
+            const float x0 =
+                ((coefficient[0][3] * norm_L2 + coefficient[0][2]) * norm_L2 +
+                 coefficient[0][1]) * norm_L2 + coefficient[0][0];
+            const float x1 =
+                ((coefficient[1][3] * norm_L2 + coefficient[1][2]) * norm_L2 +
+                 coefficient[1][1]) * norm_L2 + coefficient[1][0];
+            const float x2 =
+                ((coefficient[2][3] * norm_L2 + coefficient[2][2]) * norm_L2 +
+                 coefficient[2][1]) * norm_L2 + coefficient[2][0];
+            const float x3 =
+                ((coefficient[3][3] * norm_L2 + coefficient[3][2]) * norm_L2 +
+                 coefficient[3][1]) * norm_L2 + coefficient[3][0];
+            rdob.gamma[input][state] =
+                ((x3 * norm_L1 + x2) * norm_L1 + x1) * norm_L1 + x0;
+        }
+
+        for (uint8_t state = 2U; state < GENERAL_STATE_DIM; ++state)
+        {
+            const float *coefficient =
+                kPositionGainCoefficients[
+                    input * (GENERAL_STATE_DIM - 2U) + state - 2U];
+            const float x0 =
+                ((coefficient[3] * norm_L2 + coefficient[2]) * norm_L2 +
+                 coefficient[1]) * norm_L2 + coefficient[0];
+            const float x1 =
+                (coefficient[6] * norm_L2 + coefficient[5]) * norm_L2 + coefficient[4];
+            const float x2 = coefficient[8] * norm_L2 + coefficient[7];
+            rdob.bq[input][state - 2U] =
+                ((coefficient[9] * norm_L1 + x2) * norm_L1 + x1) * norm_L1 + x0;
+        }
+    }
+}
+
+__attribute__((optimize("O3")))
+void wl_chassis_t::_rdob_init()
+{
+    _ctx.data.rdob = rdob_data_t{};
+    rdob_data_t &rdob = _ctx.data.rdob;
+    _rdob_coef_fit();
+
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        float gamma_v = 0.0f;
+        for (uint8_t state = 0; state < GENERAL_STATE_DIM; ++state)
+        {
+            gamma_v += rdob.gamma[input][state] *
+                       (_ctx.data.measured_state.data[2U * state + 1U] -
+                        _ctx.data.target_state.data[2U * state + 1U]);
+        }
+        rdob.z[input] = -gamma_v;
+        rdob.dist.data[input] = 0.0f;
+        rdob.prev_U0.data[input] = _ctx.data.U0[input];
+    }
+
+    // Freeze the start of the first complete observation interval.
+    for (uint8_t state = 0; state < GENERAL_STATE_DIM; ++state)
+    {
+        rdob.prev_q[state] =
+            _ctx.data.measured_state.data[2U * state];
+        rdob.prev_dot_q[state] =
+            _ctx.data.measured_state.data[2U * state + 1U];
+        rdob.prev_trim_q[state] =
+            _ctx.data.target_state.data[2U * state];
+        rdob.prev_trim_dot_q[state] =
+            _ctx.data.target_state.data[2U * state + 1U];
+    }
+    rdob.initialized = true;
+}
+
+__attribute__((optimize("O3")))
 void wl_chassis_t::_rdob_update()
 {
+    rdob_data_t &rdob = _ctx.data.rdob;
 
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        float q_sum = 0.0f;
+        for (uint8_t state = 2U; state < GENERAL_STATE_DIM; ++state)
+        {
+            q_sum += rdob.bq[input][state - 2U] *
+                     (rdob.prev_q[state] - rdob.prev_trim_q[state] +
+                      _ctx.data.measured_state.data[2U * state] -
+                      rdob.prev_trim_q[state]);
+        }
+
+        float gamma_v_sum = 0.0f;
+        for (uint8_t state = 0; state < GENERAL_STATE_DIM; ++state)
+        {
+            gamma_v_sum += rdob.gamma[input][state] *
+                (rdob.prev_dot_q[state] - rdob.prev_trim_dot_q[state] +
+                 _ctx.data.measured_state.data[2U * state + 1U] -
+                 rdob.prev_trim_dot_q[state]);
+        }
+
+        rdob.z[input] =
+            kStepPoles[input] * rdob.z[input] +
+            kStepEndpointWeight[input] * q_sum +
+            kStepVelocityScale[input] * gamma_v_sum +
+            kStepInputGain[input] *
+                (_ctx.data.output.data[input] - rdob.prev_U0.data[input]);
+
+        // Reconstruct and limit with the old Gamma before changing schedule.
+        float estimate = rdob.z[input];
+        for (uint8_t state = 0; state < GENERAL_STATE_DIM; ++state)
+        {
+            estimate += rdob.gamma[input][state] *
+                (_ctx.data.measured_state.data[2U * state + 1U] -
+                 rdob.prev_trim_dot_q[state]);
+        }
+        rdob.dist.data[input] = std::clamp(
+            estimate, -RDOB_DISTURBANCE_LIMIT[input],
+            RDOB_DISTURBANCE_LIMIT[input]);
+    }
+
+    // Rebase z so the limited physical estimate is continuous after Gamma or
+    // moving-trim changes.
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
+    {
+        float gamma_v = 0.0f;
+        for (uint8_t state = 0; state < GENERAL_STATE_DIM; ++state)
+        {
+            gamma_v += rdob.gamma[input][state] *
+                       (_ctx.data.measured_state.data[2U * state + 1U] -
+                        _ctx.data.target_state.data[2U * state + 1U]);
+        }
+        rdob.z[input] = rdob.dist.data[input] - gamma_v;
+        rdob.prev_U0.data[input] = _ctx.data.U0[input];
+    }
+
+    // Advance the cached interval start only after the old interval is closed.
+    for (uint8_t state = 0; state < GENERAL_STATE_DIM; ++state)
+    {
+        rdob.prev_q[state] =
+            _ctx.data.measured_state.data[2U * state];
+        rdob.prev_dot_q[state] =
+            _ctx.data.measured_state.data[2U * state + 1U];
+        rdob.prev_trim_q[state] =
+            _ctx.data.target_state.data[2U * state];
+        rdob.prev_trim_dot_q[state] =
+            _ctx.data.target_state.data[2U * state + 1U];
+    }
 }
 
 void wl_chassis_t::_actual_output_update()
@@ -430,9 +601,8 @@ void wl_chassis_t::_actual_output_update()
 void wl_chassis_t::_vmc_trans_v2j()
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
-    // Every active mode eventually reaches this VMC-to-joint conversion.
-    // Apply the passive gas-spring contribution here so ALIGN, MANUAL, AIR,
-    // STEP and BALANCE all use the same motor-side compensation.
+    // out_F_L is the active motor-side generalized force.  The passive gas
+    // spring acts mechanically and therefore is not added to motor torque here.
     for (auto &leg : _ctx.data.leg)
     {
         float F_L = std::clamp(leg.out_F_L + leg.virtual_wall_force,-MAX_F_L,MAX_F_L);
@@ -443,9 +613,17 @@ void wl_chassis_t::_vmc_trans_v2j()
             (tau_sum - tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
         leg.out_joint_torque[joint_def::KNEE] = std::clamp(
             (tau_sum + tau_diff) / 2, -MAX_MOTOR_TORQUE, MAX_MOTOR_TORQUE);
-        leg.actual_out_F_L = (leg.out_joint_torque[joint_def::KNEE] -
-                           leg.out_joint_torque[joint_def::HIP]) /
-                          leg.J_L;
+        if (std::isfinite(leg.J_L) && std::fabs(leg.J_L) > 1.0e-6f)
+        {
+            leg.actual_out_F_L =
+                (leg.out_joint_torque[joint_def::KNEE] -
+                 leg.out_joint_torque[joint_def::HIP]) /
+                leg.J_L;
+        }
+        else
+        {
+            leg.actual_out_F_L = 0.0f;
+        }
         leg.actual_out_T_p = leg.out_joint_torque[joint_def::KNEE] +
                           leg.out_joint_torque[joint_def::HIP];
     }

@@ -189,10 +189,12 @@ struct rdob_data_t
     float bq[INPUT_DIM][GENERAL_STATE_DIM - 2U];
     float z[INPUT_DIM];
     control_vec_t dist;
-    float prev_delta_q[GENERAL_STATE_DIM];
-    float prev_delta_v[GENERAL_STATE_DIM];
+    float prev_q[GENERAL_STATE_DIM];
+    float prev_dot_q[GENERAL_STATE_DIM];
     float prev_trim_q[GENERAL_STATE_DIM];
-    float prev_trim_v[GENERAL_STATE_DIM];
+    float prev_trim_dot_q[GENERAL_STATE_DIM];
+    control_vec_t prev_U0;
+    bool initialized;
 };
 
 struct wl_chassis_data_ctx_t
@@ -203,7 +205,10 @@ struct wl_chassis_data_ctx_t
     state_vec_t target_state;
     state_vec_t measured_state;
     control_vec_t control;
+    // Final actuator output from the just-finished control interval.  This is
+    // an absolute applied input, not an input deviation.
     control_vec_t output;
+    rdob_data_t rdob;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
     float U0[INPUT_DIM];
@@ -267,6 +272,8 @@ class wl_chassis_t final
     bool _detect_landing();
     void _execute_air_control();
     void _execute_landing_recovery();
+    void _rdob_coef_fit();
+    void _rdob_init();
     void _rdob_update();
     void _actual_output_update();
 

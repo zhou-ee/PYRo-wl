@@ -100,13 +100,13 @@ python run_rdob.py --mode schedule --output-dir data/generated/rdob
 python -m pytest tests/test_rdob.py tests/test_rdob_schedule.py
 ```
 
-固件参数来源应使用 `data/generated/rdob/rdob_schedule.h`，不要使用只适用于单个配平点的 `rdob_coefficients.h`。当前生成头文件尾部仍带有 `Coefficients` 和 `evaluate()`；本方案不复制这部分，只提取下列常量内容到：
+固件参数来源应使用 `data/generated/rdob/rdob_schedule.h`，不要使用只适用于单个配平点的 `rdob_coefficients.h`。当前生成头文件已经是纯数据契约，不包含 `Coefficients` 或 `evaluate()`；将它完整同步到：
 
 ```text
 Robot/infantry1/Chassis/rdob_coef.h
 ```
 
-需要保留的内容只有腿长上下界、`kRates/kStepPoles/kStepEndpointWeight/kStepInputGain`、`kGammaCoefficients` 和 `kPositionGainCoefficients`。多项式求值与写入 ctx 的代码由 `_rdob_gain_calculate()` 自己实现。
+其中包含腿长上下界、六路 `kRates/kStepPoles/kStepEndpointWeight/kStepInputGain/kStepVelocityScale`、`kGammaCoefficients` 和 `kPositionGainCoefficients`。多项式求值与写入 ctx 的代码由 `_rdob_gain_calculate()` 自己实现。
 
 生成后至少检查 `rdob_schedule_report.md` 中以下项目：
 
@@ -134,10 +134,10 @@ Robot/infantry1/Chassis/rdob_coef.h
 bool _rdob_gain_calculate(float left_length, float right_length);
 ```
 
-该函数只负责检查腿长并把当前调度结果直接写入 `wl_chassis_data_ctx_t`：
+该函数只负责检查腿长并把当前调度结果直接写入 `_ctx.data.rdob`：
 
-- `rdob_gamma[6][7]`；
-- `rdob_step_q_gain[6][5]`。
+- `gamma[6][7]`；
+- `bq[6][5]`。
 
 不让它执行 `z` 更新、扰动重构、限幅或重基准化。这样系数计算和观测器状态更新仍是两个清晰阶段，但没有中间返回对象。
 
@@ -146,17 +146,13 @@ bool _rdob_gain_calculate(float left_length, float right_length);
 - `Gamma` 是完整的 `6×7` 矩阵，重构和重基准化都要使用。
 - `Bq` 对应 `x/psi` 的前两列是经过模型与全部训练/验证点确认的固定零，只保存 `theta, phi, L, beta1, beta2` 五列。
 - 当前 `D=0`，所以离散速度增益满足 `step_v_gain[i][j] = velocity_scale[i] * Gamma[i][j]`，无需再保存一块 `6×7` 矩阵。
-- `step_z_pole[6]`、`step_u_gain[6]`、`velocity_scale[6]` 都只由固定带宽和采样周期决定，作为 `rdob_coef.h` 中的 `constexpr` 常量，不进入 `ctx`。
+- `kStepPoles[6]`、`kStepEndpointWeight[6]`、`kStepInputGain[6]`、`kStepVelocityScale[6]` 都只由固定带宽和采样周期决定，作为 `rdob_coef.h` 中的 `constexpr` 常量，不进入 `ctx`。
 
-推荐常量定义：
+当前代码直接使用生成头文件中的六路数组，例如 `wheel_leg_rdob_schedule::kStepVelocityScale[i]`；不要再复制成单个标量或另一套同义常量。
 
-```cpp
-constexpr float RDOB_STEP_VELOCITY_SCALE[INPUT_DIM] = {
-    // -kStepEndpointWeight[i] * kRates[i]
-};
-```
+`_rdob_gain_calculate()` 内部的三次直接多项式 Horner 计算由你手写。它必须先完成 NaN、腿长范围检查，再覆盖 `ctx` 中的旧矩阵，避免失败时留下只更新了一部分的矩阵。
 
-`_rdob_gain_calculate()` 内部的三次多项式或 Chebyshev 计算由你手写。它必须先完成 NaN、腿长范围检查，再覆盖 `ctx` 中的旧矩阵，避免失败时留下只更新了一部分的矩阵。
+工程全局启用了 `-funsafe-math-optimizations`，当前 RDOB 函数只显式指定了 `O3`，没有额外关闭浮点重结合或 contraction。初版部署以目标编译结果和实测为准；若后续要求与上位机逐位一致，再单独收紧这些函数的浮点编译选项。
 
 ## 4. 复用现有 ctx，只增加跨区间必需量
 
@@ -164,124 +160,122 @@ constexpr float RDOB_STEP_VELOCITY_SCALE[INPUT_DIM] = {
 
 | 已有成员 | RDOB 中的用途 |
 |---|---|
-| `measured_state` | 当前 `q_now/v_now`，不再新增当前测量数组到持久 ctx |
-| `target_state` | 当前 `dot_x/dot_psi/dot_L` 移动配平及 beta 目标 |
+| `measured_state` | 当前交错排列的 `q/dot_q`，更新时直接按下标读取 |
+| `target_state` | 当前交错排列的 `trim_q/trim_dot_q`，更新时直接按下标读取 |
 | `U0` | 当前主动输入配平 |
-| `output` | 当前稳定分支未被使用；直接重命名或定义为上一采样区间的 `applied_input_delta` |
+| `output` | 刚结束周期的六路实际执行量，始终保存绝对量，不保存差值 |
 | `control` | 当前控制命令；不能同时拿来缓存上一拍输入 |
 | `leg[]/wheel[]` | 当前腿长、气弹簧力及执行器最终输出 |
 
-在 `wl_chassis_data_ctx_t` 中直接增加下列成员即可，不再套一层 RDOB 或 coef 结构体：
+当前代码只使用一个 `rdob_data_t` 保存观测器状态，不再增加第二个 coef 结构体：
 
 ```cpp
-control_vec_t disturbance; // 唯一对外发布的 RDOB 原始估计
+struct rdob_data_t
+{
+    float gamma[INPUT_DIM][GENERAL_STATE_DIM];
+    // Bq 的 theta, phi, L, beta1, beta2 五列。
+    float bq[INPUT_DIM][GENERAL_STATE_DIM - 2U];
+    float z[INPUT_DIM];
+    control_vec_t dist;
+    float prev_q[GENERAL_STATE_DIM];
+    float prev_dot_q[GENERAL_STATE_DIM];
+    float prev_trim_q[GENERAL_STATE_DIM];
+    float prev_trim_dot_q[GENERAL_STATE_DIM];
+    // output 是绝对量，因此必须冻结上一周期的 U0 才能在下一拍求差。
+    control_vec_t prev_U0;
+    bool initialized;
+};
 
-float rdob_gamma[INPUT_DIM][GENERAL_STATE_DIM];
-// 只存 theta, phi, L, beta1, beta2 五列。
-float rdob_step_q_gain[INPUT_DIM][GENERAL_STATE_DIM - 2U];
-
-float rdob_z[INPUT_DIM];
-float rdob_interval_q_begin[GENERAL_STATE_DIM];
-float rdob_interval_v_begin[GENERAL_STATE_DIM];
-float rdob_interval_trim_q[GENERAL_STATE_DIM];
-float rdob_interval_trim_v[GENERAL_STATE_DIM];
-bool rdob_initialized;
+control_vec_t output; // 刚结束周期的实际绝对执行量
+rdob_data_t rdob;
 ```
 
-同时把已有的
+`output` 的语义不能再改成 `applied_input_delta`。RDOB 使用它时才计算
 
-```cpp
-control_vec_t output;
+```text
+applied_input_delta = output - rdob.prev_U0
 ```
 
-改名为语义更明确的：
-
-```cpp
-control_vec_t applied_input_delta;
-```
-
-如果暂时不想改名，也可以继续使用 `output`，但必须注释清楚其中保存的是“上一采样区间实际总输入减该区间总配平输入”，而不是原始控制命令。
-
-实际新增量共 112 个 float，即约 448 B，再加一个 `bool` 和可能的对齐填充。其中真正的调度矩阵只有 72 个 float；没有 138-float 或 222-float 系数对象。
+`rdob_data_t` 共 118 个 float，即 472 B，再加一个 `bool` 和对齐填充后当前布局约 476 B。其中真正的调度矩阵仍只有 72 个 float；没有 138-float 或 222-float 系数对象。
 
 这些新增量都不能安全地由当前值替代：
 
-- `rdob_gamma/rdob_step_q_gain` 必须保持为刚刚过去区间的冻结系数，直到该区间更新完成。
-- `rdob_interval_q_begin/rdob_interval_v_begin` 是区间起点误差，当前测量不能替代。
-- `rdob_interval_trim_q/rdob_interval_trim_v` 用于让区间终点仍减去旧配平，当前 `target_state` 不能替代。
-- 复用后的 `applied_input_delta` 是上一周期限幅后的实际输入减当时配平，当前 `control` 不能替代。
+- `gamma/bq` 必须保持为刚刚过去区间的冻结系数，直到该区间更新完成。
+- `prev_q/prev_dot_q` 是区间起点的原始测量，当前测量不能替代。
+- `prev_trim_q/prev_trim_dot_q` 是区间起点冻结的原始目标，区间两个端点都必须减去它们。
+- `prev_U0` 是产生当前 `output` 那个周期的 `U0`；下一拍的当前 `U0` 已经由 `_gain_calculate()` 覆盖，不能替代。
 
 不要新增或复用以下内容：
 
 - 不新增 `Coefficients`、`coef`、`next_coef` 或 `evaluate()`。
 - 不保存 `dot_z`、连续 `Bq/Bv` 或完整 `step_v_gain`。
-- 不同时保存上一拍原始 `q/v` 和上一拍 `delta_q/delta_v`。
+- 不再保存上一拍 `delta_q/delta_dot_q`；使用时由原始测量减冻结目标直接得到。
 - 不增加完整十四维 `equilibrium_state`。
 - 不复用 `K` 存放 RDOB 矩阵；本周期 `_balance_control()` 仍需要 `K`。
-- 不复用 `control` 缓存实际输入；它会在下一周期被覆盖。
-- 不同时保留 `dist`、`rdob_dist`、`estimate` 多个同义输出；只使用 `disturbance`。
+- 不复用 `control` 缓存实际输入；它是限幅前后的控制命令中间量，不等于经过全部执行映射后的 `output`。
+- 不同时保留 `dist`、`rdob_dist`、`estimate` 多个持久同义输出；只发布 `rdob.dist`。
 
-## 5. 每周期构造测量、配平和总输入
+## 5. 每周期直接读取测量、目标和总输入
 
-当前测量 `q_now/v_now` 从交错的 `measured_state` 提取：
+`measured_state` 与 `target_state` 都采用十四维交错布局，因此不再构造 `q_now/v_now/trim_q_now/trim_v_now` 临时数组：
 
 ```cpp
 for (uint8_t j = 0; j < GENERAL_STATE_DIM; ++j)
 {
-    q_now[j] = measured_state.data[2U * j];
-    v_now[j] = measured_state.data[2U * j + 1U];
+    const float q = measured_state.data[2U * j];
+    const float dot_q = measured_state.data[2U * j + 1U];
+    const float trim_q = target_state.data[2U * j];
+    const float trim_dot_q = target_state.data[2U * j + 1U];
 }
 ```
 
-当前静态位置配平建议显式构造，不要直接把整个 `target_state` 当作模型配平：
+对应关系直接为：
 
 ```text
-trim_q = [0, 0, 0, 0, (L1+L2)/2,
-          target_state.beta1, target_state.beta2]
+q[j]          = measured_state.data[2*j]
+dot_q[j]      = measured_state.data[2*j+1]
+trim_q[j]     = target_state.data[2*j]
+trim_dot_q[j] = target_state.data[2*j+1]
 ```
 
-这里直接复用 `_gain_calculate()` 已经写好的两个 beta 配平值，不再重复求一次 `BETA_TRIM_POLY_COEF`。`L` 配平仍取当前两腿平均长度，不能使用可能带有运动指令的 `target_state.L`。
+这样 `L` 通道自然使用 `measured_state.L-target_state.L`，所有速度通道也统一使用 `measured-target`。当前 `Bq` 的 `x/psi` 两列固定为零，位置循环从 `state=2` 开始，因此当前实现不实际使用 `psi` 位置误差；以后若恢复这两列，必须在相减后对 `psi` 误差回绕到 `[-pi,pi]`。
 
-移动速度配平为：
+RDOB 模型中的腿力是总广义腿力，而当前 `U0` 和 `output.F_l*` 都采用主动腿力语义。若显式写成总输入，有：
 
 ```text
-trim_v = [target_state.dot_x, target_state.dot_psi, 0, 0,
-          target_state.dot_L, 0, 0]
+trim_total_u[F_L]   = U0[F_L] + gas_spring_force
+actual_total_u[F_L] = output[F_L] + gas_spring_force
 ```
 
-这样匀速前进、匀速旋转和匀速变腿长不会被 RDOB 当成输入扰动。`psi` 的位置误差必须回绕到 `[-pi, pi]`。
-
-RDOB 模型中的腿力是总广义腿力，而 LQR 的 `U0` 和电机输出是主动部分。因此总输入必须统一为：
+因此在同一个采样点使用同一个气弹簧模型时，观测器需要的输入增量可直接化简为：
 
 ```text
-trim_u[F_L]    = U0[F_L] + gas_spring_force
-applied_u[F_L] = actual_out_F_L + gas_spring_force
+actual_total_u - trim_total_u = output - previous_U0
 ```
 
-轮矩和腿摆矩不需要加气弹簧项。气弹簧必须在实际输入和配平输入两边同时加入；只加一边会制造固定偏置。
+轮矩和腿摆矩也直接使用同一差式。代码不必先构造两个“总输入”数组，但不能只在等式一侧加入气弹簧，否则会制造固定偏置。
 
 `actual_out_F_L/actual_out_T_p` 必须由关节电机最终限幅后的转矩反算，不能使用限幅前的 `_ctx.data.control`。
 
-不为实际输入再新增一个六维容器。VMC 完成后直接计算：
+VMC 完成后由 `_actual_output_update()` 只记录实际绝对执行量：
 
 ```cpp
-_ctx.data.applied_input_delta.data[i] =
-    actual_total_input[i] - trim_total_input[i];
+output[T_W1/T_W2] = out_current * K_t; // 限流后的轮端矩
+output[T_P1/T_P2] = actual_out_T_p;    // 关节限幅后反算
+output[F_L1/F_L2] = actual_out_F_L;    // 关节限幅后反算的主动腿力
 ```
 
-`actual_total_input` 可以逐通道使用局部标量计算，不需要形成持久数组。下一拍 `_rdob_update()` 只读取已经冻结好的 `applied_input_delta`；因此无需再保存 `applied_u`、`trim_u` 或第二个输入差值数组。
+下一拍 `_rdob_update()` 读取这个 `output`，再减 `rdob.prev_U0`。之所以新增后一项，是因为本拍 `_gain_calculate()` 已经用新腿长覆盖了 `U0`，它不再是产生上一拍 `output` 时的配平输入。
 
 ## 6. 初始化：令首次估计严格为零
 
-进入平衡状态、系数越界、发生漏周期或主动复位时：
+RDOB 不单独提供 `_rdob_reset()`。进入或退出 BALANCE 状态时直接聚合清零：
 
-```text
-rdob_initialized = false
-rdob_z = 0
-disturbance = 0
+```cpp
+_ctx.data.rdob = rdob_data_t{};
 ```
 
-第一次收到合法测量时先求当前系数，然后按下式初始化：
+初始化本身单独放在 `_rdob_init()` 中。正常周期仍先执行 `_gain_calculate()`；随后 `_rdob_update()` 发现 `rdob.initialized == false` 时，只调用 `_rdob_init()` 并返回，不在同一拍继续闭合区间。`_rdob_init()` 读取当前测量、配平状态和 `U0`，计算当前 `Gamma/Bq`，然后按下式初始化：
 
 \[
 z_i=-\sum_j\Gamma_{ij}(v_j-v_{0,j}).
@@ -293,67 +287,76 @@ z_i=-\sum_j\Gamma_{ij}(v_j-v_{0,j}).
 \hat d=z+\Gamma(v-v_0)=0.
 \]
 
-随后缓存当前 `delta q/delta v` 和当前 `trim_q/trim_v`，将 `rdob_initialized` 置为 `true`。本周期控制及 VMC 完成后，再生成第一个完整区间的 `applied_input_delta`。
+随后缓存当前原始 `q/dot_q`、当前原始 `trim_q/trim_dot_q` 和当前 `U0`，将 `rdob.initialized` 置为 `true`。本周期控制及 VMC 完成后，再生成第一个完整区间的绝对 `output`。初始化不读取进入 BALANCE 之前遗留的 `output`。初版部署不为每个状态和中间结果增加 `isfinite()` 检查；腿长调度函数仍保留拟合范围检查。
 
 ## 7. 用循环完成一次 RDOB 更新
 
 不要调用隐藏整个状态更新的 `step_rdob()` 大函数。`_rdob_update()` 内部按照下面顺序直接写循环，便于核对每个量的时间戳。
 
-### 7.1 在旧配平下构造区间终点误差
+### 7.1 在使用位置直接形成两个端点误差
 
-```cpp
-for (uint8_t j = 0; j < GENERAL_STATE_DIM; ++j)
-{
-    q_end_old[j] = q_now[j] - _ctx.data.rdob_interval_trim_q[j];
-    v_end_old[j] = v_now[j] - _ctx.data.rdob_interval_trim_v[j];
-}
-q_end_old[1] = loop_fp32_constrain(q_end_old[1], -PI, PI);
+不再构造 `q_end_old/v_end_old` 数组。区间起点误差和区间终点误差分别在矩阵乘法中直接计算：
+
+```text
+delta_q_begin = prev_q - prev_trim_q
+delta_q_end   = measured_state.q - prev_trim_q
+
+delta_dot_q_begin = prev_dot_q - prev_trim_dot_q
+delta_dot_q_end   = measured_state.dot_q - prev_trim_dot_q
 ```
 
-`rdob_interval_q_begin[1]` 在写入缓存时也必须已经回绕。
+两个端点都减上一拍冻结目标。四组 `prev_*` 只能在旧区间更新和重基准化全部完成后覆盖；如果在 `_rdob_update()` 开头写入，它们就会丢失真正的区间起点。
 
 ### 7.2 两层循环更新 `z`
 
 ```cpp
-float z_next[INPUT_DIM] = {};
-
 for (uint8_t i = 0; i < INPUT_DIM; ++i)
 {
-    float q_term = 0.0f;
+    float q_sum = 0.0f;
     float gamma_v_sum = 0.0f;
 
     for (uint8_t j = 0; j < GENERAL_STATE_DIM; ++j)
     {
-        gamma_v_sum += _ctx.data.rdob_gamma[i][j] *
-            (_ctx.data.rdob_interval_v_begin[j] + v_end_old[j]);
+        gamma_v_sum += _ctx.data.rdob.gamma[i][j] *
+            (_ctx.data.rdob.prev_dot_q[j] -
+             _ctx.data.rdob.prev_trim_dot_q[j] +
+             _ctx.data.measured_state.data[2U * j + 1U] -
+             _ctx.data.rdob.prev_trim_dot_q[j]);
     }
 
     for (uint8_t j = 2U; j < GENERAL_STATE_DIM; ++j)
     {
-        q_term += _ctx.data.rdob_step_q_gain[i][j - 2U] *
-            (_ctx.data.rdob_interval_q_begin[j] + q_end_old[j]);
+        q_sum += _ctx.data.rdob.bq[i][j - 2U] *
+            (_ctx.data.rdob.prev_q[j] -
+             _ctx.data.rdob.prev_trim_q[j] +
+             _ctx.data.measured_state.data[2U * j] -
+             _ctx.data.rdob.prev_trim_q[j]);
     }
 
-    const float v_term = RDOB_STEP_VELOCITY_SCALE[i] * gamma_v_sum;
-    z_next[i] = RDOB_STEP_POLE[i] * _ctx.data.rdob_z[i] +
-                q_term + v_term + RDOB_STEP_INPUT_GAIN[i] *
-                _ctx.data.applied_input_delta.data[i];
+    _ctx.data.rdob.z[i] =
+        kStepPoles[i] * _ctx.data.rdob.z[i] +
+        kStepEndpointWeight[i] * q_sum +
+        kStepVelocityScale[i] * gamma_v_sum +
+        kStepInputGain[i] *
+            (_ctx.data.output.data[i] - _ctx.data.rdob.prev_U0.data[i]);
 }
 ```
 
-第一层循环利用 `Bv=-Lambda*Gamma` 的固定结构，因此不保存 `step_v_gain`。第二层循环只遍历 `Bq` 的五个非零列。循环中不要使用当前周期刚算出的控制量；这里需要的是已经结束区间内实际保持的输入差值。
+第一层循环利用 `Bv=-Lambda*Gamma` 的固定结构，因此不保存 `step_v_gain`。第二层循环只遍历 `Bq` 的五个非零列，并在使用时乘每通道的 `kStepEndpointWeight[i]`。输入差值也在这里由“上一拍绝对输出减上一拍冻结 U0”得到；不能减当前刚更新的 `U0`，也不能使用当前周期刚算出的控制量。
 
 ### 7.3 用旧 `Gamma` 重构并限幅物理估计
 
 ```cpp
 for (uint8_t i = 0; i < INPUT_DIM; ++i)
 {
-    float estimate = z_next[i];
+    float estimate = _ctx.data.rdob.z[i];
     for (uint8_t j = 0; j < GENERAL_STATE_DIM; ++j)
     {
-        estimate += _ctx.data.rdob_gamma[i][j] * v_end_old[j];
+        estimate += _ctx.data.rdob.gamma[i][j] *
+            (_ctx.data.measured_state.data[2U * j + 1U] -
+             _ctx.data.rdob.prev_trim_dot_q[j]);
     }
-    _ctx.data.disturbance.data[i] = std::clamp(
+    _ctx.data.rdob.dist.data[i] = std::clamp(
         estimate, -RDOB_DISTURBANCE_LIMIT[i],
         RDOB_DISTURBANCE_LIMIT[i]);
 }
@@ -369,7 +372,7 @@ for (uint8_t i = 0; i < INPUT_DIM; ++i)
 _rdob_gain_calculate(L1, L2);
 ```
 
-该函数直接原地覆盖 `_ctx.data.rdob_gamma` 和 `_ctx.data.rdob_step_q_gain`，不返回或构造 coef 对象。新坐标下的辅助状态为
+该函数直接原地覆盖 `_ctx.data.rdob.gamma` 和 `_ctx.data.rdob.bq`，不返回或构造 coef 对象。新坐标下的辅助状态为
 
 \[
 z_{k+1}^{new}=\hat d_{k+1}^{limited}
@@ -384,17 +387,18 @@ for (uint8_t i = 0; i < INPUT_DIM; ++i)
     float gamma_v_new = 0.0f;
     for (uint8_t j = 0; j < GENERAL_STATE_DIM; ++j)
     {
-        gamma_v_new += _ctx.data.rdob_gamma[i][j] *
-                       (v_now[j] - trim_v_now[j]);
+        gamma_v_new += _ctx.data.rdob.gamma[i][j] *
+            (_ctx.data.measured_state.data[2U * j + 1U] -
+             _ctx.data.target_state.data[2U * j + 1U]);
     }
-    _ctx.data.rdob_z[i] =
-        _ctx.data.disturbance.data[i] - gamma_v_new;
+    _ctx.data.rdob.z[i] =
+        _ctx.data.rdob.dist.data[i] - gamma_v_new;
 }
 ```
 
-最后将 `q_now-trim_q_now`、`v_now-trim_v_now`、当前 `trim_q/trim_v` 写入下一周期的 `rdob_interval_*` 缓存。这个重基准化同时处理 `Gamma` 变化和移动速度配平变化，不能只在腿长变化时执行。
+最后将当前原始 `q/dot_q`、当前原始 `target q/dot_q` 和当前 `U0` 写入下一周期的 `rdob.prev_*` 缓存。误差只在下一次使用时相减，不再持久保存 `delta_q/delta_dot_q`。这个重基准化同时处理 `Gamma` 变化和移动速度配平变化，不能只在腿长变化时执行。
 
-如果 `_rdob_gain_calculate()` 因 NaN 或腿长越界返回 `false`，立即清零 `disturbance/rdob_z` 并设置 `rdob_initialized=false`，等待重新初始化，不要沿用边界外系数。
+如果 `_rdob_gain_calculate()` 因 NaN 或腿长越界返回 `false`，直接执行 `rdob = rdob_data_t{}`，将系数、状态、缓存和 `initialized` 一并清零，等待下一拍由 `_rdob_init()` 重新初始化，不要沿用边界外系数。
 
 ## 8. 实际输入必须在控制链末端捕获
 
@@ -405,7 +409,7 @@ for (uint8_t i = 0; i < INPUT_DIM; ++i)
     ↓
 _gain_calculate()          生成本周期 K、U0、beta trim
     ↓
-_rdob_update()             用缓存输入闭合上一采样区间
+_rdob_update()             首拍调用 _rdob_init()；其余拍闭合上一采样区间
     ↓
 _balance_control()         当前阶段不读取 disturbance
     ↓
@@ -413,29 +417,26 @@ _balance_control()         当前阶段不读取 disturbance
     ↓
 _vmc_trans_v2j()           关节转矩限幅并反算 actual F_L/T_p
     ↓
-_rdob_capture_applied_input()
+_actual_output_update()     捕获本周期绝对实际输出
     ↓
 发送电机命令
 ```
 
-`_rdob_capture_applied_input()` 只做六个标量赋值，不做观测器更新：
+`_actual_output_update()` 只做六个标量赋值，不做观测器更新：
 
-- `T_w`：使用最终轮端命令。
+- `T_w`：使用限流后的 `out_current * K_t`，不是限流前的 `out_T_w`。
 - `T_p`：使用关节限幅后反算的 `actual_out_T_p`。
-- `F_L`：使用 `actual_out_F_L + gas_spring_force`。
+- `F_L`：使用关节限幅后反算的主动腿力 `actual_out_F_L`。
 
-逐通道用以上实际总输入减去本周期总配平，直接写入由原 `output` 复用而来的 `_ctx.data.applied_input_delta`。因此下一拍不需要额外保存 `applied_u`、`trim_u` 或 `u_delta` 数组。
+这三个量直接写入 `_ctx.data.output`，不在捕获函数里减配平。下一拍 `_rdob_update()` 使用 `output - rdob.prev_U0` 计算差值；`prev_U0` 已在上一拍更新阶段冻结为当时的 `U0`。
 
-若以后接入 RDOB 补偿，补偿也必须先经过全部执行器限幅，再由此函数捕获，否则观测器使用的输入与真实施加输入不一致。
+若以后接入 RDOB 补偿，补偿也必须先经过全部执行器限幅，再由 `_actual_output_update()` 捕获绝对实际输出，否则观测器使用的输入与真实施加输入不一致。
 
 ## 9. 带宽、限幅和补偿开关
 
 在没有 LESO 的稳定分支中，RDOB 参数应独立命名，不再保留 `OBSERVER_*` 或 `LESO_*` 名称：
 
 ```cpp
-#define RDOB_EN 1
-#define RDOB_COMPENSATION_EN 0
-
 constexpr float RDOB_DISTURBANCE_LIMIT[INPUT_DIM] = {
     0.1f * MAX_T_W, 0.1f * MAX_T_W,
     0.1f * MAX_T_P, 0.1f * MAX_T_P,
@@ -443,23 +444,24 @@ constexpr float RDOB_DISTURBANCE_LIMIT[INPUT_DIM] = {
 };
 ```
 
-第一阶段建议完全不在 `_balance_control()` 中写补偿分支。这样可以从代码结构上保证 RDOB 不改变控制输出，而不仅依赖六个补偿增益恰好为零。
+当前实现只在 BALANCE 状态调用 RDOB，并且完全不在 `_balance_control()` 中写补偿分支；因此无需再靠 `RDOB_COMPENSATION_EN=0` 保证关闭补偿。这样可以从代码结构上保证 RDOB 不改变控制输出，而不仅依赖六个补偿增益恰好为零。
 
 后续若要接入补偿，单独提交并采用：
 
 ```text
-u_command[i] -= compensation_gain[i] * disturbance.data[i]
+u_command[i] -= compensation_gain[i] * rdob.dist.data[i]
 ```
 
 补偿增益、补偿滤波和观测器带宽是三个独立概念，不能乘入 `z` 更新公式。
 
 ## 10. 栈和实时计算约束
 
-取消通用 coef 结构和 `evaluate()` 后，系数计算开销取决于你编写的 `_rdob_gain_calculate()`，需要重新以实际代码计数和测量。原生成器的 `1018` 次乘法、`904` 次加减、`1` 次除法只能作为旧实现上界，不能直接作为新函数结果。
+取消通用 coef 结构和 `evaluate()` 后，系数计算开销取决于当前 `_rdob_gain_calculate()` 的具体 Horner 顺序，仍需在目标 MCU 上实测。
 
-按本文循环结构，观测器部分的源代码级运算量约为：
+按生成报告和当前循环结构，源代码级运算量上界约为：
 
-- 离散更新和扰动重构：132 次乘法、约 132 次加减。
+- `Gamma/Bq` 调度求值：约 904 次乘法、904 次加减；归一化除法已由编译期倒数消除。
+- 离散更新和扰动重构：138 次乘法、约 134 次加减。
 - 新系数重基准化：42 次乘法、42 次加减。
 
 这里利用了 `Bq` 前两列固定为零以及 `Bv=-Lambda*Gamma`；最终周期数仍以编译器输出和 DWT 实测为准。
@@ -467,10 +469,12 @@ u_command[i] -= compensation_gain[i] * disturbance.data[i]
 实现时遵守以下规则：
 
 - 不创建任何局部或持久 `Coefficients` 对象。
-- 调度矩阵直接原地写入 `rdob_gamma/rdob_step_q_gain`。
+- 调度矩阵直接原地写入 `rdob.gamma/rdob.bq`。
 - 小型 `q/v/trim/z_next` 临时数组可以放栈上，但必须检查实际高水位。
 - `_gain_calculate()` 与 `_rdob_update()` 顺序执行，二者的执行时间相加，但局部栈峰值不直接相加。
-- 调试阶段建议让真正执行 `_fsm_execute()` 的控制任务使用 512 words；验证后至少保留 384 words，并以 `uxTaskGetStackHighWaterMark()` 的实测结果为准。不要只调整命令转发线程的栈。
+- 当前构造函数使用 `module_base_t("wl_chassis", 512, 512)`，即真正执行 `_fsm_execute()` 的内部控制循环使用 512 words；外层 `chassis_app_thread` 只转发命令，不承载 RDOB。最终仍要以 `uxTaskGetStackHighWaterMark()` 的实测结果为准。
+
+当前 Debug 交叉编译的 `-fstack-usage` 静态结果为：`_rdob_update()` 152 B、`_rdob_init()` 48 B、`_rdob_gain_calculate()` 56 B、原 `_gain_calculate()` 80 B。保守地忽略尾调用优化，首次更新的嵌套链 `_rdob_update() -> _rdob_init() -> _rdob_gain_calculate()` 合计 256 B；正常更新链 `_rdob_update() -> _rdob_gain_calculate()` 合计 208 B，之后还要叠加 FSM 与任务入口调用帧。512 words 在 Cortex-M 上为 2048 B，静态结果仍留有明显余量，但它不包含所有库函数最坏路径，也不能替代实机高水位检查。
 
 STM32H723 为 480 MHz 时，`1 ms` 等于 480000 个周期。用 DWT 分别记录：
 
@@ -480,7 +484,7 @@ STM32H723 为 480 MHz 时，`1 ms` 等于 480000 个周期。用 DWT 分别记�
 
 关注最大值而不是平均值。整个控制周期建议至少保留 30% 裕量，即最坏情况不超过约 `700 us`。
 
-生成系数固定采用 `Ts=1 ms`，不能把某一拍测得的 `_dt` 直接乘进离散增益。若检测到漏周期或异常长周期，应复位 RDOB，而不是用一组 1 ms 系数跨越多个采样周期。
+生成系数固定采用 `Ts=1 ms`，不能把某一拍测得的 `_dt` 直接乘进离散增益。按当前取舍，RDOB 更新路径不检查 `_dt`，也不会因单拍周期异常自动清零；因此必须由固定周期调度保证这一前提，并用 DWT 重点确认实际周期和最坏执行时间。
 
 ## 11. 建议的分阶段验证
 
@@ -488,19 +492,19 @@ STM32H723 为 480 MHz 时，`1 ms` 等于 480000 个周期。用 DWT 分别记�
 
 1. 运行上位机 RDOB 和调度测试。
 2. 用固定输入序列同时驱动 Python 参考实现和固件循环实现。
-3. 对比每一步的 `rdob_z[6]` 和 `disturbance[6]`，先用固定腿长，再测试变化腿长。
+3. 对比每一步的 `rdob.z[6]` 和 `rdob.dist[6]`，先用固定腿长，再测试变化腿长。
 4. 验证左右腿长交换时的通道交换关系。
 
 ### 阶段 B：固件只观测
 
 记录以下量即可：
 
-- `disturbance.data[0..5]`：最终需要观察的六路扰动。
-- `rdob_z[0..5]`：只用于诊断重基准化问题。
-- 当前 `L1/L2`、`trim_v`、`applied_input_delta`。
-- `rdob_initialized`、更新周期最大 DWT ticks、任务栈高水位。
+- `rdob.dist.data[0..5]`：最终需要观察的六路扰动。
+- `rdob.z[0..5]`：只用于诊断重基准化问题。
+- 当前 `L1/L2`、`output` 和 `rdob.prev_U0`；差值由二者相减得到。
+- `rdob.initialized`、更新周期最大 DWT ticks、任务栈高水位。
 
-如果仍保留一版 LESO 对照固件，则只比较 RDOB 的 `disturbance.data[i]` 与 LESO 的原始 `dist.data[i]`。两者只要求符号、趋势和量级大致一致，不要求冲激响应逐点相同。达到限幅后不能再用幅值相等判断性能。
+如果仍保留一版 LESO 对照固件，则只比较 RDOB 的 `rdob.dist.data[i]` 与 LESO 的原始 `dist.data[i]`。两者只要求符号、趋势和量级大致一致，不要求冲激响应逐点相同。达到限幅后不能再用幅值相等判断性能。
 
 ### 阶段 C：场景检查
 
@@ -513,7 +517,7 @@ STM32H723 为 480 MHz 时，`1 ms` 等于 480000 个周期。用 DWT 分别记�
 5. 触及输出限幅：确认捕获的是限幅后输入。
 6. 人工推扰和台阶：检查六通道符号、趋势和饱和恢复。
 
-第一阶段整车测试前后，可额外比较开启/关闭 `RDOB_EN` 时的控制输出日志；在补偿关闭的前提下，两者应一致，仅允许观测代码带来的时序差异。
+第一阶段整车测试前后，可额外比较接入 RDOB 调用前后的控制输出日志；由于 `_balance_control()` 不读取估计值，两者应一致，仅允许观测代码带来的时序差异。
 
 ## 12. 必须单独测试的边界条件
 
@@ -523,8 +527,8 @@ STM32H723 为 480 MHz 时，`1 ms` 等于 480000 个周期。用 DWT 分别记�
 - 限幅后的 `d_hat` 被写回 `z`，不存在输出限幅后的隐藏积分积累。
 - `psi` 穿过 `±pi` 时不产生脉冲。
 - 任一腿长越界或非有限时清零并重新初始化。
-- 状态退出 BALANCE、进入 AIR/STEP/JUMP 或发生控制周期丢失时复位，不跨模式沿用旧区间。
-- 气弹簧在 `trim_u` 与 `applied_u` 两侧使用同一个模型和符号。
+- 状态退出 BALANCE、进入 AIR/STEP/JUMP 时直接清零，不跨模式沿用旧区间；当前 RDOB 不自动检测控制周期丢失，周期正确性由调度和 DWT 检查保证。
+- 腿力差值使用 `output-active U0`；若展开成总输入，气弹簧在实际量与配平量两侧使用同一个模型和符号并相消。
 - 关闭补偿时，RDOB 估计没有任何路径写入控制量。
 
 ## 13. 常见错误清单
@@ -532,6 +536,7 @@ STM32H723 为 480 MHz 时，`1 ms` 等于 480000 个周期。用 DWT 分别记�
 - 先计算新腿长系数，再用它更新刚刚结束的旧区间。
 - 区间两个端点分别减去新旧两个不同配平。
 - 用限幅前的 `control` 代替实际施加输入。
+- 把 `output` 当成已经减过配平的差值，或让它减当前拍而不是上一拍冻结的 `U0`。
 - 使用主动腿力减总配平腿力，或只在一侧加入气弹簧。
 - 把十四维交错状态直接当成七维 `q` 或 `v`。
 - 忘记 `psi` 回绕。
@@ -551,7 +556,7 @@ STM32H723 为 480 MHz 时，`1 ms` 等于 480000 个周期。用 DWT 分别记�
 - 初始化、调度切换、移动配平、限幅、越界复位测试通过。
 - 1 ms 控制周期最坏耗时留有不少于 30% 裕量。
 - 实际控制任务栈具有明确的高水位记录和安全余量。
-- `RDOB_COMPENSATION_EN=0`，估计值只进入遥测。
+- `_balance_control()` 不读取 RDOB 估计值，估计值只用于遥测。
 - 实车日志中六路估计有限、符号合理、趋势可重复，且变腿长时不存在由系数切换造成的假跳变。
 
 完成以上步骤后，再把补偿作为独立阶段设计和验证。不要在首次落地时同时改变观测器、控制律和执行器限幅链路。
