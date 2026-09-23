@@ -389,7 +389,7 @@ void wl_chassis_t::_balance_control()
 #if RDOB_EN
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
-        _ctx.data.control.data[input] = _ctx.data.U0[input] - _ctx.data.rdob.dist.data[input];
+        _ctx.data.control.data[input] = _ctx.data.U0[input] - dist_gain[input] * _ctx.data.rdob.dist.data[input];
         for (uint8_t state = 0; state < STATE_DIM; ++state)
         {
             _ctx.data.control.data[input] +=
@@ -397,7 +397,6 @@ void wl_chassis_t::_balance_control()
         }
     }
 #else
-
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
         _ctx.data.control.data[input] = _ctx.data.U0[input];
