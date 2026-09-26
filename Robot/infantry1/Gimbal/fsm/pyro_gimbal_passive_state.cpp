@@ -17,14 +17,6 @@ void pyro::wl_gimbal_t::state_passive_t::enter(owner* owner) {
 
 void pyro::wl_gimbal_t::state_passive_t::execute(owner* owner) 
 {
-    // static int count = 0;
-    // count++;
-    // if(count >= 500)
-    // {
-    //     owner->set_pitchstate(owner->_ctx.data.output.pitchEn);
-    //     owner->set_yawstate(owner->_ctx.data.output.yawEn);
-    //     count =0;
-    // }
     owner->set_pitchstate(owner->_ctx.data.output.pitchEn);
     owner->_ctx.data.telem.targetYawRad            = owner->_ctx.data.imu.yaw;
     owner->_ctx.data.telem.targetPitchRad          = owner->_ctx.data.imu.pitch;

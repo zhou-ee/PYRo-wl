@@ -1,5 +1,5 @@
-set(BOARD "CHASSIS_BOARD")
-#set(BOARD "GIMBAL_BOARD")
+#set(BOARD "CHASSIS_BOARD")
+set(BOARD "GIMBAL_BOARD")
 
 add_library(Infantry1 OBJECT)
 
@@ -72,8 +72,10 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
 
                 Communication/General/pyro_board_drv.cpp
                 Communication/Gimbal/pyro_board_com.cpp
+                Communication/Gimbal/pyro_autoaim_drv.cpp
+                Communication/Gimbal/pyro_autoaim_com.cpp
         )       
-        # 针对 Chassis 的特殊头文件包含
+        # 针对 Gimbal 的特殊头文件包含
         target_include_directories(Infantry1
                 PUBLIC
                 ${CMAKE_CURRENT_SOURCE_DIR}
@@ -86,6 +88,7 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
         target_compile_definitions(PYRo PUBLIC  
                 DR16_UART=PYRO_UART5
                 VT03_UART=PYRO_UART1
+                AUTOAIM_UART=PYRO_UART7
         )
 
 endif ()

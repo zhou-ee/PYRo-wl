@@ -77,7 +77,7 @@ struct ImuState {
     uint32_t timestamp;
 };
 
-struct MotorState {
+struct GimbalMotorState {
     float pos;    // 角度 (rad)
     float vel;    // 角速度 (rad/s)
     float torque; // 真实反馈力矩 (N.m) 或 电流 (A)
@@ -86,8 +86,8 @@ struct MotorState {
 };
 
 struct GimbalState {
-    MotorState yaw;
-    MotorState pitch;
+    GimbalMotorState yaw;
+    GimbalMotorState pitch;
 };
 
 struct GimbalOutput {

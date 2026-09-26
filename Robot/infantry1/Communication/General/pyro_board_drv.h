@@ -1,14 +1,8 @@
-/**
- * @file pyro_board_drv.h
- * @brief 板间通信底层驱动 (支持高频周期数据与多通道独立事件数据)
- *        使用 bsp_can 管理 CAN 硬件，直接操作 can_drv_t。
- */
-
 #ifndef PYRO_BOARD_DRV_H
 #define PYRO_BOARD_DRV_H
 
 #include "pyro_can_drv.h"
-#include "pyro_bsp_can.h"          // 新增：使用 bsp_can 管理驱动实例
+#include "pyro_bsp_can.h"
 #include "pyro_core_def.h"
 #include "pyro_task.h"
 #include <cstdint>
