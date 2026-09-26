@@ -13,19 +13,13 @@
 
 using namespace pyro;
 
-
-
-
-
 //云台部分
-
-
+constexpr uint32_t EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL      = (1 << 0);        //左上单击切换自瞄
 
 
 
 
 static TaskHandle_t gimbal_task_handle = nullptr;
-
 static pyro::wl_gimbal_t *wl_gimbal_ptr         = nullptr;
 static pyro::wl_gimbal_cmd_t *wl_gimbal_cmd_ptr = nullptr;
 static pyro::wl_gimbal_deps_t *wl_gimbal_deps   = nullptr;
@@ -107,8 +101,14 @@ extern "C"
 
         board_ptr = &pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
 
+        auto &vrc = rc_drv_t::read();
+
         xTaskCreate(wl_gimbal_thread, "infantry_gimbal_thread", 256, 
                     nullptr,configMAX_PRIORITIES - 1, &gimbal_task_handle);
+
+        //订阅
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::SINGLE_CLICK, 
+                            gimbal_task_handle, EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL);
 
 
   
@@ -131,29 +131,45 @@ void gimbal_vt03cmd(virtual_rc_t vrc, uint32_t notify)
             vrc.switches.gear.current_pos == pyro::sw_pos_t::MID)
     {
         wl_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
-        wl_gimbal_cmd_ptr->state_cmd = pyro::MotionState::Manual;
 
-        float pitchInput =vrc.axes.ly+vrc.mouse_axes.y*100.0f;
-        if(pitchInput > 1.0f)
+        static bool if_autoaim = false;
+        if(notify & EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL)
         {
-            pitchInput=1.0f;
+            if_autoaim = !if_autoaim;
         }
-        else if(pitchInput < -1.0f)
-        {
-            pitchInput=-1.0f;
-        }
-        wl_gimbal_cmd_ptr->pitchVel = -pitchInput * 2.0f;
 
-        float yawInput =vrc.axes.lx+vrc.mouse_axes.x*100.0f;
-        if(yawInput > 1.0f)
+        if(if_autoaim)
         {
-            yawInput=1.0f;
+            //自瞄情况
+            wl_gimbal_cmd_ptr->state_cmd = pyro::MotionState::Auto;
         }
-        else if(yawInput < -1.0f)
+        else 
         {
-            yawInput=-1.0f;
+            //手动情况
+            wl_gimbal_cmd_ptr->state_cmd = pyro::MotionState::Manual;
+            float pitchInput =vrc.axes.ly+vrc.mouse_axes.y*100.0f;
+            if(pitchInput > 1.0f)
+            {
+                pitchInput=1.0f;
+            }
+            else if(pitchInput < -1.0f)
+            {
+                pitchInput=-1.0f;
+            }
+            wl_gimbal_cmd_ptr->pitchVel = -pitchInput * 2.0f;
+
+            float yawInput =vrc.axes.lx+vrc.mouse_axes.x*100.0f;
+            if(yawInput > 1.0f)
+            {
+                yawInput=1.0f;
+            }
+            else if(yawInput < -1.0f)
+            {
+                yawInput=-1.0f;
+            }
+            wl_gimbal_cmd_ptr->yawVel = yawInput*3.0f;
         }
-        wl_gimbal_cmd_ptr->yawVel = yawInput*3.0f;
+        
     }
 }
 

@@ -13,10 +13,11 @@ using namespace pyro;
 
 
 //发射机构部分
-constexpr uint32_t EVENT_BIT_FRIC_TOGGLE              = (1 << 3);
-constexpr uint32_t EVENT_BIT_SINGLE_FIRE              = (1 << 4);
-constexpr uint32_t EVENT_BIT_BURST_FIRE               = (1 << 5);
-constexpr uint32_t EVENT_BIT_BURST_END                = (1 << 6);
+constexpr uint32_t EVENT_BIT_FRIC_TOGGLE              = (1 << 0);
+constexpr uint32_t EVENT_BIT_SINGLE_FIRE              = (1 << 1);
+constexpr uint32_t EVENT_BIT_BURST_FIRE               = (1 << 2);
+constexpr uint32_t EVENT_BIT_BURST_END                = (1 << 3);
+constexpr uint32_t EVENT_BIT_AUTOAIM_TOGGLE_BOOSTER   = (1 << 4); 
 
 
 static TaskHandle_t booster_task_handle = nullptr;
@@ -74,6 +75,8 @@ extern "C"
                             booster_task_handle, EVENT_BIT_BURST_FIRE);
         pyro::btn_broker::subscribe(&vrc.buttons.trigger, pyro::btn_event_t::PRESS_UP, 
                             booster_task_handle, EVENT_BIT_BURST_END);
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::SINGLE_CLICK, 
+                            booster_task_handle, EVENT_BIT_AUTOAIM_TOGGLE_BOOSTER);
 
         
         vTaskDelete(nullptr);
@@ -93,26 +96,43 @@ void booster_cmd(virtual_rc_t vrc, uint32_t notify)
         wl_booster_cmd_ptr->mode = cmd_base_t::mode_t::ACTIVE;//Active
     }
 
+
+    static bool if_autoaim = false;
+    if(notify & EVENT_BIT_AUTOAIM_TOGGLE_BOOSTER)
+    {
+        if_autoaim = !if_autoaim;
+    }
+    if(if_autoaim)
+    {
+        //自瞄
+    }
+    else
+    {
+        //手动控制是否开火
+        if(notify & EVENT_BIT_BURST_FIRE)
+        {
+            wl_booster_cmd_ptr->event = ShootEvent::BURST_START;
+        }
+        else if(notify & EVENT_BIT_SINGLE_FIRE)
+        {
+            wl_booster_cmd_ptr->event = ShootEvent::SINGLE_FIRE;
+        }
+        else if(notify & EVENT_BIT_BURST_END)
+        {
+            wl_booster_cmd_ptr->event = ShootEvent::BURST_END;
+        }
+        else 
+        {
+            wl_booster_cmd_ptr->event = ShootEvent::NONE;
+        }
+    }
+
+    //最高优先级
     if(notify & EVENT_BIT_FRIC_TOGGLE)
     {
         wl_booster_cmd_ptr->event = ShootEvent::FRIC_TOGGLE;
     }
-    else if(notify & EVENT_BIT_BURST_FIRE)
-    {
-        wl_booster_cmd_ptr->event = ShootEvent::BURST_START;
-    }
-    else if(notify & EVENT_BIT_SINGLE_FIRE)
-    {
-        wl_booster_cmd_ptr->event = ShootEvent::SINGLE_FIRE;
-    }
-    else if(notify & EVENT_BIT_BURST_END)
-    {
-        wl_booster_cmd_ptr->event = ShootEvent::BURST_END;
-    }
-    else 
-    {
-        wl_booster_cmd_ptr->event = ShootEvent::NONE;
-    }
+
 }
 
 

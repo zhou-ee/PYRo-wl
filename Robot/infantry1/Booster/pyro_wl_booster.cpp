@@ -1,5 +1,4 @@
 #include "pyro_wl_booster.h"
-#include "gimbal_config.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
 #include "dsp/fast_math_functions.h"
@@ -76,19 +75,19 @@ void wl_booster_t::_update_feedback()
     //拨弹盘角度计算
     static float lastRad = _ctx.data.motor_state.trigger.pos;
     float deltaRad = _ctx.data.motor_state.trigger.pos - lastRad;
-    if (deltaRad < -PI/2.0f) {
+    if (deltaRad < -PI * 0.5f) {
         // 原始值突变变小，说明正向转过了零点
         _ctx.data.motor_state.triggerRound++;
-        if (_ctx.data.motor_state.triggerRound >= 36) 
+        if (_ctx.data.motor_state.triggerRound >= TRIGGER_MOTOR_REDUCTION_RATIO) 
         {
-            _ctx.data.motor_state.triggerRound -= 36; // 满36圈，输出轴刚好转满一圈，圈数归零
+            _ctx.data.motor_state.triggerRound -= TRIGGER_MOTOR_REDUCTION_RATIO; // 满36圈，输出轴刚好转满一圈，圈数归零
         }
-    } else if (deltaRad > PI/2.0f) {
+    } else if (deltaRad > PI * 0.5f) {
         // 原始值突变变大，说明反向转过了零点 (例如 10 -> 8190)
         _ctx.data.motor_state.triggerRound--;
         if (_ctx.data.motor_state.triggerRound < 0) 
         {
-            _ctx.data.motor_state.triggerRound += 36; // 退回上一圈
+            _ctx.data.motor_state.triggerRound += TRIGGER_MOTOR_REDUCTION_RATIO; // 退回上一圈
         }
     }
     lastRad = _ctx.data.motor_state.trigger.pos;
@@ -156,7 +155,8 @@ void wl_booster_t::calculateTriggerCurrents(bool useTriggerSpeedLoopOnly)
     }
     else 
     {
-        float err = (_ctx.data.motor_state.trigger_rad - _ctx.data.target_state.targetTriggerRad) / 36.0f;
+        float err = (_ctx.data.motor_state.trigger_rad - _ctx.data.target_state.targetTriggerRad) /
+                            (float)TRIGGER_MOTOR_REDUCTION_RATIO;
         while (err >  (float)M_PI) err -= 2.0f * (float)M_PI;
         while (err < -(float)M_PI) err += 2.0f * (float)M_PI;
 

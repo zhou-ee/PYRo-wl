@@ -36,6 +36,7 @@ public:
         uint32_t delta_leg        : 2;//0不变，1增大，2减小
         uint32_t step_mode        : 1;
         uint32_t spining          : 1;
+        uint32_t rescue           : 1;
     };
 
     /**

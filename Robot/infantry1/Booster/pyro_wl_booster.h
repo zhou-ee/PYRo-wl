@@ -4,6 +4,7 @@
 #include "pyro_algo_pid.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_module_base.h"
+#include "booster_config.h"
 
 
 namespace pyro
