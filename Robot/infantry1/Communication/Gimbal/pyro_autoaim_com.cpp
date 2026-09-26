@@ -1,7 +1,5 @@
 #include "pyro_autoaim_drv.h"
-#include "pyro_module_base.h"
 #include "pyro_rc_base_drv.h"
-#include "pyro_vt03_rc_drv.h"
 #include "pyro_wl_gimbal.h"
 #include "pyro_wl_booster.h"
 
@@ -82,7 +80,7 @@ static void update_and_send_feedback()
     auto &tx_data = autoaim_drv_ptr->get_tx_data();
 
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
-    auto &vrc              = pyro::rc_drv_t::read();
+    auto &vrc = pyro::rc_drv_t::read();
 
     // 2. 获取当前的运行上下文
     auto gimbal_ctx = pyro::wl_gimbal_t::instance()->get_ctx();

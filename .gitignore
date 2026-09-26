@@ -38,6 +38,7 @@ build/
 .cache/
 .idea
 .vscode
+TODO.txt
 !*/CMakeLists.txt
 !CMakeLists.txt
 

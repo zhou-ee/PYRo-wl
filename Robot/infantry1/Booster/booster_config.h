@@ -30,9 +30,6 @@ constexpr float FRIC_RADIUS                                       = 0.03f;
 constexpr float FRIC_TARGET_SPEED = PROJECTILE_TARGET_MUZZLE_VELOCITY / FRIC_RADIUS * FRIC_ADJUST_K;
 
 
-
-
-
 // 发射速度 (发/秒)
 constexpr float SHOOT_SPEED                                       = 10.0f;
 
@@ -49,11 +46,6 @@ constexpr float ONE_CIRCLE_RAD       = 2 * PI * TRIGGER_MOTOR_REDUCTION_RATIO;
 
 
 
-//云台差的东西
-//1.热量控制
-//2.弹速闭环
-//3.自瞄控制
-//4.ui绘制
-//5.功率控制
+
 }
 #endif

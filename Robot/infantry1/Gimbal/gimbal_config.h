@@ -39,11 +39,7 @@ constexpr float YAW_ALIGN_TARGET_RAD   = 0.95f;
 constexpr float PITCH_K_GRAVITY_COS = -0.8f; // 水平方向质心补偿
 constexpr float PITCH_K_GRAVITY_SIN = 0.0f; // 垂直方向质心补偿
 
-
-
-
-
-//各种开关
+//各种宏开关
 
 }
 
