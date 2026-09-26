@@ -8,6 +8,7 @@
 #include "pyro_rc_core.h"
 #include "pyro_vt03_rc_drv.h"
 #include "pyro_rc_base_drv.h"
+#include "pyro_autoaim_drv.h"
 
 using namespace pyro;
 
@@ -20,10 +21,12 @@ constexpr uint32_t EVENT_BIT_BURST_END                = (1 << 3);
 constexpr uint32_t EVENT_BIT_AUTOAIM_TOGGLE_BOOSTER   = (1 << 4); 
 
 
-static TaskHandle_t booster_task_handle = nullptr;
-static pyro::wl_booster_t *wl_booster_ptr         = nullptr;
-static pyro::wl_booster_cmd_t *wl_booster_cmd_ptr = nullptr;
-static pyro::wl_booster_deps_t *wl_booster_deps   = nullptr;
+static TaskHandle_t            booster_task_handle = nullptr;
+static pyro::wl_booster_t      *wl_booster_ptr     = nullptr;
+static pyro::wl_booster_cmd_t  *wl_booster_cmd_ptr = nullptr;
+static pyro::wl_booster_deps_t *wl_booster_deps    = nullptr;
+static pyro::autoaim_drv_t     *autoaim_ptr        = nullptr;
+
 static virtual_rc_t vrc_t;
 
 static void motor_deps_init();
@@ -61,6 +64,8 @@ extern "C"
         wl_booster_ptr->configure(*wl_booster_deps);
         wl_booster_ptr->start();
 
+        autoaim_ptr = &pyro::autoaim_drv_t::get_instance();
+
         xTaskCreate(wl_booster_thread, "infantry_booster_thread", 256, 
                     nullptr,configMAX_PRIORITIES - 1, &booster_task_handle);
 
@@ -86,6 +91,9 @@ extern "C"
 
 void booster_cmd(virtual_rc_t vrc, uint32_t notify)
 {
+    auto autoaim_cmd    = autoaim_ptr->get_target_data();
+
+
     if(vrc.switches.gear.current_pos == pyro::sw_pos_t::UP)
     {
         wl_booster_cmd_ptr->mode = cmd_base_t::mode_t::PASSIVE;//Passive
@@ -102,12 +110,40 @@ void booster_cmd(virtual_rc_t vrc, uint32_t notify)
     {
         if_autoaim = !if_autoaim;
     }
-    if(if_autoaim)
+    if(if_autoaim && autoaim_ptr->check_online())
     {
+        wl_booster_cmd_ptr->event = ShootEvent::NONE;
         //自瞄
+        if(autoaim_cmd.is_single_shot)
+        {
+            //自瞄单发逻辑处理
+            //此时检测fireCommand的跳变沿来判断是否单发
+            static int last_fireCommand = 0;
+            if(last_fireCommand != autoaim_cmd.fireCommand)
+            {
+                wl_booster_cmd_ptr->event = ShootEvent::SINGLE_FIRE;
+            }
+            last_fireCommand = autoaim_cmd.fireCommand;
+        }
+        else 
+        {
+            //自瞄连发逻辑处理
+            //此时检测fireCommand是否为1来判断是否连发
+            static int last_fireCommand = 0;
+            if(last_fireCommand == 0 && autoaim_cmd.fireCommand == 1)
+            {
+                wl_booster_cmd_ptr->event = ShootEvent::BURST_START;
+            }
+            if(last_fireCommand == 0 && autoaim_cmd.fireCommand == 1)
+            {
+                wl_booster_cmd_ptr->event = ShootEvent::BURST_END;
+            }
+            last_fireCommand = autoaim_cmd.fireCommand;
+        }
     }
     else
     {
+        wl_booster_cmd_ptr->event = ShootEvent::NONE;
         //手动控制是否开火
         if(notify & EVENT_BIT_BURST_FIRE)
         {
@@ -120,10 +156,6 @@ void booster_cmd(virtual_rc_t vrc, uint32_t notify)
         else if(notify & EVENT_BIT_BURST_END)
         {
             wl_booster_cmd_ptr->event = ShootEvent::BURST_END;
-        }
-        else 
-        {
-            wl_booster_cmd_ptr->event = ShootEvent::NONE;
         }
     }
 

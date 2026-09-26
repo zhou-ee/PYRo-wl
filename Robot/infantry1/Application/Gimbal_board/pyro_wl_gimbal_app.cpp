@@ -9,6 +9,7 @@
 #include "pyro_dji_motor_drv.h"
 #include "gimbal_config.h"
 #include "pyro_board_drv.h"
+#include "pyro_autoaim_drv.h"
 
 
 using namespace pyro;
@@ -19,12 +20,13 @@ constexpr uint32_t EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL      = (1 << 0);        //左
 
 
 
-static TaskHandle_t gimbal_task_handle = nullptr;
-static pyro::wl_gimbal_t *wl_gimbal_ptr         = nullptr;
-static pyro::wl_gimbal_cmd_t *wl_gimbal_cmd_ptr = nullptr;
-static pyro::wl_gimbal_deps_t *wl_gimbal_deps   = nullptr;
-static pyro::board_drv_t *board_ptr               = nullptr;
-
+static TaskHandle_t           gimbal_task_handle = nullptr;
+static pyro::wl_gimbal_t      *wl_gimbal_ptr     = nullptr;
+static pyro::wl_gimbal_cmd_t  *wl_gimbal_cmd_ptr = nullptr;
+static pyro::wl_gimbal_deps_t *wl_gimbal_deps    = nullptr;
+static pyro::board_drv_t      *board_ptr         = nullptr;
+static pyro::autoaim_drv_t    *autoaim_ptr       = nullptr;
+ 
 static virtual_rc_t vrc_t;
 
 
@@ -98,6 +100,8 @@ extern "C"
         wl_gimbal_ptr->configure(*wl_gimbal_deps);
         wl_gimbal_ptr->start();
 
+        autoaim_ptr = &pyro::autoaim_drv_t::get_instance();
+
 
         board_ptr = &pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
 
@@ -120,6 +124,7 @@ extern "C"
 
 void gimbal_vt03cmd(virtual_rc_t vrc, uint32_t notify)
 {
+    auto autoaim_cmd    = autoaim_ptr->get_target_data();
     //判断当前模式
     if(vrc.switches.gear.current_pos == pyro::sw_pos_t::UP)
     {
@@ -138,15 +143,23 @@ void gimbal_vt03cmd(virtual_rc_t vrc, uint32_t notify)
             if_autoaim = !if_autoaim;
         }
 
-        if(if_autoaim)
+        if(if_autoaim && autoaim_ptr->check_online())
         {
             //自瞄情况
-            wl_gimbal_cmd_ptr->state_cmd = pyro::MotionState::Auto;
+            wl_gimbal_cmd_ptr->state_cmd   = pyro::MotionState::Auto;
+            wl_gimbal_cmd_ptr->pitchVel    = 0;
+            wl_gimbal_cmd_ptr->yawVel      = 0;
+            wl_gimbal_cmd_ptr->targetPitch = autoaim_cmd.targetPitch;
+            wl_gimbal_cmd_ptr->targetYaw   = autoaim_cmd.targetYaw;
         }
         else 
         {
             //手动情况
-            wl_gimbal_cmd_ptr->state_cmd = pyro::MotionState::Manual;
+            wl_gimbal_cmd_ptr->state_cmd   = pyro::MotionState::Manual;
+
+            wl_gimbal_cmd_ptr->targetPitch = autoaim_cmd.targetPitch;
+            wl_gimbal_cmd_ptr->targetYaw   = autoaim_cmd.targetYaw;
+
             float pitchInput =vrc.axes.ly+vrc.mouse_axes.y*100.0f;
             if(pitchInput > 1.0f)
             {

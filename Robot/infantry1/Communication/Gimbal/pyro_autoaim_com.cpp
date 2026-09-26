@@ -69,7 +69,8 @@ extern "C"
 // 解析并处理来自 PC 的自瞄控制数据
 static void process_pc_target_data(const pyro::autoaim_drv_t::rx_data_t &rx_data)
 {
-
+    // 似乎云台和发射机构应用线程那里直接读取并解析就行
+    // 这里不需要添加逻辑
 }
 
 /**

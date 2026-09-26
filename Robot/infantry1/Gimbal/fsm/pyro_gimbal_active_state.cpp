@@ -12,10 +12,6 @@ void pyro::wl_gimbal_t::fsm_active_t::on_enter(owner* owner) {
 
 void pyro::wl_gimbal_t::fsm_active_t::on_execute(owner* owner)
 {
-    if(owner->_ctx.data.mode == cmd_base_t::mode_t::PASSIVE)
-    {
-        request_switch(&instance()->_state_passive);
-    }
 }
 
 void pyro::wl_gimbal_t::fsm_active_t::on_exit(owner* owner)
