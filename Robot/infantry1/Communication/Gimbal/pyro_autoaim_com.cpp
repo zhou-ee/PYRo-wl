@@ -89,10 +89,16 @@ static void update_and_send_feedback()
     auto booster_ctx = pyro::wl_booster_t::instance()->get_ctx();
 
     //接下来向其中填充pc需要的自瞄数据
-
-
-
-
+    tx_data.currentPitch  = gimbal_ctx.data.imu.pitch;
+    tx_data.currentYaw    = gimbal_ctx.data.imu.yaw;
+    tx_data.autoAimMode;
+    tx_data.enemyColor;
+    tx_data.initialSpeed;
+    tx_data.robotState;
+    tx_data.selfVelocityAngle;
+    tx_data.selfVelocityMagnitude;
+    tx_data.shootDelay;
+    tx_data.stopRecord;
 
     // 6. 触发底层 DMA 发送
     autoaim_drv_ptr->send_data();
