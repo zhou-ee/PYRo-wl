@@ -284,7 +284,7 @@ void wl_gimbal_t::_send_motor_command()
     {
         _ctx.data.output.pitchTorque = -7.0f;
     }
-    _module_deps.motor_deps.pitch->send_torque(_ctx.data.output.pitchTorque);
+    _module_deps.motor_deps.pitch->send_torque(0);
     _module_deps.motor_deps.yaw->send_torque(_ctx.data.output.yawCurrent);
 }
 

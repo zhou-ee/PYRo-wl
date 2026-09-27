@@ -40,20 +40,19 @@ constexpr float OJ8                     = 0.2100f;
 // constexpr float MAX_LEG_LENGTH = 2.5f;
 constexpr float HIP_CALIBRATION_OFFSET  = -2.44899;
 constexpr float KNEE_CALIBRATION_OFFSET = 2.62047f;
+    constexpr float LEFT_HIP_OFFSET =
+        -loop_fp32_PI(2.77928f + HIP_CALIBRATION_OFFSET);
+    constexpr float LEFT_KNEE_OFFSET =
+        -loop_fp32_PI(3.04188f + KNEE_CALIBRATION_OFFSET);
+    constexpr float RIGHT_HIP_OFFSET =
+        -loop_fp32_PI(-1.63108f + HIP_CALIBRATION_OFFSET);
+    constexpr float RIGHT_KNEE_OFFSET =
+        -loop_fp32_PI(-0.35833f + KNEE_CALIBRATION_OFFSET);
 
-// constexpr float LEFT_HIP_OFFSET =
-//     -loop_fp32_PI(2.80085206f + HIP_CALIBRATION_OFFSET);
-// constexpr float LEFT_KNEE_OFFSET =
-//     -loop_fp32_PI(-3.0949018f + KNEE_CALIBRATION_OFFSET);
-// constexpr float RIGHT_HIP_OFFSET =
-//     -loop_fp32_PI(0.49898f + HIP_CALIBRATION_OFFSET);
-// constexpr float RIGHT_KNEE_OFFSET =
-//     -loop_fp32_PI(-1.91909f + KNEE_CALIBRATION_OFFSET);
-
-constexpr float LEFT_HIP_OFFSET   =0;
-constexpr float LEFT_KNEE_OFFSET  =0;
-constexpr float RIGHT_HIP_OFFSET  =0;
-constexpr float RIGHT_KNEE_OFFSET =0;
+// constexpr float LEFT_HIP_OFFSET   =0;
+// constexpr float LEFT_KNEE_OFFSET  =0;
+// constexpr float RIGHT_HIP_OFFSET  =0;
+// constexpr float RIGHT_KNEE_OFFSET =0;
 
 constexpr float MAX_LEG_LENGTH        = 0.38f;
 constexpr float MIN_LEG_LENGTH        = 0.18f;

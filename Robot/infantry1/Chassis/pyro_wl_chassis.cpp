@@ -689,23 +689,23 @@ void wl_chassis_t::_vmc_trans_v2j()
 
 void wl_chassis_t::_send_joint_torque() const
 {
-    // _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(
-    //     _ctx.data.leg[leg_def::L].direction *
-    //     _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::HIP]);
-    // _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(
-    //     _ctx.data.leg[leg_def::L].direction *
-    //     _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::KNEE]);
-    // _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(
-    //     _ctx.data.leg[leg_def::R].direction *
-    //     _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::HIP]);
-    // _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(
-    //     _ctx.data.leg[leg_def::R].direction *
-    //     _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::KNEE]);
+    _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(
+        _ctx.data.leg[leg_def::L].direction *
+        _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::HIP]);
+    _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(
+        _ctx.data.leg[leg_def::L].direction *
+        _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::KNEE]);
+    _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(
+        _ctx.data.leg[leg_def::R].direction *
+        _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::HIP]);
+    _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(
+        _ctx.data.leg[leg_def::R].direction *
+        _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::KNEE]);
 
-    _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(0);
-    _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(0);
-    _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(0);
-    _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(0);
+    // _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(0);
+    // _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(0);
+    // _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(0);
+    // _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(0);
 }
 
 void wl_chassis_t::_send_wheel_torque() const

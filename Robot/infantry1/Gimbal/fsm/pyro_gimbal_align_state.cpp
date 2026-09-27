@@ -20,8 +20,8 @@ void pyro::wl_gimbal_t::fsm_active_t::state_align_t::execute(owner *owner)
 {
     owner->align_updatePitch();
 
-    if(owner->_ctx.data.state.pitch.pos<PITCH_LIMIT_MAX+0.4f)
-    {
+    // if(owner->_ctx.data.state.pitch.pos<PITCH_LIMIT_MAX+0.4f)
+    // {
         float error_rad = owner->_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD;
         owner->align_updateYaw();
 
@@ -41,7 +41,7 @@ void pyro::wl_gimbal_t::fsm_active_t::state_align_t::execute(owner *owner)
         {
             count = 0;
         }
-    }
+    // }
  
 }
 

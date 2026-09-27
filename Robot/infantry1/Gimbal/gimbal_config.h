@@ -8,7 +8,7 @@ namespace pyro
 //手动模式下------------------------------------------
 
 //yaw轴速度环pid参数
-constexpr float YAW_SPEED_PID_KP = 5.5f;
+constexpr float YAW_SPEED_PID_KP = 2.5f;
 constexpr float YAW_SPEED_PID_KI = 0.0f;
 constexpr float YAW_SPEED_PID_KD = 0.0f;
 
@@ -19,11 +19,11 @@ constexpr float YAW_POS_PID_KD = 0.0f;
 
 
 //pitch轴位置环pid
-constexpr float DM_POS_PITCH_KP = 15.0f;
+constexpr float DM_POS_PITCH_KP = 14.0f;
 constexpr float DM_POS_PITCH_KD = 0.0f;
 
 //pitch轴速度环pid
-constexpr float DM_SPD_PITCH_KP = 2.0f;
+constexpr float DM_SPD_PITCH_KP = 1.6f;
 constexpr float DM_SPD_PITCH_KD = 0.0f;
 
 
