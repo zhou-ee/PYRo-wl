@@ -195,6 +195,7 @@ struct rdob_data_t
     float prev_trim_dot_q[GENERAL_STATE_DIM];
     control_vec_t prev_U0;
     bool initialized;
+    float ratio;
     float state_deviation;
 };
 

@@ -536,7 +536,10 @@ void wl_chassis_t::_rdob_update()
         _rdob_init();
         return;
     }
-
+    if (rdob.ratio < 1.0f)
+    {
+        rdob.ratio += 0.001f;
+    }
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
         float q_sum = 0.0f;
@@ -572,7 +575,7 @@ void wl_chassis_t::_rdob_update()
                 (_ctx.data.measured_state.data[2U * state + 1U] -
                  rdob.prev_trim_dot_q[state]);
         }
-        rdob.dist.data[input] = std::clamp(
+        rdob.dist.data[input] = rdob.ratio * std::clamp(
             estimate, -RDOB_DISTURBANCE_LIMIT[input],
             RDOB_DISTURBANCE_LIMIT[input]);
     }
@@ -651,23 +654,23 @@ void wl_chassis_t::_vmc_trans_v2j()
 
 void wl_chassis_t::_send_joint_torque() const
 {
-    _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(
-        _ctx.data.leg[leg_def::L].direction *
-        _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::HIP]);
-    _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(
-        _ctx.data.leg[leg_def::L].direction *
-        _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::KNEE]);
-    _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(
-        _ctx.data.leg[leg_def::R].direction *
-        _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::HIP]);
-    _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(
-        _ctx.data.leg[leg_def::R].direction *
-        _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::KNEE]);
+    // _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(
+    //     _ctx.data.leg[leg_def::L].direction *
+    //     _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::HIP]);
+    // _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(
+    //     _ctx.data.leg[leg_def::L].direction *
+    //     _ctx.data.leg[leg_def::L].out_joint_torque[joint_def::KNEE]);
+    // _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(
+    //     _ctx.data.leg[leg_def::R].direction *
+    //     _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::HIP]);
+    // _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(
+    //     _ctx.data.leg[leg_def::R].direction *
+    //     _ctx.data.leg[leg_def::R].out_joint_torque[joint_def::KNEE]);
 
-    // _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(0);
-    // _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(0);
-    // _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(0);
-    // _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(0);
+    _ctx.motor.joint[leg_def::L][joint_def::HIP]->send_torque(0);
+    _ctx.motor.joint[leg_def::L][joint_def::KNEE]->send_torque(0);
+    _ctx.motor.joint[leg_def::R][joint_def::HIP]->send_torque(0);
+    _ctx.motor.joint[leg_def::R][joint_def::KNEE]->send_torque(0);
 }
 
 void wl_chassis_t::_send_wheel_torque() const
