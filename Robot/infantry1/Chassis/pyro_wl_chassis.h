@@ -278,6 +278,7 @@ class wl_chassis_t final
     void _rdob_init();
     void _rdob_update();
     void _actual_output_update();
+    void _calc_state_deviation();
 
     using owner = wl_chassis_t;
 

@@ -389,7 +389,9 @@ void wl_chassis_t::_balance_control()
 #if RDOB_EN
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
-        _ctx.data.control.data[input] = _ctx.data.U0[input] - dist_gain[input] * _ctx.data.rdob.dist.data[input];
+        _ctx.data.control.data[input] = _ctx.data.U0[input] -
+            _ctx.data.rdob.ratio * dist_gain[input] *
+                _ctx.data.rdob.dist.data[input];
         for (uint8_t state = 0; state < STATE_DIM; ++state)
         {
             _ctx.data.control.data[input] +=
@@ -536,10 +538,6 @@ void wl_chassis_t::_rdob_update()
         _rdob_init();
         return;
     }
-    if (rdob.ratio < 1.0f)
-    {
-        rdob.ratio += 0.001f;
-    }
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
         float q_sum = 0.0f;
@@ -575,8 +573,9 @@ void wl_chassis_t::_rdob_update()
                 (_ctx.data.measured_state.data[2U * state + 1U] -
                  rdob.prev_trim_dot_q[state]);
         }
-        rdob.dist.data[input] = rdob.ratio * std::clamp(
-            estimate, -RDOB_DISTURBANCE_LIMIT[input],
+        rdob.dist.data[input] = std::clamp(
+            RDOB_DISTURBANCE_LEAK_POLE * estimate,
+            -RDOB_DISTURBANCE_LIMIT[input],
             RDOB_DISTURBANCE_LIMIT[input]);
     }
 
@@ -609,6 +608,42 @@ void wl_chassis_t::_rdob_update()
         rdob.prev_trim_dot_q[state] =
             _ctx.data.target_state.data[2U * state + 1U];
     }
+}
+
+void wl_chassis_t::_calc_state_deviation()
+{
+    rdob_data_t &rdob = _ctx.data.rdob;
+    const state_vec_t &state = _ctx.data.measured_state;
+
+    // L_bar itself is the scheduled static trim, so its position error is
+    // zero. The available leg-position range check uses measured L_bar.
+    const float normalized[] = {
+        state.theta / RDOB_THETA_SCALE,
+        state.dot_theta / RDOB_BODY_RATE_SCALE,
+        state.phi / RDOB_PHI_SCALE,
+        state.dot_phi / RDOB_BODY_RATE_SCALE,
+        state.dot_L / RDOB_LEG_RATE_SCALE,
+        (state.beta1 - _ctx.data.target_state.beta1) / RDOB_BETA_SCALE,
+        state.dot_beta1 / RDOB_BETA_RATE_SCALE,
+        (state.beta2 - _ctx.data.target_state.beta2) / RDOB_BETA_SCALE,
+        state.dot_beta2 / RDOB_BETA_RATE_SCALE,
+    };
+    float deviation_sq = 0.0f;
+    for (float value : normalized)
+    {
+        deviation_sq += value * value;
+    }
+    rdob.state_deviation = std::sqrt(deviation_sq);
+
+    const float t = std::clamp(
+        (rdob.state_deviation - RDOB_DEVIATION_FULL) /
+            (RDOB_DEVIATION_OFF - RDOB_DEVIATION_FULL),
+        0.0f, 1.0f);
+    const float state_ratio = 1.0f - t * t * (3.0f - 2.0f * t);
+
+    // Drop compensation immediately when confidence falls; restore it over
+    // about one second without changing the observer state or its inputs.
+    rdob.ratio = state_ratio;
 }
 
 void wl_chassis_t::_actual_output_update()

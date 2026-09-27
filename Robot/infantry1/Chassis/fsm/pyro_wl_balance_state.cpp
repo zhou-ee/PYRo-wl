@@ -190,6 +190,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     owner->_gain_calculate();
 #if RDOB_EN
     owner->_rdob_update();
+    owner->_calc_state_deviation();
 #endif
     owner->_balance_control();
 

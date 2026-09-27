@@ -7,6 +7,20 @@
 
 namespace pyro
 {
+// Initial RDOB compensation envelope around the current static trim.
+constexpr float RDOB_THETA_SCALE                  = 0.30f; // rad
+constexpr float RDOB_PHI_SCALE                    = 0.18f; // rad
+constexpr float RDOB_BODY_RATE_SCALE              = 2.50f; // rad/s
+constexpr float RDOB_LEG_RATE_SCALE               = 0.35f; // m/s
+constexpr float RDOB_BETA_SCALE                   = 0.50f; // rad
+constexpr float RDOB_BETA_RATE_SCALE              = 3.00f; // rad/s
+constexpr float RDOB_DEVIATION_FULL               = 0.60f;
+constexpr float RDOB_DEVIATION_OFF                = 1.20f;
+constexpr float RDOB_COMPENSATION_RISE_PER_STEP   = 0.001f; // 1 s at 1 kHz
+// exp(-2*pi*0.05 Hz*0.001 s): leak the reconstructed disturbance before
+// rebasing z. The RDOB coefficients also assume a 1 ms update interval.
+constexpr float RDOB_DISTURBANCE_LEAK_POLE        = 0.99968589f;
+
 constexpr float loop_fp32_PI(float val)
 {
     while (val > PI)
