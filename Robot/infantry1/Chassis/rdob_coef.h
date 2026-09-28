@@ -3,7 +3,7 @@
 
 static constexpr float kSampleTime = 1.000000000e-03f;
 
-static constexpr float dist_gain[6] = {1.0f , 1.0f , 0.2f, 0.2f, 0.2f, 0.2f};
+static constexpr float dist_gain[6] = {1.0f , 1.0f , 0.0f, 0.0f, 0.0f, 0.0f};
 
 // static constexpr float dist_gain[6] = {0.0f , 0.0f , 0.0f, 0.0f, 0.0f, 0.0f};
 

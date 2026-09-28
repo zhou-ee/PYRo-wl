@@ -19,7 +19,7 @@ constexpr float RDOB_DEVIATION_OFF                = 1.20f;
 constexpr float RDOB_COMPENSATION_RISE_PER_STEP   = 0.001f; // 1 s at 1 kHz
 // exp(-2*pi*0.05 Hz*0.001 s): leak the reconstructed disturbance before
 // rebasing z. The RDOB coefficients also assume a 1 ms update interval.
-constexpr float RDOB_DISTURBANCE_LEAK_POLE        = 0.99968589f;
+constexpr float RDOB_DISTURBANCE_LEAK_POLE        = 0.998f;
 
 constexpr float loop_fp32_PI(float val)
 {

@@ -6,7 +6,7 @@
 namespace pyro
 {
 
-constexpr static float WZ = 12.0f;
+constexpr static float WZ = 10.0f;
 constexpr static float TARGET_RECOVERY_WZ = 5.0f;
 constexpr static float SPIN_RECOVERY_ANGLE_EPSILON    = 1.0f; // rad
 
@@ -19,6 +19,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_
 {
     owner->_ctx.data.odom.real_x = 0.0f;
     auto &target = owner->_ctx.data.target_state;
+    owner->_ctx.data.measured_state.x = 0.0f;
     target.x = owner->_ctx.data.measured_state.x;
     target.dot_x = 0.0f;
     target.psi = owner->_ctx.data.measured_state.psi;
@@ -139,18 +140,18 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
         }
 
         //缓加速
-        if(is_add_speed)
-        {
+        // if(is_add_speed)
+        // {
             //小陀螺加速时的小量
             const float spin_accel_step = SPIN_YAW_ACCEL * owner->_ctx.data._dt;
             if(spin_speed_ref < WZ - spin_accel_step)
             {
                 spin_speed_ref += spin_accel_step;
             }
-            else if(spin_speed_ref > WZ + spin_accel_step)
-            {
-                spin_speed_ref -= spin_accel_step;
-            }
+            // else if(spin_speed_ref > WZ + spin_accel_step)
+            // {
+            //     spin_speed_ref -= spin_accel_step;
+            // }
             else
             {
                 spin_speed_ref = WZ;
@@ -160,15 +161,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
                 is_add_speed = false;
                 
             }
-        }
-        else 
-        {
-            spin_speed_ref = owner->_ctx.data.measured_state.dot_psi;
-            if(owner->_ctx.data.measured_state.dot_psi <= 6.0f)
-            {
-                is_add_speed = true;
-            }
-        }
+        // }
+        // else
+        // {
+        //     spin_speed_ref = owner->_ctx.data.measured_state.dot_psi;
+        //     if(owner->_ctx.data.measured_state.dot_psi <= 6.0f)
+        //     {
+        //         is_add_speed = true;
+        //     }
+        // }
         
 
 
@@ -179,7 +180,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
     //无视其它状态
     owner->_ctx.data.measured_state.psi = owner->_ctx.data.ins.euler_rad[0];
     owner->_ctx.data.measured_state.dot_psi = owner->_ctx.data.ins.gyro[0];
-    owner->_ctx.data.target_state.x = owner->_ctx.data.measured_state.x;
+    // owner->_ctx.data.target_state.x = owner->_ctx.data.measured_state.x;
     owner->_ctx.data.target_state.dot_x = 0.0f;
     owner->_ctx.data.target_state.psi = owner->_ctx.data.measured_state.psi;
     owner->_ctx.data.target_state.dot_psi = spin_speed_ref;
