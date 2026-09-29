@@ -62,9 +62,9 @@ namespace pyro
         }
 
         //判断只有yaw电机在目标复位角度内才能进行腿部复位
-        
-        if(fabs(owner->_ctx.data.yaw.pos) <= 0.3f)
-        {
+
+        // if(fabs(owner->_ctx.data.yaw.pos) <= 0.3f)
+        // {
             if(owner->_ctx.data.leg[leg_def::L].target_leg_length >= ALIGN_TARGET_LENGTH)
             {
                 owner->_ctx.data.leg[leg_def::L].target_leg_length -= ALIGN_DELTA_LENGTH;
@@ -83,7 +83,7 @@ namespace pyro
             {
                 owner->_ctx.data.leg[leg_def::R].target_leg_rad  += ALIGN_DELTA_RAD;
             }
-        }
+        // }
 
 
         //限幅

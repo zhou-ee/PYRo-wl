@@ -215,7 +215,8 @@ struct wl_chassis_data_ctx_t
     jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
     float jump_phase_time = 0.0f;
     float jump_heading_ref = 0.0f;
-    uint16_t jump_recovery_hold_ticks = 0;
+    float jump_vertical_velocity_integral = 0.0f; // 跳跃期间竖直去重力加速度积分得到的速度观测值 (m/s)
+    uint16_t jump_push_accel_hold_ticks = 0;
     uint16_t jump_landing_counter = 0;
     bool jump_virtual_wall_bypass = false;
     float _dt;

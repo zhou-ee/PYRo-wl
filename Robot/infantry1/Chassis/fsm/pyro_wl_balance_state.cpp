@@ -70,20 +70,20 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_chassis_t *owner)
 {
-    //紧急下力判断
-    if(abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
-       abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
-    {
-        if(reset_count >= 50)
-        {
-            owner->_ctx.data.flag.leg_is_should_restart = true;
-        }
-        reset_count++;
-    }
-    else 
-    {
-        reset_count = 0;
-    }
+    // //紧急下力判断
+    // if(abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
+    //    abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
+    // {
+    //     if(reset_count >= 50)
+    //     {
+    //         owner->_ctx.data.flag.leg_is_should_restart = true;
+    //     }
+    //     reset_count++;
+    // }
+    // else
+    // {
+    //     reset_count = 0;
+    // }
 
 
     //自动上台阶判断
@@ -115,16 +115,16 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         auto_step_count = 0;
     }
 
-    //离地检测
-     if (!owner->_ctx.data.airborne.landing_recovery &&
-         owner->_detect_takeoff())
-     {
-         owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
-         owner->_ctx.data.airborne.takeoff_counter = 0;
-         owner->_ctx.data.airborne.landing_counter = 0;
-         request_switch(&owner->_state_active._state_normal._state_air);
-         return;
-     }
+    // //离地检测
+    //  if (!owner->_ctx.data.airborne.landing_recovery &&
+    //      owner->_detect_takeoff())
+    //  {
+    //      owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
+    //      owner->_ctx.data.airborne.takeoff_counter = 0;
+    //      owner->_ctx.data.airborne.landing_counter = 0;
+    //      request_switch(&owner->_state_active._state_normal._state_air);
+    //      return;
+    //  }
 
     //落地回复
     if (owner->_ctx.data.airborne.landing_recovery)
@@ -188,15 +188,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     owner->_gain_calculate();
     owner->_balance_control();
 
-    const float roll_error = owner->_ctx.data.target_state.phi -
-                             owner->_ctx.data.measured_state.phi;
-    if (std::fabs(roll_error) > NORMAL_ROLL_INTEGRAL_DEADBAND)
-    {
-        owner->_ctx.data.normal_roll_force_trim = std::clamp(
-            owner->_ctx.data.normal_roll_force_trim +
-                NORMAL_ROLL_INTEGRAL_KI * roll_error * owner->_ctx.data._dt,
-            -NORMAL_ROLL_INTEGRAL_LIMIT, NORMAL_ROLL_INTEGRAL_LIMIT);
-    }
+    // const float roll_error = owner->_ctx.data.target_state.phi -
+    //                          owner->_ctx.data.measured_state.phi;
+    // if (std::fabs(roll_error) > NORMAL_ROLL_INTEGRAL_DEADBAND)
+    // {
+    //     owner->_ctx.data.normal_roll_force_trim = std::clamp(
+    //         owner->_ctx.data.normal_roll_force_trim +
+    //             NORMAL_ROLL_INTEGRAL_KI * roll_error * owner->_ctx.data._dt,
+    //         -NORMAL_ROLL_INTEGRAL_LIMIT, NORMAL_ROLL_INTEGRAL_LIMIT);
+    // }
 
     owner->_ctx.data.control.F_l1 = std::clamp(
         owner->_ctx.data.control.F_l1 +
