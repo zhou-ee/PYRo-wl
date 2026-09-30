@@ -42,9 +42,10 @@ enum class chassis_function_state_t : uint8_t
     NONE,
     RESTART,
     STEP,
-    AIR,
     JUMP,
     SPIN_TOGGLE,
+    RESCUE,
+
 
 };
 
@@ -163,7 +164,6 @@ struct ins_data_t
 
 struct airborne_data_t
 {
-    chassis_function_state_t state = chassis_function_state_t::NONE;
     bool landing_recovery = false;
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
@@ -317,6 +317,12 @@ class wl_chassis_t final
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
             };
+            struct state_rescue_t final : public state_t<owner>
+            {
+                void enter(owner *owner) override;
+                void execute(owner *owner) override;
+                void exit(owner *owner) override;
+            };
 
             void on_enter(owner *owner) override;
             void on_execute(owner *owner) override;
@@ -329,6 +335,7 @@ class wl_chassis_t final
                 state_step_t    _state_step;
                 state_jump_t    _state_jump;
                 state_spin_t    _state_spin;
+                state_rescue_t  _state_rescue;
         };
         
         void on_enter(wl_chassis_t *ctx) override;

@@ -32,9 +32,9 @@ constexpr float LEFT_HIP_OFFSET =
 constexpr float LEFT_KNEE_OFFSET =
     -loop_fp32_PI(3.04188f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(-1.61986f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(-1.63108f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(-0.33082f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(-0.35833f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;

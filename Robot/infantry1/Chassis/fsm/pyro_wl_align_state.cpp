@@ -90,15 +90,11 @@ namespace pyro
 
         //限幅
         owner->_ctx.data.leg[leg_def::L].target_leg_rad =
-                loop_fp32_constrain(owner->_ctx.data.leg[leg_def::L].target_leg_rad +
-                owner->_current_cmd.delta_leg_rad[leg_def::L],
-                       0, 2*PI);
+                loop_fp32_constrain(owner->_ctx.data.leg[leg_def::L].target_leg_rad, 0, 2*PI);
                     
         //限幅
         owner->_ctx.data.leg[leg_def::R].target_leg_rad =
-                loop_fp32_constrain(owner->_ctx.data.leg[leg_def::R].target_leg_rad +
-                owner->_current_cmd.delta_leg_rad[leg_def::R],
-                       0, 2*PI);
+                loop_fp32_constrain(owner->_ctx.data.leg[leg_def::R].target_leg_rad, 0, 2*PI);
         
         //限幅
         owner->_ctx.data.leg[leg_def::L].target_leg_length =

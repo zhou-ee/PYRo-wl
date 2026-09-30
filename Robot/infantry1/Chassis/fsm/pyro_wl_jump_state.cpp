@@ -56,7 +56,6 @@ namespace pyro
 
         owner->_ctx.motor.wheel[leg_def::L]->enable();
         owner->_ctx.motor.wheel[leg_def::R]->enable();
-        owner->_ctx.data.airborne.state = chassis_function_state_t::NONE;
         owner->_ctx.data.airborne.takeoff_counter = 0;
         owner->_ctx.data.airborne.landing_counter = 0;
     }

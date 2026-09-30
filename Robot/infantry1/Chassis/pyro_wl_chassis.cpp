@@ -187,13 +187,20 @@ void wl_chassis_t::_update_feedback()
 
 void wl_chassis_t::_fsm_execute()
 {
+    //判断是否主动清除紧急下力
     static pyro::chassis_function_state_t last_cmd_state = pyro::chassis_function_state_t::NONE;
-    if( _current_cmd.cmd_function_state == pyro::chassis_function_state_t::RESTART &&
+    if (_current_cmd.cmd_function_state == pyro::chassis_function_state_t::RESTART &&
         last_cmd_state != _current_cmd.cmd_function_state)
     {
         _ctx.data.flag.leg_is_should_restart = false;
     }
     last_cmd_state = _current_cmd.cmd_function_state;
+
+    //如果触发了自救键位，则紧急下力自动清除，进入平衡模式
+    if(_current_cmd.cmd_function_state == pyro::chassis_function_state_t::RESCUE)
+    {
+        _ctx.data.flag.leg_is_should_restart = false;
+    }
 
     if (_current_cmd.mode == cmd_base_t::mode_t::ACTIVE && (!_ctx.data.flag.leg_is_should_restart))
     {

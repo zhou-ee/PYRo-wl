@@ -6,7 +6,6 @@ namespace pyro
 
 void wl_chassis_t::fsm_active_t::on_enter(wl_chassis_t *owner)
 {
-    owner->_ctx.data.airborne.state = chassis_function_state_t::NONE;
     owner->_ctx.data.airborne.landing_recovery = false;
     owner->_ctx.data.airborne.takeoff_counter = 0;
     owner->_ctx.data.airborne.landing_counter = 0;

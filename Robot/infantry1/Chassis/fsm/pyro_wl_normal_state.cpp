@@ -11,7 +11,21 @@ namespace pyro
 
 void wl_chassis_t::fsm_active_t::state_normal_t::on_enter(wl_chassis_t *owner)
 {
-    change_state(&_state_align);
+    // 这里切入自救态分为两种状况：
+    // 1.车子翻到后，我没有去下力，而是直接拨杆触发自救
+    // 2.车子翻到后，我下力了，但是我没有去把它摆正，直接上力了，此时我需要让它重新上力时检测一下需不需要自救
+
+    // 判断是否进入自救态
+    if (owner->_current_cmd.cmd_function_state == chassis_function_state_t::RESCUE ||
+        abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
+        abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 4.0f)
+    {
+        change_state(&_state_rescue);
+    }
+    else 
+    {
+        change_state(&_state_align);
+    }
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
