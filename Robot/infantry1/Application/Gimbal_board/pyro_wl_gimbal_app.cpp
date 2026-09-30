@@ -9,28 +9,24 @@
 #include "pyro_dji_motor_drv.h"
 #include "gimbal_config.h"
 #include "pyro_board_drv.h"
+#include "pyro_autoaim_drv.h"
 
 
 using namespace pyro;
 
-
-
-
-
 //云台部分
+constexpr uint32_t EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL      = (1 << 0);        //左上单击切换自瞄
 
 
 
 
-
-
-static TaskHandle_t gimbal_task_handle = nullptr;
-
-static pyro::wl_gimbal_t *wl_gimbal_ptr         = nullptr;
-static pyro::wl_gimbal_cmd_t *wl_gimbal_cmd_ptr = nullptr;
-static pyro::wl_gimbal_deps_t *wl_gimbal_deps   = nullptr;
-static pyro::board_drv_t *board_ptr               = nullptr;
-
+static TaskHandle_t           gimbal_task_handle = nullptr;
+static pyro::wl_gimbal_t      *wl_gimbal_ptr     = nullptr;
+static pyro::wl_gimbal_cmd_t  *wl_gimbal_cmd_ptr = nullptr;
+static pyro::wl_gimbal_deps_t *wl_gimbal_deps    = nullptr;
+static pyro::board_drv_t      *board_ptr         = nullptr;
+static pyro::autoaim_drv_t    *autoaim_ptr       = nullptr;
+ 
 static virtual_rc_t vrc_t;
 
 
@@ -104,11 +100,19 @@ extern "C"
         wl_gimbal_ptr->configure(*wl_gimbal_deps);
         wl_gimbal_ptr->start();
 
+        autoaim_ptr = &pyro::autoaim_drv_t::get_instance();
+
 
         board_ptr = &pyro::board_drv_t::get_instance(pyro::board_drv_t::role_t::GIMBAL,pyro::bsp_can::can1);
 
+        auto &vrc = rc_drv_t::read();
+
         xTaskCreate(wl_gimbal_thread, "infantry_gimbal_thread", 256, 
                     nullptr,configMAX_PRIORITIES - 1, &gimbal_task_handle);
+
+        //订阅
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::SINGLE_CLICK, 
+                            gimbal_task_handle, EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL);
 
 
   
@@ -120,6 +124,7 @@ extern "C"
 
 void gimbal_vt03cmd(virtual_rc_t vrc, uint32_t notify)
 {
+    auto autoaim_cmd    = autoaim_ptr->get_target_data();
     //判断当前模式
     if(vrc.switches.gear.current_pos == pyro::sw_pos_t::UP)
     {
@@ -131,29 +136,53 @@ void gimbal_vt03cmd(virtual_rc_t vrc, uint32_t notify)
             vrc.switches.gear.current_pos == pyro::sw_pos_t::MID)
     {
         wl_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
-        wl_gimbal_cmd_ptr->state_cmd = pyro::MotionState::Manual;
 
-        float pitchInput =vrc.axes.ly+vrc.mouse_axes.y*100.0f;
-        if(pitchInput > 1.0f)
+        static bool if_autoaim = false;
+        if(notify & EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL)
         {
-            pitchInput=1.0f;
+            if_autoaim = !if_autoaim;
         }
-        else if(pitchInput < -1.0f)
-        {
-            pitchInput=-1.0f;
-        }
-        wl_gimbal_cmd_ptr->pitchVel = -pitchInput * 2.0f;
 
-        float yawInput =vrc.axes.lx+vrc.mouse_axes.x*100.0f;
-        if(yawInput > 1.0f)
+        if(if_autoaim && autoaim_ptr->check_online())
         {
-            yawInput=1.0f;
+            //自瞄情况
+            wl_gimbal_cmd_ptr->state_cmd   = pyro::MotionState::Auto;
+            wl_gimbal_cmd_ptr->pitchVel    = 0;
+            wl_gimbal_cmd_ptr->yawVel      = 0;
+            wl_gimbal_cmd_ptr->targetPitch = autoaim_cmd.targetPitch;
+            wl_gimbal_cmd_ptr->targetYaw   = autoaim_cmd.targetYaw;
         }
-        else if(yawInput < -1.0f)
+        else 
         {
-            yawInput=-1.0f;
+            //手动情况
+            wl_gimbal_cmd_ptr->state_cmd   = pyro::MotionState::Manual;
+
+            wl_gimbal_cmd_ptr->targetPitch = autoaim_cmd.targetPitch;
+            wl_gimbal_cmd_ptr->targetYaw   = autoaim_cmd.targetYaw;
+
+            float pitchInput =vrc.axes.ly+vrc.mouse_axes.y*100.0f;
+            if(pitchInput > 1.0f)
+            {
+                pitchInput=1.0f;
+            }
+            else if(pitchInput < -1.0f)
+            {
+                pitchInput=-1.0f;
+            }
+            wl_gimbal_cmd_ptr->pitchVel = -pitchInput * 2.0f;
+
+            float yawInput =vrc.axes.lx+vrc.mouse_axes.x*100.0f;
+            if(yawInput > 1.0f)
+            {
+                yawInput=1.0f;
+            }
+            else if(yawInput < -1.0f)
+            {
+                yawInput=-1.0f;
+            }
+            wl_gimbal_cmd_ptr->yawVel = yawInput*3.0f;
         }
-        wl_gimbal_cmd_ptr->yawVel = yawInput*3.0f;
+        
     }
 }
 

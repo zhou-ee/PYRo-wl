@@ -30,21 +30,22 @@ constexpr float FRIC_RADIUS                                       = 0.03f;
 constexpr float FRIC_TARGET_SPEED = PROJECTILE_TARGET_MUZZLE_VELOCITY / FRIC_RADIUS * FRIC_ADJUST_K;
 
 
-
-
-
 // 发射速度 (发/秒)
 constexpr float SHOOT_SPEED                                       = 10.0f;
 
+// 拨弹盘电机减速比
+constexpr int TRIGGER_MOTOR_REDUCTION_RATIO                       = 36;
+// 拨弹盘一圈可以装几发弹
+constexpr float HOLDING_BULLET_NUM                                = 8.0f;
 // 拨弹盘速度
-constexpr float TRIGGER_SPEED        = SHOOT_SPEED / 8 * 2 * PI * 36;
+constexpr float TRIGGER_SPEED        = SHOOT_SPEED / HOLDING_BULLET_NUM * 2 * PI * TRIGGER_MOTOR_REDUCTION_RATIO;
+//一发弹丸对应的电机需要转的弧度
+constexpr float ONE_BULLET_RAD       = 2 * PI * TRIGGER_MOTOR_REDUCTION_RATIO / HOLDING_BULLET_NUM;
+//拨弹盘一圈对应的电机需要转过的弧度
+constexpr float ONE_CIRCLE_RAD       = 2 * PI * TRIGGER_MOTOR_REDUCTION_RATIO;
 
 
-//云台差的东西
-//1.热量控制
-//2.弹速闭环
-//3.自瞄控制
-//4.ui绘制
-//5.功率控制
+
+
 }
 #endif

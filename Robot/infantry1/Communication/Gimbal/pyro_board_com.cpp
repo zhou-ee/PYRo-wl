@@ -8,8 +8,8 @@ using namespace pyro;
 
 //底盘部分
 constexpr uint32_t EVENT_BIT_STEPCLIMB                       = (1 << 0);     // - 左上按钮双击 上台阶
-constexpr uint32_t EVENT_BIT_SPINING_TOGGLE                  = (1 << 1);     // - pause键 小陀螺
-constexpr uint32_t EVENT_BIT_LEG_LENGTH_MODE                 = (1 << 2);     // - 左上按钮单击切换腿长变长变短或不动
+constexpr uint32_t EVENT_BIT_SPINING_TOGGLE                  = (1 << 1);     // - pause键     小陀螺
+constexpr uint32_t EVENT_BIT_SELF_RESCUE                     = (1 << 2);     // - pause键长按 进行自救
 
 static TaskHandle_t board_com_task_handl    = nullptr;
 static board_drv_t *board_drv_ptr           = nullptr;
@@ -69,25 +69,24 @@ void chassis_vt03cmd(uint32_t notify)
             {
                 tx_data.spining   = 0;
             }
-            //腿长命令逻辑遵循以下循环：不变->变长->不变->变短，循环往复
-            static int count = 0;
-            if(notify & EVENT_BIT_LEG_LENGTH_MODE)
+            if(notify & EVENT_BIT_SELF_RESCUE)
             {
-                count++;
-                count %= 4;
+                tx_data.rescue    = 1;
+            }
+            else 
+            {
+                tx_data.rescue    = 0;
             }
 
-            if(count == 0 || count == 2)
+            //此时右摇杆水平方向控制腿长
+            if(abs(vrc.axes.rx) <= 0.1f)
             {
+                //死区
                 tx_data.delta_leg = 0;
             }
-            else if(count == 1)
+            else 
             {
-                tx_data.delta_leg = 1;
-            }
-            else if(count == 3)
-            {
-                tx_data.delta_leg = 2;
+                tx_data.delta_leg = vrc.axes.rx > 0 ? 1 : 2;
             }
         }
     }
@@ -129,12 +128,12 @@ extern "C"
 
         auto &vrc = pyro::rc_drv_t::read();
         //这里添加要订阅的按键
-        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::DOUBLE_CLICK, 
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::DOUBLE_CLICK,
                             board_com_task_handl, EVENT_BIT_STEPCLIMB);
-        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::SINGLE_CLICK, 
-                            board_com_task_handl, EVENT_BIT_LEG_LENGTH_MODE);
         pyro::btn_broker::subscribe(&vrc.buttons.pause, pyro::btn_event_t::SINGLE_CLICK, 
                             board_com_task_handl, EVENT_BIT_SPINING_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.buttons.pause, pyro::btn_event_t::LONG_PRESS_START, 
+                            board_com_task_handl, EVENT_BIT_SELF_RESCUE);
 
         vTaskDelete(nullptr);
     }

@@ -4,6 +4,7 @@
 #include "pyro_algo_pid.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_module_base.h"
+#include "booster_config.h"
 
 
 namespace pyro
@@ -67,7 +68,7 @@ struct wl_booster_deps_t
 
 
 //上下文部分
-struct MotorState 
+struct BoosterMotorState 
 {
     float pos;    // 角度 (rad)
     float vel;    // 角速度 (rad/s)
@@ -78,8 +79,8 @@ struct MotorState
 
 struct BoosterState 
 {
-    MotorState fric[2];
-    MotorState trigger;
+    BoosterMotorState fric[2];
+    BoosterMotorState trigger;
     bool enable;
     float trigger_rad;        //拨弹盘的位置
     int8_t triggerRound;     //拨弹盘“电机”转过的圈数，用于换算至拨弹盘实际角度

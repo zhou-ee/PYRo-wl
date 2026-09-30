@@ -51,8 +51,8 @@ struct virtual_rc_t
         buttons.press_r.init(true, false, true);
 
         // 其他可能带有复合逻辑的辅助按键
-        buttons.fn_l.init(true, false, true);
-        buttons.fn_r.init(true, false, true);
+        buttons.fn_l.init(true, true, true);
+        buttons.fn_r.init(true, true, true);
 
         // 键盘按键默认全开高级判定 (不用担心，订阅 PRESS_DOWN 依然是0延迟)
         keys.w.init(true, false, true);
