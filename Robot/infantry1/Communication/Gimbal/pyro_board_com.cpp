@@ -10,6 +10,7 @@ using namespace pyro;
 constexpr uint32_t EVENT_BIT_STEPCLIMB                       = (1 << 0);     // - 左上按钮双击 上台阶
 constexpr uint32_t EVENT_BIT_SPINING_TOGGLE                  = (1 << 1);     // - pause键     小陀螺
 constexpr uint32_t EVENT_BIT_SELF_RESCUE                     = (1 << 2);     // - pause键长按 进行自救
+constexpr uint32_t EVENT_BIT_JUMPER                          = (1 << 3);     // - 左上按钮键     跳跃
 
 static TaskHandle_t board_com_task_handl    = nullptr;
 static board_drv_t *board_drv_ptr           = nullptr;
@@ -77,17 +78,17 @@ void chassis_vt03cmd(uint32_t notify)
             {
                 tx_data.rescue    = 0;
             }
-
-            //此时右摇杆水平方向控制腿长
-            if(abs(vrc.axes.rx) <= 0.1f)
+            if(notify & EVENT_BIT_JUMPER)
             {
-                //死区
-                tx_data.delta_leg = 0;
+                tx_data.jump    = 1;
             }
             else 
             {
-                tx_data.delta_leg = vrc.axes.rx > 0 ? 1 : 2;
+                tx_data.jump    = 0;
             }
+
+            //此时右摇杆水平方向控制腿长
+            tx_data.delta_leg = vrc.axes.rx > 0 ? 1 : 2;
         }
     }
     else 
@@ -134,6 +135,8 @@ extern "C"
                             board_com_task_handl, EVENT_BIT_SPINING_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.buttons.pause, pyro::btn_event_t::LONG_PRESS_START, 
                             board_com_task_handl, EVENT_BIT_SELF_RESCUE);
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::SINGLE_CLICK, 
+                            board_com_task_handl, EVENT_BIT_JUMPER);
 
         vTaskDelete(nullptr);
     }

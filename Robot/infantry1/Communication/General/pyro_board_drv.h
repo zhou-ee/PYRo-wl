@@ -37,6 +37,7 @@ public:
         uint32_t step_mode        : 1;
         uint32_t spining          : 1;
         uint32_t rescue           : 1;
+        uint32_t jump             : 1;
     };
 
     /**

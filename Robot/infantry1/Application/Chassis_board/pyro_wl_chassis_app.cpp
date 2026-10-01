@@ -151,7 +151,6 @@ void gimbal_cmd()
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
         }
-      //暂用小陀螺为跳跃
         if (g2c_data.spining == 1)
         {
             wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::JUMP;
@@ -159,6 +158,10 @@ void gimbal_cmd()
         if (g2c_data.rescue == 1)
         {
             wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::RESCUE;
+        }
+        if (g2c_data.jump == 1)
+        {
+            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::JUMP;
         }
 
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;

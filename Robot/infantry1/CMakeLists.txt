@@ -1,5 +1,5 @@
-set(BOARD "CHASSIS_BOARD")
-#set(BOARD "GIMBAL_BOARD")
+#set(BOARD "CHASSIS_BOARD")
+set(BOARD "GIMBAL_BOARD")
 
 add_library(Infantry1 OBJECT)
 
@@ -80,7 +80,7 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
         target_include_directories(Infantry1
                 PUBLIC
                 ${CMAKE_CURRENT_SOURCE_DIR}
-                ${CMAKE_CURRENT_SOURCE_DIR}/Application/Gimabl_board
+                ${CMAKE_CURRENT_SOURCE_DIR}/Application/Gimbal_board
                 ${CMAKE_CURRENT_SOURCE_DIR}/Application/Booster_board
                 ${CMAKE_CURRENT_SOURCE_DIR}/Gimbal
                 ${CMAKE_CURRENT_SOURCE_DIR}/Booster
