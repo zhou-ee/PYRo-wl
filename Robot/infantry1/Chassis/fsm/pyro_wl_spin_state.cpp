@@ -17,7 +17,7 @@ static bool is_add_speed = 0; // 是否是加速阶段
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_t *owner)
 {
-    owner->_ctx.data.odom.real_x = 0.0f;
+    owner->_ctx.data.odom.wheel_x = 0.0f;
     auto &target = owner->_ctx.data.target_state;
     owner->_ctx.data.measured_state.x = 0.0f;
     target.x = owner->_ctx.data.measured_state.x;

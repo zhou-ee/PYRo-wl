@@ -21,6 +21,17 @@ constexpr float RDOB_COMPENSATION_RISE_PER_STEP   = 0.001f; // 1 s at 1 kHz
 // rebasing z. The RDOB coefficients also assume a 1 ms update interval.
 constexpr float RDOB_DISTURBANCE_LEAK_POLE        = 0.998f;
 
+// IMU 安装偏移与前向加速度带限微分，固定 1 ms 更新。
+constexpr float IMU_DX                           = 0.24f;   // m，向前为正
+constexpr float IMU_DZ                           = -0.034f; // m，向上为正
+constexpr float IMU_ACCEL_TS                     = 0.001f;
+constexpr float IMU_ACCEL_CUTOFF_HZ              = 15.0f;
+constexpr float IMU_ACCEL_WC                     = 2.0f * PI * IMU_ACCEL_CUTOFF_HZ;
+constexpr float IMU_ACCEL_DIFF_A                  =
+    (2.0f - IMU_ACCEL_WC * IMU_ACCEL_TS) / (2.0f + IMU_ACCEL_WC * IMU_ACCEL_TS);
+constexpr float IMU_ACCEL_DIFF_B                  =
+    2.0f * IMU_ACCEL_WC / (2.0f + IMU_ACCEL_WC * IMU_ACCEL_TS);
+
 constexpr float loop_fp32_PI(float val)
 {
     while (val > PI)

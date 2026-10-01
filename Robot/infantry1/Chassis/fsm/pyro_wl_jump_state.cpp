@@ -8,7 +8,7 @@ namespace pyro
 {
     void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::enter(wl_chassis_t *owner)
     {
-        owner->_ctx.data.odom.real_x            = 0;
+        owner->_ctx.data.odom.wheel_x            = 0;
 
         owner->_ctx.data.target_state.x         = 0;
         owner->_ctx.data.target_state.dot_x     = 0.0f;

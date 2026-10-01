@@ -150,15 +150,18 @@ struct control_vec_t
 };
 struct odom_t
 {
-    float real_x;
-    float real_dot_x[2]; // 0 : v_x(t) , 1 :v_x(t-1)
+    float X[4]; // 0:x 1:v 2:a 3:b_a
+    float wheel_x;
+    float wheel_dot_x[2]; // 0 : v_x(t) , 1 :v_x(t-1)
+    float ddot_x_imu;// 轮心中点 C 的航向前向加速度，m/s^2
+    float ddot_x_model;// 轮心中点 C 的航向前向加速度，m/s^2
 };
 
 struct ins_data_t
 {
-    float euler_rad[3];
-    float gyro[3];
-    float accel[3];
+    float euler_rad[3]; // [yaw, pitch, roll]
+    float gyro[3];      // [omega_z, omega_y, omega_x]
+    float accel[3];     // I 点机体系加速度，INS 已去除重力
 };
 
 
@@ -214,6 +217,8 @@ struct wl_chassis_data_ctx_t
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
     float U0[INPUT_DIM];
+    float Hxi[GENERAL_STATE_DIM - 2U];
+    float Bx[INPUT_DIM];
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;
@@ -279,6 +284,8 @@ class wl_chassis_t final
     void _rdob_update();
     void _actual_output_update();
     void _calc_state_deviation();
+    void _calc_ddot_x_imu();
+    void _calc_ddot_x_model();
 
     using owner = wl_chassis_t;
 
