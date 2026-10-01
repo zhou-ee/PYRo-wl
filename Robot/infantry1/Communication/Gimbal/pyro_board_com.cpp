@@ -88,7 +88,16 @@ void chassis_vt03cmd(uint32_t notify)
             }
 
             //此时右摇杆水平方向控制腿长
-            tx_data.delta_leg = vrc.axes.rx > 0 ? 1 : 2;
+                        //此时右摇杆水平方向控制腿长
+            if(abs(vrc.axes.rx) <= 0.1f)
+            {
+                //死区
+                tx_data.delta_leg = 0;
+            }
+            else 
+            {
+                tx_data.delta_leg = vrc.axes.rx > 0 ? 1 : 2;
+            }
         }
     }
     else 
