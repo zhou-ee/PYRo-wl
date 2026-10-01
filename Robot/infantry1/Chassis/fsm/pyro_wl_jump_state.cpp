@@ -47,7 +47,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         data.airborne.accel_z_y_lpf * data._dt;
     const auto abort_jump = [&]() {
         data.jump_virtual_wall_bypass = false;
-        data.airborne.state = chassis_function_state_t::NONE;
         data.airborne.landing_recovery = false;
         // 异常退出时直接清零腿长力、腿摆力和轮子输出，随后下发零力矩。
         for (uint8_t i = 0; i < 2; ++i)
@@ -251,7 +250,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         data.target_state.psi = data.jump_heading_ref;
         data.target_state.dot_psi = 0.0f;
         data.airborne.landing_recovery = true;
-        data.airborne.state = chassis_function_state_t::NONE;
         data.jump_virtual_wall_bypass = false;
         request_switch(&owner->_state_active._state_normal._state_balance);
         break;

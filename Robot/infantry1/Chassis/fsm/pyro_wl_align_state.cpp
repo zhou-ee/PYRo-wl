@@ -84,7 +84,7 @@ namespace pyro
             {
                 owner->_ctx.data.leg[leg_def::R].target_leg_rad  += ALIGN_DELTA_RAD;
             }
-        // }
+        }
 
 
 
