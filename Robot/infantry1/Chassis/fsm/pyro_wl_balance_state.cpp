@@ -193,15 +193,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     owner->_gain_calculate();
     owner->_balance_control();
 
-    const float roll_error = owner->_ctx.data.target_state.phi -
-                             owner->_ctx.data.measured_state.phi;
-    if (std::fabs(roll_error) > NORMAL_ROLL_INTEGRAL_DEADBAND)
-    {
-        owner->_ctx.data.normal_roll_force_trim = std::clamp(
-            owner->_ctx.data.normal_roll_force_trim +
-                NORMAL_ROLL_INTEGRAL_KI * roll_error * owner->_ctx.data._dt,
-            -NORMAL_ROLL_INTEGRAL_LIMIT, NORMAL_ROLL_INTEGRAL_LIMIT);
-    }
+    // const float roll_error = owner->_ctx.data.target_state.phi -
+    //                          owner->_ctx.data.measured_state.phi;
+    // if (std::fabs(roll_error) > NORMAL_ROLL_INTEGRAL_DEADBAND)
+    // {
+    //     owner->_ctx.data.normal_roll_force_trim = std::clamp(
+    //         owner->_ctx.data.normal_roll_force_trim +
+    //             NORMAL_ROLL_INTEGRAL_KI * roll_error * owner->_ctx.data._dt,
+    //         -NORMAL_ROLL_INTEGRAL_LIMIT, NORMAL_ROLL_INTEGRAL_LIMIT);
+    // }
 
     owner->_ctx.data.control.F_l1 = std::clamp(
         owner->_ctx.data.control.F_l1 +

@@ -29,7 +29,9 @@ constexpr float KNEE_CALIBRATION_OFFSET = 2.62047f;
 
 constexpr float LEFT_HIP_OFFSET =
     -loop_fp32_PI(2.77928f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(2.77928f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
+    -loop_fp32_PI(3.04188f + KNEE_CALIBRATION_OFFSET);
     -loop_fp32_PI(3.04188f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
     -loop_fp32_PI(-1.63108f + HIP_CALIBRATION_OFFSET);
@@ -97,8 +99,8 @@ constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，
 constexpr float NORMAL_LENGTH_TARGET                 = 0.20f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
-constexpr float AIR_TAKEOFF_FORCE_ON                 = 60.0f;//单腿支持力阈值，越小越易离地
-constexpr float AIR_CONTACT_FORCE_OFF                = 35.0f;
+constexpr float AIR_TAKEOFF_FORCE_ON                 = 40.0f;//单腿支持力阈值，越小越易离地
+constexpr float AIR_CONTACT_FORCE_OFF                = 270.0f;
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
 constexpr float AIR_LENGTH_RECOVERY_RATE             = 0.20f;
@@ -111,6 +113,25 @@ constexpr float SUPPORT_FORCE_BIAS[2]                = {0.0f, 0.0f};
 constexpr uint16_t AIR_TAKEOFF_DEBOUNCE_TICKS        = 75;
 constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 
+// Active jump state machine. These values are separate from passive airborne
+// detection so a commanded jump never depends on a takeoff-force threshold.
+constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.19f; // 预压缩目标腿长 (m)
+constexpr float JUMP_AIR_LENGTH                       = 0.19f; // 收腿/空中腿长目标 (m)
+constexpr float JUMP_TAU                              = -25.0f; // 单腿起跳关节力矩基准 (N m)
+constexpr float JUMP_RECOVERY_TAU                     = 22.0f; // 保留参数：收腿姿态力矩基准 (N m)
+constexpr float JUMP_AIR_TAU                          = -15.0f;//Air阶段收腿的力矩（伸腿为负，收腿为正）
+constexpr float JUMP_PRECOMPRESS_TIME                 = 1.0f; // 预压缩最长时间 (s)
+constexpr float JUMP_PUSH_TIMEOUT                     = 0.5f;  // 蹬腿最长时间 (s)
+constexpr float JUMP_PUSH_MIN_TIME                    = 0.05f; // 最短蹬腿判定时间 (s)
+constexpr float JUMP_PUSH_ACCEL_EPSILON               = 1.5f;  // 去重力竖直加速度接近 -g 的容差 (m/s^2)
+constexpr float JUMP_RECOVERY_TIMEOUT                 = 0.08f;  // 收腿最长时间 (s)
+constexpr float JUMP_AIR_MIN_TIME                     = 0.06f; // 最短空中确认时间 (s)
+constexpr float JUMP_TOTAL_TIMEOUT                    = 3.0f;  // 空中阶段最长时间 (s)
+constexpr float JUMP_RECOVERY_PD_SCALE                = 2.0f;  // 收腿 PD 输出倍率
+constexpr float JUMP_RECOVERY_FORCE_MAX               = 120.0f; // 收腿力限幅 (N)
+constexpr uint16_t JUMP_LANDING_TICKS                 = 8; // 落地候选连续确认周期
+constexpr uint16_t JUMP_PUSH_ACCEL_HOLD_TICKS         = 3; // 蹬腿加速度连续确认周期
+constexpr float JUMP_T_P_LIMIT = 8.0f;
 
 constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 
@@ -123,7 +144,7 @@ constexpr float WHEEL_RADIUS                         = 0.06f;
 
 constexpr static float YAW_OFFSET = 0.95f;
 
-
+#define Using_Gimbal_Cmd 1
 
 namespace leg_def
 {

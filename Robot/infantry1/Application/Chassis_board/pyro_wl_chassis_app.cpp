@@ -151,9 +151,10 @@ void gimbal_cmd()
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
         }
+      //暂用小陀螺为跳跃
         if (g2c_data.spining == 1)
         {
-            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::SPIN_TOGGLE;
+            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::JUMP;
         }
         if (g2c_data.rescue == 1)
         {
@@ -223,7 +224,8 @@ void chassis_dr162cmd(uint32_t notify)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
     }
-    else if (notify & EVENT_BIT_JUMP)
+    else if ((notify & EVENT_BIT_JUMP) &&
+             pyro::sw_pos_t::UP == vrc.switches.right.current_pos)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::JUMP;
     }
@@ -245,7 +247,7 @@ void chassis_dr162cmd(uint32_t notify)
         wl_chassis_cmd_ptr->delta_leg_rad[leg_def::R]    = vrc.axes.rx * 0.001f;
         wl_chassis_cmd_ptr->v                            = 0.0f;
         wl_chassis_cmd_ptr->wz                           = 0.0f;
-        wl_chassis_cmd_ptr->cmd_continus_state           = pyro::chassis_active_state_t::MANUAL;
+        wl_chassis_cmd_ptr->cmd_continus_state = pyro::chassis_active_state_t::MANUAL;
     }
     else if (pyro::sw_pos_t::UP == vrc.switches.right.current_pos)
     {
