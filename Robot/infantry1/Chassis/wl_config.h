@@ -93,6 +93,10 @@ constexpr float GAS_SPRING_FORCE_POLY_COEF[
     2.70356625079196f,
 };
 
+constexpr float LEG_ACCEL_THRESHOLD = 40.0f;
+constexpr float GETOVER_SHORTEN_LENGTH = 0.05f;
+constexpr float GETOVER_FORWARD_RAD = 2.0f * PI / 180.0f;
+constexpr float GETOVER_FORCE_SCALE = 2.0f;
 // Airborne and landing detection defaults. Tune from logged support-force data.
 constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，低于上限虚拟墙
 constexpr float NORMAL_LENGTH_TARGET                 = 0.20f;

@@ -70,20 +70,34 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_chassis_t *owner)
 {
-    // //紧急下力判断
-    // if(abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
-    //    abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
-    // {
-    //     if(reset_count >= 50)
-    //     {
-    //         owner->_ctx.data.flag.leg_is_should_restart = true;
-    //     }
-    //     reset_count++;
-    // }
-    // else
-    // {
-    //     reset_count = 0;
-    // }
+        //紧急下力判断
+    if(abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
+       abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
+    {
+        if(reset_count >= 50)
+        {
+            owner->_ctx.data.flag.leg_is_should_restart = true;
+        }
+        reset_count++;
+    }
+    else
+    {
+        reset_count = 0;
+    }
+
+    //过坎
+    if (!owner->_getover_active &&
+        (std::fabs(owner->_ctx.data.leg[leg_def::L].current_leg_rad_accel) >
+             LEG_ACCEL_THRESHOLD ||
+         std::fabs(owner->_ctx.data.leg[leg_def::R].current_leg_rad_accel) >
+             LEG_ACCEL_THRESHOLD))
+    {
+        owner->_getover_active = true;
+        request_switch(&owner->_state_active._state_normal._state_getover);
+        return;
+    }
+
+
 
 
     //自动上台阶判断
@@ -115,21 +129,28 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         auto_step_count = 0;
     }
 
-    // //离地检测
-    //  if (!owner->_ctx.data.airborne.landing_recovery &&
-    //      owner->_detect_takeoff())
-    //  {
-    //      owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
-    //      owner->_ctx.data.airborne.takeoff_counter = 0;
-    //      owner->_ctx.data.airborne.landing_counter = 0;
-    //      request_switch(&owner->_state_active._state_normal._state_air);
-    //      return;
-    //  }
+    //离地检测
+     if (!owner->_ctx.data.airborne.landing_recovery &&
+         owner->_detect_takeoff())
+     {
+         owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
+         owner->_ctx.data.airborne.takeoff_counter = 0;
+         owner->_ctx.data.airborne.landing_counter = 0;
+         request_switch(&owner->_state_active._state_normal._state_air);
+         return;
+     }
 
     //落地回复
     if (owner->_ctx.data.airborne.landing_recovery)
     {
         owner->_execute_landing_recovery();
+    }
+    else if (owner->_getover_active)
+    {
+        owner->_ctx.data.target_state.dot_L = 0.0f;
+        owner->_ctx.data.target_state.L =
+            0.5f * (owner->_getover_target_length[leg_def::L] +
+                    owner->_getover_target_length[leg_def::R]);
     }
     else
     {

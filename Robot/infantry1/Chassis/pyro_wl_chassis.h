@@ -45,6 +45,7 @@ enum class chassis_function_state_t : uint8_t
     AIR,
     JUMP,
     SPIN_TOGGLE,
+    GETOVER,
 
 };
 
@@ -334,6 +335,12 @@ class wl_chassis_t final
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
             };
+            struct state_getover_t final : public state_t<owner>
+            {
+                void enter(owner *owner) override;
+                void execute(owner *owner) override;
+                void exit(owner *owner) override;
+            };
 
             void on_enter(owner *owner) override;
             void on_execute(owner *owner) override;
@@ -346,6 +353,7 @@ class wl_chassis_t final
                 state_step_t    _state_step;
                 state_jump_t    _state_jump;
                 state_spin_t    _state_spin;
+                state_getover_t _state_getover;
         };
         
         void on_enter(wl_chassis_t *ctx) override;
@@ -362,6 +370,9 @@ class wl_chassis_t final
     fsm_t<owner> _main_fsm;
     state_passive_t _state_passive;
     fsm_active_t _state_active;
+
+    bool _getover_active{false};
+    float _getover_target_length[2]{NORMAL_LENGTH_TARGET, NORMAL_LENGTH_TARGET};
 };
 
 

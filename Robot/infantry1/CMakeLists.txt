@@ -1,5 +1,5 @@
-#set(BOARD "CHASSIS_BOARD")
-set(BOARD "GIMBAL_BOARD")
+set(BOARD "CHASSIS_BOARD")
+# set(BOARD "GIMBAL_BOARD")
 
 add_library(Infantry1 OBJECT)
 
@@ -21,6 +21,7 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 Chassis/fsm/pyro_wl_manual_state.cpp
                 Chassis/fsm/pyro_wl_passive_state.cpp
                 Chassis/fsm/pyro_wl_normal_state.cpp
+                Chassis/fsm/pyro_wl_getover_state.cpp
                 Chassis/fsm/pyro_wl_air_state.cpp
                 Chassis/fsm/pyro_wl_align_state.cpp
                 Chassis/fsm/pyro_wl_step_state.cpp
