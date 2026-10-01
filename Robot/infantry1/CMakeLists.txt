@@ -28,6 +28,7 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 Chassis/fsm/pyro_wl_balance_state.cpp
                 Chassis/fsm/pyro_wl_jump_state.cpp
                 Chassis/fsm/pyro_wl_spin_state.cpp
+                Chassis/fsm/pyro_wl_rescue_state.cpp
 
 
                 Application/Chassis_board/pyro_wl_chassis_app.cpp
@@ -80,7 +81,7 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
         target_include_directories(Infantry1
                 PUBLIC
                 ${CMAKE_CURRENT_SOURCE_DIR}
-                ${CMAKE_CURRENT_SOURCE_DIR}/Application/Gimabl_board
+                ${CMAKE_CURRENT_SOURCE_DIR}/Application/Gimbal_board
                 ${CMAKE_CURRENT_SOURCE_DIR}/Application/Booster_board
                 ${CMAKE_CURRENT_SOURCE_DIR}/Gimbal
                 ${CMAKE_CURRENT_SOURCE_DIR}/Booster

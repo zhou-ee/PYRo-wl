@@ -190,7 +190,6 @@ void wl_chassis_t::_execute_air_control()
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::enter(wl_chassis_t *owner)
 {
-    owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
     owner->_ctx.data.airborne.landing_counter = 0;
     owner->_ctx.data.airborne.L_ref =
         0.5f * (owner->_ctx.data.leg[leg_def::L].current_leg_length +
@@ -211,7 +210,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::execute(wl_chassis
 {
     if (owner->_detect_landing())
     {
-        owner->_ctx.data.airborne.state = chassis_function_state_t::NONE;
         owner->_ctx.data.airborne.landing_recovery = true;
         owner->_ctx.data.airborne.L_ref =
             0.5f * (owner->_ctx.data.leg[leg_def::L].current_leg_length +

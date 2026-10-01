@@ -37,6 +37,7 @@ public:
         uint32_t step_mode        : 1;
         uint32_t spining          : 1;
         uint32_t rescue           : 1;
+        uint32_t jump             : 1;
     };
 
     /**
@@ -45,7 +46,8 @@ public:
     struct c2g_data_t
     {
 
-        uint32_t chassis_is_align_ready : 1; //机体姿态对齐的标志位,只供给云盘读取
+        uint32_t chassis_is_align_ready : 1; //机体姿态对齐的标志位,只供给云盘读取、
+        uint32_t chassis_is_rescuing    : 1; //机体姿态自救的标志位,只供给云盘读取、
         uint32_t count;
         
     };

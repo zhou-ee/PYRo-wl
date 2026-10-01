@@ -83,7 +83,7 @@ static void update_and_send_feedback()
     auto &vrc = pyro::rc_drv_t::read();
 
     // 2. 获取当前的运行上下文
-    auto gimbal_ctx = pyro::wl_gimbal_t::instance()->get_ctx();
+    auto gimbal_ctx  = pyro::wl_gimbal_t::instance()->get_ctx();
     auto booster_ctx = pyro::wl_booster_t::instance()->get_ctx();
 
     //接下来向其中填充pc需要的自瞄数据

@@ -19,6 +19,7 @@ using namespace pyro;
 constexpr uint32_t EVENT_BIT_RESTART   = (1 << 0); 
 constexpr uint32_t EVENT_BIT_STEP      = (1 << 1); 
 constexpr uint32_t EVENT_BIT_JUMP      = (1 << 2); 
+constexpr uint32_t EVENT_BIT_RESCUE    = (1 << 3);
 
 
 
@@ -47,8 +48,6 @@ extern "C"
             uint32_t notify_val = 0;
             // 接收任务通知事件（不阻塞等待，0 tick延时）
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
-            
-
             
             if (board_ptr->check_online())
             {
@@ -94,10 +93,12 @@ extern "C"
                             chassis_task_handle, EVENT_BIT_RESTART);
     pyro::sw_broker::subscribe(&vrc.switches.right, pyro::sw_event_t::DOWN_TO_UP,
                             chassis_task_handle, EVENT_BIT_RESTART);
-    pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
-                            chassis_task_handle, EVENT_BIT_STEP);
+    // pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
+    //                         chassis_task_handle, EVENT_BIT_STEP);
     pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_DOWN, 
                             chassis_task_handle, EVENT_BIT_JUMP);
+    pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
+                            chassis_task_handle, EVENT_BIT_RESCUE);
 
         vTaskDelete(nullptr);
     }
@@ -150,8 +151,15 @@ void gimbal_cmd()
         {
             wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::STEP;
         }
-      //暂用小陀螺为跳跃
         if (g2c_data.spining == 1)
+        {
+            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::JUMP;
+        }
+        if (g2c_data.rescue == 1)
+        {
+            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::RESCUE;
+        }
+        if (g2c_data.jump == 1)
         {
             wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::JUMP;
         }
@@ -223,6 +231,10 @@ void chassis_dr162cmd(uint32_t notify)
              pyro::sw_pos_t::UP == vrc.switches.right.current_pos)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::JUMP;
+    }
+    else if (notify & EVENT_BIT_RESCUE)
+    {
+        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::RESCUE;
     }
 
 

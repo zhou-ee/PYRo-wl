@@ -29,14 +29,13 @@ constexpr float KNEE_CALIBRATION_OFFSET = 2.62047f;
 
 constexpr float LEFT_HIP_OFFSET =
     -loop_fp32_PI(2.77928f + HIP_CALIBRATION_OFFSET);
-    -loop_fp32_PI(2.77928f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(3.04188f + KNEE_CALIBRATION_OFFSET);
     -loop_fp32_PI(3.04188f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
     -loop_fp32_PI(-1.63108f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
     -loop_fp32_PI(-0.35833f + KNEE_CALIBRATION_OFFSET);
+
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
 // constexpr float RIGHT_HIP_OFFSET  =0;
@@ -145,7 +144,7 @@ constexpr float L_WP_POLY_COEF[L_WP_POLY_DEGREE + 1] = {0.0581f, 0.3760f,
 
 constexpr float WHEEL_RADIUS                         = 0.06f;
 
-constexpr static float YAW_OFFSET = 0.95f;
+constexpr static float YAW_OFFSET = -1.152f;
 
 #define Using_Gimbal_Cmd 1
 
@@ -169,6 +168,6 @@ enum : uint8_t
 
 
 //各种开关
-#define Using_Gimbal_Cmd 0
+#define Using_Gimbal_Cmd 1
 } // namespace pyro
 #endif

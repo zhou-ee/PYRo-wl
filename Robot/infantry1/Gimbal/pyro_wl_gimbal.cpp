@@ -62,6 +62,7 @@ void wl_gimbal_t::_update_feedback()
     _ctx.data.motionState              = _current_cmd.state_cmd;
     _ctx.data.mode                     = _current_cmd.mode;
     _ctx.data.chassis_is_ready         = _current_cmd.chassis_is_ready;
+    _ctx.data.chassis_is_rescuing      = _current_cmd.chassis_is_rescuing;
 
     static uint32_t dwtCnt;
     _ctx.data.dt = pyro::dwt_drv_t::get_delta_t(&dwtCnt);
@@ -190,7 +191,7 @@ void wl_gimbal_t::align_updatePitch()
     _ctx.data.output.pitchTorque = gravityFf + pitch_torque;
     _ctx.data.output.pitchEn                = true;
 }
-void wl_gimbal_t::align_updateYaw()
+void wl_gimbal_t::align_updateYaw(float target_motor_yaw)
 {
     /*1. 在线检测 */
     if (!_ctx.data.state.yaw.online) {
@@ -202,7 +203,13 @@ void wl_gimbal_t::align_updateYaw()
     }
 
     //角度归一化
-    float error_rad = wrapAngle(_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD);
+    float error_rad = wrapAngle((_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD) + target_motor_yaw);
+    //死区判断
+    if(fabs(error_rad) <= 0.02f)
+    {
+        _ctx.data.output.yawCurrent = 0.0f;
+        return;
+    }
     float tgt_yaw_spd       = _module_deps.pid_deps.yaw_pos->calculate(0.0f, error_rad);
     //速度环
     static constexpr float omega_0 = 30.0f;

@@ -18,30 +18,60 @@ void pyro::wl_gimbal_t::fsm_active_t::state_align_t::enter(owner *owner)
 
 void pyro::wl_gimbal_t::fsm_active_t::state_align_t::execute(owner *owner) 
 {
-    owner->align_updatePitch();
+    //判断底盘是否在自救状态，如果在自救状态，则可选择正前或者正反方向进行就近复位，不管pitch轴
 
-    if(owner->_ctx.data.state.pitch.pos<PITCH_LIMIT_MAX+0.4f)
+    if(owner->_ctx.data.chassis_is_rescuing)
     {
-        float error_rad = owner->_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD;
-        owner->align_updateYaw();
-
-        static int count = 0;
-        if(fabs(error_rad) < 0.1f)
+        //判断最短路径
+        float shortest_path = owner->_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD;
+        while(shortest_path > PI)
         {
-            if(count >= 50)
-            {
-                if(owner->_ctx.data.chassis_is_ready)
-                {
-                    request_switch(&owner->_state_active._state_manual);
-                }
-            }
-            count++;
+            shortest_path -= 2*PI;
         }
-        else
+        while(shortest_path < -PI)
         {
-            count = 0;
+            shortest_path += 2*PI;
+        }
+        //判断是到PI还是0
+        if(abs(shortest_path) > PI/2.0f)
+        {
+            owner->align_updateYaw(PI);
+        }
+        else 
+        {
+            owner->align_updateYaw(0.0f);
+        }
+        
+        
+        owner->align_updateYaw(PI);
+    }
+    else 
+    {
+        owner->align_updatePitch();
+        if(owner->_ctx.data.state.pitch.pos<PITCH_LIMIT_MAX+0.4f)
+        {
+            float error_rad = owner->_ctx.data.state.yaw.pos - YAW_ALIGN_TARGET_RAD;
+            owner->align_updateYaw(0.0f);
+
+            static int count = 0;
+            if(fabs(error_rad) < 0.1f)
+            {
+                if(count >= 50)
+                {
+                    if(owner->_ctx.data.chassis_is_ready)
+                    {
+                        request_switch(&owner->_state_active._state_manual);
+                    }
+                }
+                count++;
+            }
+            else
+            {
+                count = 0;
+            }
         }
     }
+    
  
 }
 
