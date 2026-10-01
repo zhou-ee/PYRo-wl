@@ -135,7 +135,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
      if (!owner->_ctx.data.airborne.landing_recovery &&
          owner->_detect_takeoff())
      {
-         owner->_ctx.data.airborne.state = chassis_function_state_t::AIR;
          owner->_ctx.data.airborne.takeoff_counter = 0;
          owner->_ctx.data.airborne.landing_counter = 0;
          request_switch(&owner->_state_active._state_normal._state_air);

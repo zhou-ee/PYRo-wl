@@ -10,7 +10,6 @@ void wl_chassis_t::fsm_active_t::on_enter(wl_chassis_t *owner)
     owner->_getover_target_length[leg_def::L] = NORMAL_LENGTH_TARGET;
     owner->_getover_target_length[leg_def::R] = NORMAL_LENGTH_TARGET;
 
-    owner->_ctx.data.airborne.state = chassis_function_state_t::NONE;
     owner->_ctx.data.airborne.landing_recovery = false;
     owner->_ctx.data.airborne.takeoff_counter = 0;
     owner->_ctx.data.airborne.landing_counter = 0;
