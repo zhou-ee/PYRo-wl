@@ -145,6 +145,6 @@ enum : uint8_t
 
 
 //各种开关
-#define Using_Gimbal_Cmd 0
+#define Using_Gimbal_Cmd 1
 } // namespace pyro
 #endif

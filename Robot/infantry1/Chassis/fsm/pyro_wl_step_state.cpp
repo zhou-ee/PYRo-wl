@@ -9,8 +9,8 @@ namespace pyro
 
 //最短腿长的摆角：1.18 -- 2.1
 
-static constexpr float STEP_PHASE1_MAX_RAD       = -1.0f;
-static constexpr float STEP_PHASE1_TARGET_RAD    = -1.1f;
+static constexpr float STEP_PHASE1_MAX_RAD       = 0.2f;
+static constexpr float STEP_PHASE1_TARGET_RAD    = 0.1f;
 static constexpr float STEP_PHASE1_TARGET_LENGTH = 0.35f;
 
 static constexpr float STEP_PHASE2_TARGET_LENGTH = 0.19f;
@@ -18,7 +18,7 @@ static constexpr float STEP_PHASE2_TARGET_LENGTH = 0.19f;
 static constexpr float STEP_PHASE3_TARGET_RAD    = 1.2f;
 static constexpr float STEP_PHASE3_MIN_RAD       = 0.75f;
 
-static constexpr float STEP_DELTA_RAD            = 0.003f;
+static constexpr float STEP_DELTA_RAD            = 0.006f;
 static constexpr float STEP_DELTA_LENGTH         = 0.001f;
 
 

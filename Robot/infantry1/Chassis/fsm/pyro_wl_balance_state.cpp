@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <cmath>
 
-
+float debug = 0;
+float debug2 = 0;
 namespace pyro
 {
 
 static int reset_count;
+
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
@@ -76,6 +78,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         if(reset_count >= 50)
         {
             owner->_ctx.data.flag.leg_is_should_restart = true;
+            owner->_ctx.data.flag.chassis_is_align_ready =false;
         }
         reset_count++;
     }
@@ -86,6 +89,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 
 
     //自动上台阶判断
+
     static uint16_t auto_step_count = 0;
     static int press_forward_time = 0;
     //只有在按下前行1s后才可以进;
@@ -98,12 +102,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         press_forward_time = 0;
     }
 
+    debug = owner->_ctx.data.measured_state.dot_beta1;
+    debug2 = owner->_ctx.data.leg[leg_def::R].current_leg_rad;
+
     if (owner->_ctx.data.measured_state.L >= 0.30f &&
-        owner->_ctx.data.leg[leg_def::R].current_leg_rad< 1.2f && 
-        owner->_ctx.data.leg[leg_def::L].current_leg_rad< 1.2f &&
-        press_forward_time >= 500)
+        (owner->_ctx.data.leg[leg_def::R].current_leg_rad - owner->_ctx.data.measured_state.theta)< 1.2f && 
+        (owner->_ctx.data.leg[leg_def::L].current_leg_rad - owner->_ctx.data.measured_state.theta)< 1.2f &&
+        press_forward_time >= 200)
     {
-        if(auto_step_count >= 50)
+        if(auto_step_count >= 100)
         {
             request_switch(&owner->_state_active._state_normal._state_step);
         }
@@ -115,14 +122,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     }
 
     //离地检测
-     if (!owner->_ctx.data.airborne.landing_recovery &&
-         owner->_detect_takeoff())
-     {
-         owner->_ctx.data.airborne.takeoff_counter = 0;
-         owner->_ctx.data.airborne.landing_counter = 0;
-         request_switch(&owner->_state_active._state_normal._state_air);
-         return;
-     }
+    //  if (!owner->_ctx.data.airborne.landing_recovery &&
+    //      owner->_detect_takeoff())
+    //  {
+    //      owner->_ctx.data.airborne.takeoff_counter = 0;
+    //      owner->_ctx.data.airborne.landing_counter = 0;
+    //      request_switch(&owner->_state_active._state_normal._state_air);
+    //      return;
+    //  }
 
     //落地回复
     if (owner->_ctx.data.airborne.landing_recovery)

@@ -20,6 +20,14 @@ static void chassis_feedback()
     {
         tx_data.chassis_is_align_ready = 0;
     }
+    if(wl_chassis_t::instance()->get_ctx().data.flag.chassis_is_rescuing)
+    {
+        tx_data.chassis_is_rescuing = 1;
+    }
+    else
+    {
+        tx_data.chassis_is_rescuing = 0;
+    }
     count++;
     tx_data.count = count;
 }

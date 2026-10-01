@@ -647,7 +647,9 @@ void wl_chassis_t::_vmc_trans_v2j()
         //                               GAS_SPRING_COMPENSATION_SCALE *
         //                                   leg.gas_spring_force;
         const float t_p_motor = leg.out_T_p;
-        leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force ,
+        // leg.motor_f_l = std::clamp(f_l_before_wall + leg.virtual_wall_force ,
+        //                            -MAX_F_L, MAX_F_L);
+                leg.motor_f_l = std::clamp(f_l_before_wall  ,
                                    -MAX_F_L, MAX_F_L);
         leg.motor_t_p = t_p_motor;
 

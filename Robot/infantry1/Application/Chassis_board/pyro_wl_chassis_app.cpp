@@ -49,8 +49,6 @@ extern "C"
             // 接收任务通知事件（不阻塞等待，0 tick延时）
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
             
-
-            
             if (board_ptr->check_online())
             {
                 
@@ -156,6 +154,10 @@ void gimbal_cmd()
         if (g2c_data.spining == 1)
         {
             wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::SPIN_TOGGLE;
+        }
+        if (g2c_data.rescue == 1)
+        {
+            wl_chassis_cmd_ptr->cmd_function_state       = pyro::chassis_function_state_t::RESCUE;
         }
 
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;

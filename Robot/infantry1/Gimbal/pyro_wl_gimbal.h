@@ -34,6 +34,7 @@ struct wl_gimbal_cmd_t {
     MotionState state_cmd;
 
     bool chassis_is_ready;
+    bool chassis_is_rescuing;
 
 
 };
@@ -117,6 +118,7 @@ struct wl_gimbal_data_ctx_t final : public cmd_base_t
     uint8_t motionState;
 
     bool chassis_is_ready;
+    bool chassis_is_rescuing;
 
 };
 
@@ -165,7 +167,7 @@ class wl_gimbal_t final
     void updatePitch();
     void updateYaw();
     void align_updatePitch();
-    void align_updateYaw();
+    void align_updateYaw(float target_motor_yaw);
 
     void _send_motor_command();
     float wrapAngle(float angle);//角度归一化到正负PI

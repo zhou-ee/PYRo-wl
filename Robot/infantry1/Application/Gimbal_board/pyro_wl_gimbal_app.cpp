@@ -58,11 +58,13 @@ extern "C"
             {
                 const auto& c2g_data = board_ptr->get_c2g_rx_data();
                 wl_gimbal_cmd_ptr->chassis_is_ready = c2g_data.chassis_is_align_ready;
+                wl_gimbal_cmd_ptr->chassis_is_rescuing = c2g_data.chassis_is_rescuing;
                 count = c2g_data.count;
             }
             else 
             {
                 wl_gimbal_cmd_ptr->chassis_is_ready = true;
+                wl_gimbal_cmd_ptr->chassis_is_rescuing = false;
             }
 
 
