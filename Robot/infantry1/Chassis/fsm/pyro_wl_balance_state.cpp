@@ -12,6 +12,7 @@ static int reset_count;
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
     owner->_ctx.data.odom.wheel_x            = 0;
+    owner->_reset_forward_kf();
 
     owner->_ctx.data.target_state.x         = 0;
     owner->_ctx.data.target_state.dot_x     = 0.0f;
@@ -188,6 +189,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     
 
     owner->_gain_calculate();
+    // Use the just-finished interval's output with the current scheduled trim.
+    owner->_calc_ddot_x_model();
+    owner->_update_forward_kf();
 #if RDOB_EN
     owner->_rdob_update();
     owner->_calc_state_deviation();
@@ -226,6 +230,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::exit(wl_chassis_t *owner)
 {
     owner->_ctx.data.rdob = rdob_data_t{};
+    owner->_ctx.data.odom.ddot_x_model = 0.0f;
 }
 
 } // namespace pyro

@@ -5,6 +5,7 @@
 #include "pyro_algo_pid.h"
 #include "pyro_module_base.h"
 #include "pyro_motor_base.h"
+#include "pyro_wl_forward_kf.h"
 #include "wl_config.h"
 #include "dsp/window_functions.h"
 #include <cstdint>
@@ -151,6 +152,7 @@ struct control_vec_t
 struct odom_t
 {
     float X[4]; // 0:x 1:v 2:a 3:b_a
+    float slip_score;
     float wheel_x;
     float wheel_dot_x[2]; // 0 : v_x(t) , 1 :v_x(t-1)
     float ddot_x_imu;// 轮心中点 C 的航向前向加速度，m/s^2
@@ -217,8 +219,8 @@ struct wl_chassis_data_ctx_t
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
     float U0[INPUT_DIM];
-    float Hxi[GENERAL_STATE_DIM - 2U];
-    float Bx[INPUT_DIM];
+    float Hxi[MODEL_ACCEL_STATE_DIM]; // k_theta,k_phi,k_beta1,k_beta2
+    float Bx[INPUT_DIM];              // b_w1,b_w2,b_p1,b_p2,b_f1,b_f2
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;
@@ -262,6 +264,7 @@ class wl_chassis_t final
     void _fsm_execute() override;
 
     // 私有成员变量
+    wl_forward_kf_t _forward_kf;
 
     // 辅助函数
     void _vmc_trans_j2v();
@@ -286,6 +289,8 @@ class wl_chassis_t final
     void _calc_state_deviation();
     void _calc_ddot_x_imu();
     void _calc_ddot_x_model();
+    void _reset_forward_kf();
+    void _update_forward_kf();
 
     using owner = wl_chassis_t;
 

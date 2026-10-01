@@ -17,6 +17,7 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 pyro_mission_planer.cpp
 
                 Chassis/pyro_wl_chassis.cpp
+                Chassis/pyro_wl_forward_kf.cpp
                 Chassis/fsm/pyro_wl_active_state.cpp
                 Chassis/fsm/pyro_wl_manual_state.cpp
                 Chassis/fsm/pyro_wl_passive_state.cpp

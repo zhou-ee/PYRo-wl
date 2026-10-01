@@ -56,6 +56,8 @@ typedef struct kf_t
 
     uint8_t UseAutoAdjustment;
     uint8_t MeasurementValidNum;
+    uint8_t UseJosephForm;           // optional stable covariance update
+    uint8_t MeasurementUpdateFailed; // keep prediction if innovation inverse fails
 
     uint8_t *MeasurementMap;      // 量测与状态的关系 how measurement relates to the state
     float *MeasurementDegree;     // 测量值对应H矩阵元素值 elements of each measurement in H
@@ -91,6 +93,7 @@ typedef struct kf_t
     void (*User_Func4_f)(struct kf_t *kf);
     void (*User_Func5_f)(struct kf_t *kf);
     void (*User_Func6_f)(struct kf_t *kf);
+    void *UserData; // callback context, owned by the caller
     
     // 矩阵存储空间指针
     float *xhat_data, *xhatminus_data;

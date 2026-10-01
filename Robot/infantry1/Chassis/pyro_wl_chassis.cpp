@@ -47,6 +47,7 @@ status_t wl_chassis_t::_init()
     _ctx.data.wheel[leg_def::L].direction     = LEFT_WHEEL_DIRECTION;
     _ctx.data.wheel[leg_def::R].direction     = RIGHT_WHEEL_DIRECTION;
 
+    _forward_kf.init();
     return PYRO_OK;
 }
 
@@ -709,21 +710,89 @@ void wl_chassis_t::_calc_ddot_x_imu()
 
 void wl_chassis_t::_calc_ddot_x_model()
 {
+    const float norm_L1 = std::clamp(
+        (_ctx.data.leg[leg_def::L].current_leg_length - MODEL_ACCEL_LENGTH_CENTER) *
+            MODEL_ACCEL_LENGTH_INV_SCALE,
+        -1.0f, 1.0f);
+    const float norm_L2 = std::clamp(
+        (_ctx.data.leg[leg_def::R].current_leg_length - MODEL_ACCEL_LENGTH_CENTER) *
+            MODEL_ACCEL_LENGTH_INV_SCALE,
+        -1.0f, 1.0f);
+
+    for (uint8_t i = 0; i < MODEL_ACCEL_STATE_DIM + INPUT_DIM; ++i)
+    {
+        const float *coefficient = MODEL_ACCEL_COEF[i];
+        const float x0 =
+            ((coefficient[3] * norm_L2 + coefficient[2]) * norm_L2 +
+             coefficient[1]) * norm_L2 + coefficient[0];
+        const float x1 =
+            (coefficient[6] * norm_L2 + coefficient[5]) * norm_L2 + coefficient[4];
+        const float x2 = coefficient[8] * norm_L2 + coefficient[7];
+        const float value =
+            ((coefficient[9] * norm_L1 + x2) * norm_L1 + x1) * norm_L1 + x0;
+        if (i < MODEL_ACCEL_STATE_DIM)
+        {
+            _ctx.data.Hxi[i] = value;
+        }
+        else
+        {
+            _ctx.data.Bx[i - MODEL_ACCEL_STATE_DIM] = value;
+        }
+    }
+
+    const state_vec_t &state = _ctx.data.measured_state;
+    // _gain_calculate() has refreshed beta0 and active U0 for these lengths.
+    // Measured-length scheduling makes delta_L_bar=0; no length-deviation term.
+    const float delta_q[MODEL_ACCEL_STATE_DIM] = {
+        state.theta, state.phi,
+        state.beta1 - _ctx.data.target_state.beta1,
+        state.beta2 - _ctx.data.target_state.beta2,
+    };
     auto &odom = _ctx.data.odom;
-    const auto &measured_state = _ctx.data.measured_state;
-    const auto &target_state = _ctx.data.target_state;
-    const auto &output = _ctx.data.output;
-    float error[5];
     odom.ddot_x_model = 0.0f;
-    for (uint8_t i = 0; i < 5; ++i)
+    for (uint8_t i = 0; i < MODEL_ACCEL_STATE_DIM; ++i)
     {
-        error[i] = target_state.data[2 * i + 4U] - measured_state.data[2 * i + 4U];
-        odom.ddot_x_model += _ctx.data.Hxi[i] * error[i];
+        odom.ddot_x_model += _ctx.data.Hxi[i] * delta_q[i];
     }
-    for (uint8_t input = 0; input < INPUT_DIM; input++)
+    for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
-        odom.ddot_x_model += _ctx.data.Bx[input] * _ctx.data.output.data[input];
+        // Both output and U0 contain active leg forces. The same scheduled
+        // passive gas force cancels in u_total - u0_total.
+        const float delta_u = _ctx.data.output.data[input] - _ctx.data.U0[input];
+        odom.ddot_x_model += _ctx.data.Bx[input] * delta_u;
     }
+}
+
+void wl_chassis_t::_reset_forward_kf()
+{
+    const bool wheel_valid = _ctx.motor.wheel[leg_def::L]->is_online() &&
+                             _ctx.motor.wheel[leg_def::R]->is_online();
+    const auto estimate = _forward_kf.reset(
+        0.0f, _ctx.data.odom.wheel_dot_x[0], _ctx.data.odom.ddot_x_imu, wheel_valid);
+    _ctx.data.odom.X[0] = estimate.x;
+    _ctx.data.odom.X[1] = estimate.v;
+    _ctx.data.odom.X[2] = estimate.a;
+    _ctx.data.odom.X[3] = estimate.imu_acc_bias;
+    _ctx.data.odom.slip_score = estimate.slip_score;
+    _ctx.data.measured_state.x = estimate.x;
+    _ctx.data.measured_state.dot_x = estimate.v;
+}
+
+void wl_chassis_t::_update_forward_kf()
+{
+    auto &odom = _ctx.data.odom;
+    const bool wheel_valid = _ctx.motor.wheel[leg_def::L]->is_online() &&
+                             _ctx.motor.wheel[leg_def::R]->is_online();
+    const auto estimate = _forward_kf.update(
+        odom.ddot_x_imu, odom.ddot_x_model, odom.wheel_dot_x[0], wheel_valid);
+    odom.X[0] = estimate.x;
+    odom.X[1] = estimate.v;
+    odom.X[2] = estimate.a;
+    odom.X[3] = estimate.imu_acc_bias;
+    odom.slip_score = estimate.slip_score;
+    // Only the first two entries of the 14-state feedback are replaced.
+    _ctx.data.measured_state.x = estimate.x;
+    _ctx.data.measured_state.dot_x = estimate.v;
 }
 
 void wl_chassis_t::_actual_output_update()

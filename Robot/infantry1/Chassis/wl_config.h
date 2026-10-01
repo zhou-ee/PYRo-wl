@@ -32,6 +32,61 @@ constexpr float IMU_ACCEL_DIFF_A                  =
 constexpr float IMU_ACCEL_DIFF_B                  =
     2.0f * IMU_ACCEL_WC / (2.0f + IMU_ACCEL_WC * IMU_ACCEL_TS);
 
+// 四状态前向 KF，固定 1 kHz；Q/R/P 均为方差，以下为初始整定值。
+constexpr float FORWARD_KF_TS                    = 0.001f;
+constexpr float FORWARD_KF_ACCEL_VARIANCE        = 0.04f;   // (m/s^2)^2 / step
+constexpr float FORWARD_KF_BIAS_VARIANCE         = 1.0e-7f; // (m/s^2)^2 / step
+constexpr float FORWARD_KF_R_IMU                 = 0.25f;   // (m/s^2)^2
+constexpr float FORWARD_KF_R_MODEL               = 1.0f;    // (m/s^2)^2
+constexpr float FORWARD_KF_R_WHEEL               = 0.0025f; // (m/s)^2
+constexpr float FORWARD_KF_P_INIT[4]             = {0.01f, 0.25f, 1.0f, 0.25f};
+constexpr float FORWARD_KF_MIN_VARIANCE[4]       = {1.0e-8f, 1.0e-6f, 1.0e-5f, 1.0e-8f};
+constexpr float FORWARD_KF_WHEEL_CUTOFF_HZ       = 15.0f;
+constexpr float FORWARD_KF_WHEEL_WC              = 2.0f * PI * FORWARD_KF_WHEEL_CUTOFF_HZ;
+constexpr float FORWARD_KF_WHEEL_DIFF_A          =
+    (2.0f - FORWARD_KF_WHEEL_WC * FORWARD_KF_TS) /
+    (2.0f + FORWARD_KF_WHEEL_WC * FORWARD_KF_TS);
+constexpr float FORWARD_KF_WHEEL_DIFF_B          =
+    2.0f * FORWARD_KF_WHEEL_WC / (2.0f + FORWARD_KF_WHEEL_WC * FORWARD_KF_TS);
+constexpr float FORWARD_KF_SLIP_NIS_LOW          = 4.0f;
+constexpr float FORWARD_KF_SLIP_NIS_HIGH         = 16.0f;
+constexpr float FORWARD_KF_SLIP_ACCEL_LOW        = 1.0f; // m/s^2
+constexpr float FORWARD_KF_SLIP_ACCEL_HIGH       = 4.0f; // m/s^2
+constexpr float FORWARD_KF_REFERENCE_ACCEL_LOW   = 1.0f; // m/s^2
+constexpr float FORWARD_KF_REFERENCE_ACCEL_HIGH  = 4.0f; // m/s^2
+constexpr float FORWARD_KF_SLIP_RISE_TAU         = 0.003f; // s，打滑评分上升
+constexpr float FORWARD_KF_SLIP_FALL_TAU         = 0.03f;  // s，轮速权重恢复
+constexpr float FORWARD_KF_WHEEL_R_MULTIPLIER    = 500.0f;
+
+// 前向模型加速度：L1/L2 总阶三次，来自上位机 model_acceleration_schedule.h。
+// 行序：k_theta,k_phi,k_beta1,k_beta2,b_w1,b_w2,b_p1,b_p2,b_f1,b_f2。
+// 列序：1,y,y^2,y^3,x,xy,xy^2,x^2,x^2y,x^3；腿长范围 [0.18,0.38] m。
+constexpr uint32_t MODEL_ACCEL_STATE_DIM             = 4U;
+constexpr float MODEL_ACCEL_LENGTH_CENTER          = 2.800000012e-01f;
+constexpr float MODEL_ACCEL_LENGTH_INV_SCALE       = 1.000000095e+01f;
+constexpr float MODEL_ACCEL_COEF[10][10] = {
+    // k_theta
+    {-2.895564539e-03f, 1.578039490e-02f, -8.613116108e-03f, 3.450470045e-03f, 1.578039490e-02f, -6.080517051e-05f, 3.500955791e-05f, -8.613116108e-03f, 3.500955791e-05f, 3.450470045e-03f},
+    // k_phi
+    {0.000000000e+00f, -3.264736831e-01f, 3.087833226e-01f, -1.142917573e-01f, 3.264736831e-01f, 0.000000000e+00f, -3.085462959e-05f, -3.087833226e-01f, 3.085462959e-05f, 1.142917573e-01f},
+    // k_beta1
+    {4.870008469e+01f, -5.145293102e-02f, 4.085071012e-02f, -1.707911678e-02f, 3.191469431e+00f, -8.676779456e-03f, 5.327824503e-03f, -1.822665453e+00f, 1.312274253e-03f, 7.751883268e-01f},
+    // k_beta2
+    {4.870008469e+01f, 3.191469431e+00f, -1.822665453e+00f, 7.751883268e-01f, -5.145293102e-02f, -8.676779456e-03f, 1.312274253e-03f, 4.085071012e-02f, 5.327824503e-03f, -1.707911678e-02f},
+    // b_w1
+    {9.673137665e+00f, 1.479585771e-03f, -2.238195011e-04f, 8.850350423e-05f, -2.854974382e-02f, -1.835711882e-04f, -8.320622146e-05f, -1.526049525e-01f, 3.119647154e-04f, 1.022374630e-01f},
+    // b_w2
+    {9.673137665e+00f, -2.854974382e-02f, -1.526049525e-01f, 1.022374630e-01f, 1.479585771e-03f, -1.835711882e-04f, 3.119647154e-04f, -2.238195011e-04f, -8.320622146e-05f, 8.850350423e-05f},
+    // b_p1
+    {1.704816818e+00f, 5.178009742e-04f, 3.019259893e-04f, -1.399408357e-04f, -4.866441190e-01f, 7.324374747e-04f, -4.861770722e-04f, 1.078990996e-01f, -1.774702105e-04f, -8.621597663e-03f},
+    // b_p2
+    {1.704816818e+00f, -4.866441190e-01f, 1.078990996e-01f, -8.621597663e-03f, 5.178009742e-04f, 7.324374747e-04f, -1.774702105e-04f, 3.019259893e-04f, -4.861770722e-04f, -1.399408357e-04f},
+    // b_f1
+    {-6.446957588e-03f, 1.844678809e-05f, 1.296279952e-04f, -4.841234477e-05f, 1.082370523e-03f, -3.353391776e-06f, -3.579941676e-07f, -1.372522791e-03f, 3.842601473e-06f, 3.117129381e-04f},
+    // b_f2
+    {-6.446957588e-03f, 1.082370523e-03f, -1.372522791e-03f, 3.117129381e-04f, 1.844678809e-05f, -3.353391776e-06f, 3.842601473e-06f, 1.296279952e-04f, -3.579941676e-07f, -4.841234477e-05f},
+};
+
 constexpr float loop_fp32_PI(float val)
 {
     while (val > PI)
