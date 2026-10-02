@@ -117,7 +117,7 @@ const float delta_q[MODEL_ACCEL_STATE_DIM] = {
 
 ## 4. 主动腿力与气弹簧
 
-`_ctx.data.output` 保存上一个完整平衡控制区间的最终执行器指令。腿摆矩和主动腿力已按最终关节限幅结果反算；它不是未限幅的 LQR `control`，也不是电机扭矩反馈测量。
+`_ctx.data.output` 保存上一个完整 balance/spin 控制区间的最终执行器指令。腿摆矩和主动腿力已按最终关节限幅结果反算；它不是未限幅的 LQR `control`，也不是电机扭矩反馈测量。
 
 `U0` 中的腿力是主动电机配平输入。虽然上位机动力学采用总腿力，但同一当前工作点的气弹簧力在差分中抵消：
 
@@ -141,21 +141,25 @@ odom.ddot_x_model += _ctx.data.Bx[input] * delta_u;
 
 ## 5. 调用位置及适用阶段
 
-`pyro_wl_balance_state.cpp` 中连续地面平衡周期的顺序为
+`pyro_wl_balance_state.cpp` 和 `pyro_wl_spin_state.cpp` 中连续地面控制周期的顺序为
 
 ```text
 读取 IMU/电机反馈并计算 measured_state、ddot_x_imu
+前向 x/v 暂取最近 KF 输出，不用原始轮里程覆盖
 更新控制目标
 _gain_calculate()        // 当前腿长的 K、主动 U0、beta0
 _calc_ddot_x_model()     // 当前反馈 + 已完成区间的 output；不使用扰动
-_rdob_update()           // 原有 RDOB 更新流程
+_update_forward_kf()     // 本拍融合结果写回 measured_state.x/dot_x
+_rdob_update()           // 仅 balance，随后计算状态偏差
 _balance_control()
 _vmc_trans_v2j()
 _actual_output_update()  // 保存最终指令，供下一周期读取
 发送执行器指令
 ```
 
-模型计算不改变控制目标、U0、执行器输出或 RDOB 状态。当前仅在地面平衡执行阶段更新该量；退出平衡时置零，避免在空中、手动等阶段留下上一平衡阶段的结果。置零代表该阶段停用本模型，不代表这些阶段的真实加速度为零。后续融合需按工作阶段使用，并在模式切换后等到本阶段已有完整上一控制区间。
+模型计算不改变控制目标、U0、执行器输出或 RDOB 状态。当前在 balance/spin 执行阶段更新该量，两条路径均在限幅后缓存实际输出；退出任一模式时置零。置零代表该阶段停用本模型，不代表这些阶段的真实加速度为零。模式切换后的首拍可能尚无本阶段的完整上一控制区间，模型量测精度不能由连续运行时的检查保证。
+
+当前系数基于零广义速度的地面配平线性化，未包含高速旋转的非线性速度耦合。spin 采用相同模型时，应通过旋转工况的残差整定 KF 的 Rmodel，不能把系数拟合误差等同于动态模型误差。
 
 ## 6. 自洽性与验证
 

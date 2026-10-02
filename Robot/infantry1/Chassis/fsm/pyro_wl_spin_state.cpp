@@ -18,8 +18,8 @@ static bool is_add_speed = 0; // 是否是加速阶段
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_t *owner)
 {
     owner->_ctx.data.odom.wheel_x = 0.0f;
+    owner->_reset_forward_kf();
     auto &target = owner->_ctx.data.target_state;
-    owner->_ctx.data.measured_state.x = 0.0f;
     target.x = owner->_ctx.data.measured_state.x;
     target.dot_x = 0.0f;
     target.psi = owner->_ctx.data.measured_state.psi;
@@ -187,6 +187,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
     owner->_ctx.data.normal_roll_force_trim = 0.0f;
 
     owner->_gain_calculate();
+    owner->_calc_ddot_x_model();
+    owner->_update_forward_kf();
     owner->_balance_control();
 
     owner->_ctx.data.leg[leg_def::L].out_F_L =
@@ -195,13 +197,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
         owner->_ctx.data.control.F_l2;
 
     owner->_vmc_trans_v2j();
+    owner->_actual_output_update();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::exit(wl_chassis_t *owner)
 {
-    (void)owner;
+    owner->_ctx.data.odom.ddot_x_model = 0.0f;
 }
 
 } // namespace pyro

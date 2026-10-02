@@ -131,8 +131,9 @@ void wl_chassis_t::_update_feedback()
     // 7. State vector feedback.
     state_vec_t &state = _ctx.data.measured_state;
 
-    state.x            = _ctx.data.odom.wheel_x;
-    state.dot_x        = (_ctx.data.odom.wheel_dot_x[0] + _ctx.data.odom.wheel_dot_x[1]) / 2;
+    // Retain the KF feedback; balance/spin refresh it again before RDOB/LQR.
+    state.x            = _ctx.data.odom.X[0];
+    state.dot_x        = _ctx.data.odom.X[1];
 
     #if Using_Gimbal_Cmd
     //更新yaw的反馈

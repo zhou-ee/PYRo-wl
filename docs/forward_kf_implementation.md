@@ -2,7 +2,7 @@
 
 实现位于 `Robot/infantry1/Chassis/pyro_wl_forward_kf.cpp/.h`，复用 `PYRo/Algorithm/KF/kalman_filter.cpp/.h` 和真实 CMSIS-DSP 矩阵函数。参数集中在 `wl_config.h` 的全大写 `FORWARD_KF_*` 常量中。
 
-当前在地面 `state_balance_t` 启用，使用已有 `ddot_x_imu`、无扰动的 `ddot_x_model` 和原始当拍轮速。只替换十四状态 LQR 的 `measured_state.x`、`measured_state.dot_x`。其他状态仍来自既有反馈路径。腾空、对齐、跳跃和高速 spin 未接入本地面三量测模型；重新进入 balance 时重置前向 KF，避免把暂停前的状态当作上一毫秒的数据。
+当前在地面 `state_balance_t` 和 `state_spin_t` 启用，覆盖调用 `_balance_control()` 的两条控制路径，使用已有 `ddot_x_imu`、无扰动的 `ddot_x_model` 和原始当拍轮速。只替换十四状态 LQR 的 `measured_state.x`、`measured_state.dot_x`。其他状态仍来自既有反馈路径。其余模式暂停前向 KF 更新；进入 balance 或 spin 时重置前向 KF，避免把暂停前的状态当作上一毫秒的数据。
 
 ## 1. 状态与离散模型
 
@@ -90,13 +90,13 @@ _kf.User_Func2_f = _adjust_wheel_r;
 
 `wl_forward_kf_t::init()` 直接写入上述 F/H/Q/R、最小方差，并通过 `reset()` 写入 P。沿用库的初始化分配，整个底盘生命周期仅分配一次；`init()` 重复调用不会再次分配，周期更新和模式重置没有动态分配。没有引入 Eigen。
 
-初次初始化为 `[0,0,0,0]`。进入 balance 时不能保证机器人静止，因此用
+初次初始化为 `[0,0,0,0]`。进入 balance 或 spin 时不能保证机器人静止，因此用
 
 \[
 X_0=[0,v_{wheel},\ddot x_{imu},0]^T
 \]
 
-初始化，并把轮速微分器的上一样本设为当前轮速，避免启动微分冲击。两轮编码器失效时初始 v 取零。每次重新进入 balance 都重置 P、bias 和 slip score，同时沿用既有 `wheel_x=0`、`target_state.x=0` 的位移原点约定。
+初始化，并把轮速微分器的上一样本设为当前轮速，避免启动微分冲击。两轮编码器失效时初始 v 取零。每次进入 balance 或 spin 都重置 P、bias 和 slip score，同时沿用既有 `wheel_x=0`、`target_state.x=0` 的位移原点约定。
 
 ## 3. 每拍预测与打滑评分
 
@@ -212,18 +212,31 @@ P=(I-KH)P^-(I-KH)^T+KRK^T.
 
 ## 5. 底盘接入与诊断输出
 
-地面 balance 控制顺序为
+反馈阶段的前向状态统一读取最近一次 KF 输出：
+
+```cpp
+state.x     = _ctx.data.odom.X[0];
+state.dot_x = _ctx.data.odom.X[1];
+```
+
+`_update_feedback()` 不再用原始轮里程覆盖这两项。随后 balance 或 spin 在执行本拍 LQR 前调用 `_update_forward_kf()`，同时更新 `odom.X` 和 `measured_state.x/dot_x`。因此 LQR 使用当拍融合值；反馈阶段暂存上一拍结果不会引入一拍控制延迟。其余模式保留最近一次结果，恢复地面控制时按上述规则重置。
+
+两条地面控制路径的共同顺序为
 
 ```text
 反馈与 IMU 映射
 → _gain_calculate()：本拍腿长对应的 beta0 / U0
 → _calc_ddot_x_model()：已结束控制区间的实际输出，无扰动
 → _update_forward_kf()：预测、slip/R、融合
-→ _rdob_update() / _calc_state_deviation()
+→ _rdob_update() / _calc_state_deviation()：仅 balance，沿用原有策略
 → _balance_control() → 执行器限幅与实际输出缓存
 ```
 
-只有 x、v 写入 LQR 反馈，模型加速度不依赖这两项，因而不会出现当前模型计算依赖当前 KF 输出的代数环。RDOB 随后读到融合后的 x/v，自己的六维状态和参数保持既有实现。
+balance 和 spin 都在执行器转换、限幅后调用 `_actual_output_update()`，让下一拍模型读取已完成区间的最终指令。退出任一模式时将 `ddot_x_model` 置零，表示暂停该模型。
+
+只有 x、v 写入 LQR 反馈，模型加速度不依赖这两项，因而不会出现当前模型计算依赖当前 KF 输出的代数环。balance 的 RDOB 随后读到融合后的 x/v，其状态和参数保持既有实现；spin 保持原来的 RDOB 调用策略。
+
+当前模型系数来自零广义速度的地面配平线性化，未包含高速旋转的非线性速度耦合。spin 接入相同 KF 并不改变这一模型适用限制；Rmodel 仍需结合旋转工况的模型残差整定。
 
 输出类型：
 
@@ -261,7 +274,7 @@ x 没有绝对位置观测，因此只能继承初始化原点并累计相对位
 1. 保持机器人静止，记录两路原始加速度、轮速及 bias。去掉均值后估算 Rimu/Rwheel；包含结构振动和实际映射残差，而非仅引用传感器手册噪声。零速时三条量测均应参与。
 2. 在可信无滑移运动段比较模型加速度与参考加速度，选择 Rmodel。多项式系数拟合误差不能直接当作模型加速度量测方差；实际还包含参数误差、未建模耦合和输入误差。
 3. 调 σa²：跟随加速明显滞后时提高；估计 a 抖动过强时降低，同时核对 R。σb² 远小于 σa²，bias 应慢变；不要用快速 bias 去吸收真实加速度。
-4. 用启动重复性确定 P0。bias 初始不确定度要允许收敛；检查 StateMinVariance 不高到压倒 Q/R。重新进入 balance 会重新学习 bias。
+4. 用启动重复性确定 P0。bias 初始不确定度要允许收敛；检查 StateMinVariance 不高到压倒 Q/R。进入 balance 或 spin 会重新学习 bias。
 5. 记录正常加速段的 γv、rwi、rim。带限轮速微分有相位滞后，阈值须覆盖正常动态和机械振动，先确认正常运动不会持续放大 Rwheel。
 6. 再用可控滑移数据调 NIS/加速度阈值、3 ms 上升/30 ms 下降时间常数和最大倍率。500 是初始值，允许在 100–1000 范围实验；分别检查短促打滑时的降权速度和证据消失后的恢复速度，以及静止轮被架空转动时的速度估计。
 7. 同步查看 x/v、估计 a、bias、slip score、Rwheel、求逆状态和实际周期。当前 F/Q/微分均按 1 ms 配置，周期明显变化或漏拍应先修正调度或引入真实 T。
@@ -285,6 +298,8 @@ ctest --test-dir build/forward-kf-tests -V
 ```
 
 检查已通过：20,000 拍静止合法零量测和协方差正定/对称性、15,000 拍静态 bias 收敛、30,000 拍运动轨迹与独立 double KF、当拍打滑降权与参考一致性门控、单拍轮速异常的 3 ms 上升及 30 ms 恢复尾部、编码器无效与恢复、真实 CMSIS 求逆失败回退、zSize>xhatSize 临时缓冲区、原 QuaternionEKF 的 10,000 拍静止回归。运动轨迹的 float32 状态与 double 参考最大差约 `3.34e-4`（不同状态的数值比较，非实机估计精度）。
+
+`chassis_control_chain` 从固件提取真实反馈、模型、KF 适配、LQR 及 balance/spin 状态函数，连续执行各三拍，包含单拍轮速异常。验证反馈不被原始轮里程覆盖、两种模式进入时的 KF 重置、每拍先调度再计算模型并融合、RDOB/LQR 读到当拍 KF 输出、其他十二项状态保持原值，以及下一拍模型读取上一拍限幅后的输入。传感器、执行器转换和 RDOB 入口采用测试替身；测试验证软件接线与 LQR 指令，不验证硬件动态或 RDOB 数值算法。两项 CTest 均已通过。
 
 另用 `tests/forward_kf/quaternion_ekf_trace.cpp` 对修改前后 KF 库输入相同的 20,000 拍三轴动态 IMU 序列，对比每拍四元数、gyro bias、姿态角、6 维状态和 6×6 协方差，共 52 个 float/拍，结果逐字节一致。该对照使用同一 PC 编译器和真实 CMSIS 矩阵实现；验证本次库改动未改变已有姿态路径的计算结果，不代表 ARM 与 PC 位级一致。
 
