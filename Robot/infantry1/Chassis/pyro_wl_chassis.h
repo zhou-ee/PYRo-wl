@@ -73,6 +73,7 @@ struct wl_chassis_cmd_t final : public cmd_base_t
 
     chassis_active_state_t cmd_continus_state;
     chassis_function_state_t cmd_function_state;
+    bool getover_detection_enabled{false};
 
 };
 
@@ -379,7 +380,8 @@ class wl_chassis_t final
     state_passive_t _state_passive;
     fsm_active_t _state_active;
 
-    bool _getover_active{false};
+    float _getover_elapsed{0.0f};
+    float _getover_rearm_elapsed{GETOVER_REARM_DELAY};
     float _getover_target_length[2]{NORMAL_LENGTH_TARGET, NORMAL_LENGTH_TARGET};
 };
 

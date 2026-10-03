@@ -6,7 +6,8 @@ namespace pyro
 
 void wl_chassis_t::fsm_active_t::on_enter(wl_chassis_t *owner)
 {
-    owner->_getover_active = false;
+    owner->_getover_elapsed = 0.0f;
+    owner->_getover_rearm_elapsed = GETOVER_REARM_DELAY;
     owner->_getover_target_length[leg_def::L] = NORMAL_LENGTH_TARGET;
     owner->_getover_target_length[leg_def::R] = NORMAL_LENGTH_TARGET;
 
