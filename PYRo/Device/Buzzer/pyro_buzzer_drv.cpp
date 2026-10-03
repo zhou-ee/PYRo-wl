@@ -65,6 +65,7 @@ void BuzzerDriver::updateHardware() {
     // 增量写入寄存器（只修改我们需要的位）
     TIM12->ARR = arr;
     TIM12->CCR2 = ccr;
+    TIM12->EGR |= TIM_EGR_UG;      // 关键：立即更新
     TIM12->CR1 |= TIM_CR1_CEN;      // 确保计数器运行（置位，不覆盖）
     TIM12->CCER |= TIM_CCER_CC2E;   // 确保输出使能（置位，不覆盖）
 }

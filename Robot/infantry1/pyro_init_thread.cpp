@@ -7,6 +7,7 @@
 #include "pyro_supercap_drv.h"
 #include "pyro_uart_drv.h"
 #include "pyro_vt03_rc_drv.h"
+#include "pyro_warning_drv.h"
 
 namespace pyro
 {
@@ -23,6 +24,8 @@ void pyro_init_thread(void *argument)
     dwt_drv_t::init(480);
     bsp_can::init_all();
     pyro::rc_drv_t::init_virtual_rc();
+    warning_drv_t::instance().start();
+    warning_drv_t::instance().set_warning_level(warning_drv_t::warning_type_t::WARNING_TYPE_3);
 
     can1_drv = &bsp_can::get_can1();
     can2_drv = &bsp_can::get_can2();

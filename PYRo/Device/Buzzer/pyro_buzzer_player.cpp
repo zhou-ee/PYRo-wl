@@ -106,7 +106,7 @@ void BuzzerPlayer::init() {
     xTaskCreate([](void*) {
         BuzzerPlayer::getInstance().mainloop();
         vTaskDelete(nullptr);
-    }, "buzzer_player", 256, nullptr, 1, nullptr);
+    }, "buzzer_player", 256, nullptr, configMAX_PRIORITIES - 2, nullptr);
 }
 
 void BuzzerPlayer::deinit() {
