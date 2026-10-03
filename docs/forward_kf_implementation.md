@@ -257,17 +257,23 @@ x 没有绝对位置观测，因此只能继承初始化原点并累计相对位
 
 ## 6. 共用 KF 库的修改与 IMU 兼容性
 
+下面记录前向 KF 接入时对旧 `kalman_filter.cpp/.h` 的修改。当前姿态估计已迁移到
+`Component/INS/pyro_ins_attitude`，由 INS 持有模型和通用 `ekf_t<6,3>`；
+算法层不再保留 QuaternionEKF、全局 QEKF_INS 或姿态回调接口。
+
 | 修改 | 对现有 IMU 姿态实例的影响 |
 |---|---|
 | `uSize==0` 不分配 ControlVector、不 memcpy 空 u_data | 保持无控制输入的数值行为，消除空指针调用 |
 | 临时矩阵/向量按 max(xhatSize,zSize) 分配 | 6 状态、3 量测姿态实例的缓冲区容量不变；修复一般 zSize>xhatSize 时的越界 |
-| 新增 UserData 回调上下文 | 前向 KF 指向自身；现有姿态回调不读取此字段 |
-| 新增 UseJosephForm，初始化默认零 | 前向 KF 显式开启；QuaternionEKF 继续使用原来的 P 更新 |
-| 新增 MeasurementUpdateFailed、标准逆失败回退 | 标准线性 KF 启用保护；QuaternionEKF 使用 SkipEq3 和自定义逆/修正，原有路径保持不变 |
+| 新增 UserData 回调上下文 | 前向 KF 指向自身；当前 INS 使用独立通用 EKF，不读取此字段 |
+| 新增 UseJosephForm，初始化默认零 | 前向 KF 显式开启；INS 姿态模型显式选择 SIMPLIFIED，保持原 P 更新 |
+| 新增 MeasurementUpdateFailed、标准逆失败回退 | 前向 KF 继续使用旧库保护；INS 由通用核心检查 CMSIS 错误，失败保留预测 |
 
-前向 KF 与 `QEKF_INS.IMU_QuaternionEKF` 为独立实例，F/H/Q/R/P、状态、回调和缓冲区各自拥有，不复用任何 IMU 姿态状态。新数值稳定行为不是全局开关。
+前向 KF 与 INS 内部的 `_attitude.ekf` 为独立实例，F/H/Q/R/P、状态和缓冲区各自拥有，
+不复用任何 IMU 姿态状态。新数值稳定行为不是全局开关。
 
-注意：姿态 EKF 的自定义回调仍含自己的 `Matrix_Inverse()`；这次对标准 SetK 的检查不会自动接管它的错误处理。没有在本任务中修改姿态估计公式。`KalmanFilter_t` 增加字段，所有依赖它的源码需要一起重新编译，不能混用旧二进制布局。
+当前姿态模型通过通用 `correct` 策略完成门控、增益调整和增量限幅，数值核心统一检查求逆结果。
+姿态估计公式和调参保持原行为。旧 `KalmanFilter_t` 增加字段，依赖它的源码仍需一起重新编译。
 
 ## 7. 实机整定顺序
 

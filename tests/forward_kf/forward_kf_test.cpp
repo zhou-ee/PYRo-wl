@@ -1,6 +1,6 @@
 #include "pyro_wl_forward_kf.h"
 #include "wl_config.h"
-#include "QuaternionEKF.h"
+#include "pyro_ins_attitude.h"
 
 #include <algorithm>
 #include <array>
@@ -287,11 +287,13 @@ int main()
           std::abs(wide.P_data[0] - 0.25f) < 1.0e-5f, "scratch supports zSize > xhatSize");
     std::puts("PASS: scratch storage for more measurements than states");
 
-    IMU_QuaternionEKF_Init(10.0f, 0.001f, 1000000.0f, 1.0f, 0.0f);
-    check(QEKF_INS.IMU_QuaternionEKF.UseJosephForm == 0, "existing EKF covariance mode preserved");
+    ins_attitude_t attitude;
+    attitude.init(10.0f, 0.001f, 1000000.0f, 1.0f, 0.0f);
+    check(attitude.ekf.get_options().covariance_update ==
+          kf_covariance_update_t::SIMPLIFIED, "existing EKF covariance mode preserved");
     for (int i = 0; i < 10000; ++i)
-        IMU_QuaternionEKF_Update(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 9.81f, 0.001f);
-    check(std::isfinite(QEKF_INS.q[0]) && std::abs(QEKF_INS.q[0] - 1.0f) < 0.005f,
+        attitude.update(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 9.81f, 0.001f);
+    check(std::isfinite(attitude.q[0]) && std::abs(attitude.q[0] - 1.0f) < 0.005f,
           "existing quaternion EKF regression");
     std::puts("PASS: existing quaternion EKF, 10000 steps");
     std::puts("All forward KF checks passed.");

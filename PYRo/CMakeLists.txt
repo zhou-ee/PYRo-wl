@@ -44,7 +44,6 @@ target_sources(PYRo PRIVATE
         Algorithm/OLS/pyro_algo_ols.cpp
         Algorithm/PID/pyro_algo_pid.cpp
         Algorithm/PD/pyro_algo_pd.cpp
-        Algorithm/EKF/QuaternionEKF.cpp
         Algorithm/KF/kalman_filter.cpp
         Algorithm/Common/pyro_algo_common.cpp
         Algorithm/CRC/PYRo_crc.cpp
@@ -63,6 +62,7 @@ target_sources(PYRo PRIVATE
         Component/Referee/pyro_referee.cpp
         Component/Image/pyro_image_drv.cpp
         Component/INS/pyro_ins.cpp
+        Component/INS/pyro_ins_attitude.cpp
         Component/Supercap/pyro_supercap_drv.cpp
         Component/SR/pyro_sonic_base_drv.cpp
         Component/SR/pyro_sr04_drv.cpp

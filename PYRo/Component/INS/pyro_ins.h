@@ -6,6 +6,7 @@
 #include "BMI088_driver.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "pyro_ins_attitude.h"
 struct ins_config_t
 {
     enum class imu_direct_t : uint8_t
@@ -33,6 +34,8 @@ namespace pyro {
 class ins_drv_t {
 private:
     IMU_Data_t imu_data;
+    // INS 持有姿态模型和独立 EKF。 / INS owns its attitude model and EKF.
+    ins_attitude_t _attitude;
     //quaternion=q0+i*q1+j*q2+k*q3
     float _q[4];
     float _gyro_b[3];
