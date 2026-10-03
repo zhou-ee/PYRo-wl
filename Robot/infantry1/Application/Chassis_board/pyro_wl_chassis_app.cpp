@@ -19,7 +19,7 @@ using namespace pyro;
 constexpr uint32_t EVENT_BIT_RESTART   = (1 << 0); 
 constexpr uint32_t EVENT_BIT_STEP      = (1 << 1); 
 constexpr uint32_t EVENT_BIT_JUMP      = (1 << 2); 
-constexpr uint32_t EVENT_BIT_RESCUE    = (1 << 3);
+constexpr uint32_t EVENT_BIT_GETOVER_DETECTION = (1 << 3);
 
 
 
@@ -98,7 +98,7 @@ extern "C"
     pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_DOWN, 
                             chassis_task_handle, EVENT_BIT_JUMP);
     pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::MID_TO_UP, 
-                            chassis_task_handle, EVENT_BIT_RESCUE);
+                            chassis_task_handle, EVENT_BIT_GETOVER_DETECTION);
 
         vTaskDelete(nullptr);
     }
@@ -108,6 +108,7 @@ void gimbal_cmd()
 {
     //云台命令
     const auto& g2c_data = board_ptr->get_g2c_rx_data();
+    wl_chassis_cmd_ptr->getover_detection_enabled = false;
     //下力模式
     if(g2c_data.mode == 0)
     {
@@ -203,6 +204,15 @@ void chassis_dr162cmd(uint32_t notify)
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
     auto &vrc = pyro::rc_drv_t::read();
 
+    if (vrc.switches.left.current_pos != pyro::sw_pos_t::UP)
+    {
+        wl_chassis_cmd_ptr->getover_detection_enabled = false;
+    }
+    else if (notify & EVENT_BIT_GETOVER_DETECTION)
+    {
+        wl_chassis_cmd_ptr->getover_detection_enabled = true;
+    }
+
     // 右开关控制底盘使能模式：不处于MID或DOWN时，失能
     if (pyro::sw_pos_t::DOWN == vrc.switches.right.current_pos)
     {
@@ -232,12 +242,6 @@ void chassis_dr162cmd(uint32_t notify)
     {
         wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::JUMP;
     }
-    else if (notify & EVENT_BIT_RESCUE)
-    {
-        wl_chassis_cmd_ptr->cmd_function_state = pyro::chassis_function_state_t::RESCUE;
-    }
-
-
     if (pyro::sw_pos_t::MID == vrc.switches.right.current_pos)
     {
         wl_chassis_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;

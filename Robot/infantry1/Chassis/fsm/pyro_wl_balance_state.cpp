@@ -82,11 +82,29 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         }
         reset_count++;
     }
-    else 
+    else
     {
         reset_count = 0;
     }
-
+    // 过坎
+    owner->_getover_rearm_elapsed = std::min(
+        owner->_getover_rearm_elapsed + owner->_ctx.data._dt,
+        GETOVER_REARM_DELAY);
+    const float beta[2] = {owner->_ctx.data.measured_state.beta1,
+                           owner->_ctx.data.measured_state.beta2};
+    const auto leg_hits_obstacle = [&](const uint8_t i) {
+        const auto &leg = owner->_ctx.data.leg[i];
+        return std::fabs(leg.current_leg_rad_accel) > LEG_ACCEL_THRESHOLD &&
+               beta[i] < -GETOVER_BETA_THRESHOLD;
+    };
+    if (owner->_current_cmd.getover_detection_enabled &&
+        owner->_getover_rearm_elapsed >= GETOVER_REARM_DELAY &&
+        (leg_hits_obstacle(leg_def::L) || leg_hits_obstacle(leg_def::R)))
+    {
+        owner->_getover_rearm_elapsed = 0.0f;
+        request_switch(&owner->_state_active._state_normal._state_getover);
+        return;
+    }
 
     //自动上台阶判断
 
@@ -122,14 +140,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     }
 
     //离地检测
-    //  if (!owner->_ctx.data.airborne.landing_recovery &&
-    //      owner->_detect_takeoff())
-    //  {
-    //      owner->_ctx.data.airborne.takeoff_counter = 0;
-    //      owner->_ctx.data.airborne.landing_counter = 0;
-    //      request_switch(&owner->_state_active._state_normal._state_air);
-    //      return;
-    //  }
+     if (!owner->_ctx.data.airborne.landing_recovery &&
+         owner->_detect_takeoff())
+     {
+         owner->_ctx.data.airborne.takeoff_counter = 0;
+         owner->_ctx.data.airborne.landing_counter = 0;
+         request_switch(&owner->_state_active._state_normal._state_air);
+         return;
+     }
 
     //落地回复
     if (owner->_ctx.data.airborne.landing_recovery)
