@@ -20,7 +20,7 @@ void chassis_vt03cmd(uint32_t notify)
 {
     auto &tx_data = board_drv_ptr->get_g2c_tx_data();
 
-    pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
+    //pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
     auto &vrc              = pyro::rc_drv_t::read();
     //判断当前模式
     if(vt03_drv_t::instance().check_online())
