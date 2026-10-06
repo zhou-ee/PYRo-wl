@@ -22,6 +22,8 @@ set(KF_SOURCES
     ${DSP_SOURCES})
 set(ATTITUDE_SOURCES
     ${REPO_ROOT}/PYRo/Component/INS/pyro_ins_attitude.cpp)
+set(MATRIX_SOURCES ${REPO_ROOT}/PYRo/Algorithm/Matrix/pyro_algo_matrix.cpp)
+add_executable(matrix_test matrix_test.cpp ${DSP_SOURCES})
 add_executable(forward_kf_test forward_kf_test.cpp ${KF_SOURCES}
     ${ATTITUDE_SOURCES})
 
@@ -52,10 +54,11 @@ target_compile_definitions(quaternion_ekf_reference_trace PRIVATE QEKF_REFERENCE
 
 set(OPTIMIZED_TEST_TARGETS)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_executable(matrix_optimized_test matrix_test.cpp ${DSP_SOURCES})
     add_executable(kalman_core_optimized_test kalman_core_test.cpp ${DSP_SOURCES})
     add_executable(quaternion_ekf_optimized_test quaternion_ekf_test.cpp
         ${ATTITUDE_SOURCES} ${DSP_SOURCES})
-    set(OPTIMIZED_TEST_TARGETS kalman_core_optimized_test quaternion_ekf_optimized_test)
+    set(OPTIMIZED_TEST_TARGETS matrix_optimized_test kalman_core_optimized_test quaternion_ekf_optimized_test)
     foreach(TEST_TARGET ${OPTIMIZED_TEST_TARGETS})
         # Verify bit-based finite guards even with finite-math assumptions.
         target_compile_options(${TEST_TARGET} PRIVATE
@@ -63,12 +66,14 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     endforeach()
 endif()
 
-foreach(TEST_TARGET forward_kf_test chassis_control_test kalman_core_test
+foreach(TEST_TARGET matrix_test forward_kf_test chassis_control_test kalman_core_test
         quaternion_ekf_test quaternion_ekf_trace quaternion_ekf_reference_trace
         ${OPTIMIZED_TEST_TARGETS})
+    target_sources(${TEST_TARGET} PRIVATE ${MATRIX_SOURCES})
     target_include_directories(${TEST_TARGET} PRIVATE
         ${REPO_ROOT}/Robot/infantry1/Chassis
         ${REPO_ROOT}/PYRo/Algorithm/Common
+        ${REPO_ROOT}/PYRo/Algorithm/Matrix
         ${REPO_ROOT}/PYRo/Algorithm/KF
         ${REPO_ROOT}/PYRo/Algorithm/EKF
         ${REPO_ROOT}/PYRo/Component/INS
@@ -82,6 +87,7 @@ foreach(TEST_TARGET forward_kf_test chassis_control_test kalman_core_test
         target_compile_options(${TEST_TARGET} PRIVATE -ffp-contract=off -fno-strict-aliasing)
     endif()
 endforeach()
+add_test(NAME matrix_checks COMMAND matrix_test)
 add_test(NAME forward_kf_checks COMMAND forward_kf_test)
 add_test(NAME chassis_control_chain COMMAND chassis_control_test)
 add_test(NAME kalman_core_checks COMMAND kalman_core_test)

@@ -17,11 +17,13 @@ namespace pyro
  * @tparam N 状态维度 / State dimension.
  * @tparam Z 最大观测维度 / Maximum observation dimension.
  * @tparam U 控制维度，0 表示无控制 / Control dimension; 0 means no control.
+ * @tparam CheckNumerics 数值检查，默认关闭 / Numeric validation, off by default.
  */
-template <std::size_t N, std::size_t Z, std::size_t U = 0>
-class linear_kalman_filter_t : public kalman_filter_t<N, Z>
+template <std::size_t N, std::size_t Z, std::size_t U = 0,
+          bool CheckNumerics = false>
+class linear_kalman_filter_t : public kf_t<N, Z, CheckNumerics>
 {
-    using base_t = kalman_filter_t<N, Z>;
+    using base_t = kf_t<N, Z, CheckNumerics>;
     static_assert(U <= 65535, "Invalid CMSIS control dimension");
 
   public:
@@ -30,26 +32,28 @@ class linear_kalman_filter_t : public kalman_filter_t<N, Z>
     using typename base_t::measurement_noise_t;
     using typename base_t::measurement_t;
     using typename base_t::observation_t;
+    using typename base_t::result_t;
     using typename base_t::state_t;
     using typename base_t::transition_t;
-    using control_t =
-        std::array<float, U>; ///< 控制向量 u，U×1 / Control vector.
-    using control_matrix_t =
-        std::array<float, N * U>; ///< B，N×U / Control matrix.
+    using control_t = vector_t<U>; ///< 控制向量 u，U×1 / Control vector.
+    using control_matrix_t = matrix_t<N, U>; ///< B，N×U / Control matrix.
 
     /// 线性预测 x_pred=F*x。 / Linear prediction x_pred=F*x.
     status_t predict(const transition_t &F, const covariance_t &Q_d)
     {
         if (!this->is_initialized())
-            return this->_report(PYRO_NOT_FOUND, kf_result_t::NOT_INITIALIZED);
-        if (!this->_finite(F))
-            return this->_report(PYRO_PARAM_ERROR, kf_result_t::INVALID_INPUT);
-        state_t x_pred{};
-        if (!this->_check(this->_multiply(
-                F.data(), N, N, this->get_state().data(), 1, x_pred.data())))
-            return PYRO_ERROR;
-        if (!this->_finite(x_pred))
-            return this->_report(PYRO_ERROR, kf_result_t::NON_FINITE_RESULT);
+            return this->_report(PYRO_NOT_FOUND, result_t::NOT_INITIALIZED);
+        if constexpr (CheckNumerics)
+        {
+            if (!matrix::is_finite(F))
+                return this->_report(PYRO_PARAM_ERROR, result_t::INVALID_INPUT);
+        }
+        const state_t x_pred = F * this->get_state();
+        if constexpr (CheckNumerics)
+        {
+            if (!matrix::is_finite(x_pred))
+                return this->_report(PYRO_ERROR, result_t::NON_FINITE_RESULT);
+        }
         return base_t::predict(x_pred, F, Q_d);
     }
 
@@ -59,24 +63,25 @@ class linear_kalman_filter_t : public kalman_filter_t<N, Z>
     {
         static_assert(U > 0, "Use predict(F,Q_d) when U is zero");
         if (!this->is_initialized())
-            return this->_report(PYRO_NOT_FOUND, kf_result_t::NOT_INITIALIZED);
-        if (!this->_finite(F) || !this->_finite(B) || !this->_finite(u))
-            return this->_report(PYRO_PARAM_ERROR, kf_result_t::INVALID_INPUT);
-        state_t x_pred{}, dx{};
-        if (!this->_check(this->_multiply(
-                F.data(), N, N, this->get_state().data(), 1, x_pred.data())) ||
-            !this->_check(
-                this->_multiply(B.data(), N, U, u.data(), 1, dx.data())) ||
-            !this->_check(
-                this->_add(x_pred.data(), dx.data(), N, 1, x_pred.data())))
-            return PYRO_ERROR;
-        if (!this->_finite(x_pred))
-            return this->_report(PYRO_ERROR, kf_result_t::NON_FINITE_RESULT);
+            return this->_report(PYRO_NOT_FOUND, result_t::NOT_INITIALIZED);
+        if constexpr (CheckNumerics)
+        {
+            if (!matrix::is_finite(F) || !matrix::is_finite(B) ||
+                !matrix::is_finite(u))
+                return this->_report(PYRO_PARAM_ERROR, result_t::INVALID_INPUT);
+        }
+        const state_t x_pred = F * this->get_state() + B * u;
+        if constexpr (CheckNumerics)
+        {
+            if (!matrix::is_finite(x_pred))
+                return this->_report(PYRO_ERROR, result_t::NON_FINITE_RESULT);
+        }
         return base_t::predict(x_pred, F, Q_d);
     }
 
-    /// 线性修正 y=z-H*x；缺测规则同 EKF。 / Linear correction; same missing
-    /// rows.
+    /// 计算观测残差（新息）y=z-H*x 后修正；缺测规则同 EKF。
+    /// Correct using measurement residual (innovation) y=z-H*x.
+    /// Missing-measurement rules match EKF.
     template <typename Policy = typename base_t::accept_t>
     status_t correct(const measurement_t &z, const observation_t &H,
                      const measurement_noise_t &R,
@@ -84,27 +89,35 @@ class linear_kalman_filter_t : public kalman_filter_t<N, Z>
                      Policy policy                  = Policy{})
     {
         if (!this->is_initialized())
-            return this->_report(PYRO_NOT_FOUND, kf_result_t::NOT_INITIALIZED);
+            return this->_report(PYRO_NOT_FOUND, result_t::NOT_INITIALIZED);
         measurement_t y{};
         measurement_mask_t active{};
         for (std::size_t row = 0; row < Z; ++row)
         {
-            active[row] = (!mask || (*mask)[row]) && kf_is_finite(z[row]);
+            active[row] = !mask || (*mask)[row];
+            if constexpr (CheckNumerics)
+                active[row] = active[row] && matrix::is_finite(z[row]);
             if (!active[row])
                 continue;
-            for (std::size_t col = 0; col < N; ++col)
-                if (!kf_is_finite(H[row * N + col]))
-                    return this->_report(PYRO_PARAM_ERROR,
-                                         kf_result_t::INVALID_INPUT);
+            if constexpr (CheckNumerics)
+            {
+                for (std::size_t col = 0; col < N; ++col)
+                    if (!matrix::is_finite(H[row * N + col]))
+                        return this->_report(PYRO_PARAM_ERROR,
+                                             result_t::INVALID_INPUT);
+            }
             float z_pred = 0.0f;
-            if (!this->_check(this->_multiply(H.data() + row * N, 1, N,
-                                              this->get_state().data(), 1,
-                                              &z_pred)))
+            if (!this->_check(matrix::multiply({H.data() + row * N, 1, N},
+                                               {this->get_state().data(), N, 1},
+                                               {&z_pred, 1, 1})))
                 return PYRO_ERROR;
             y[row] = z[row] - z_pred;
-            if (!kf_is_finite(y[row]))
-                return this->_report(PYRO_ERROR,
-                                     kf_result_t::NON_FINITE_RESULT);
+            if constexpr (CheckNumerics)
+            {
+                if (!matrix::is_finite(y[row]))
+                    return this->_report(PYRO_ERROR,
+                                         result_t::NON_FINITE_RESULT);
+            }
         }
         return base_t::correct(y, H, R, &active, policy);
     }

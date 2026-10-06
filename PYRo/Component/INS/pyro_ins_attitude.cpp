@@ -41,17 +41,17 @@ constexpr ins_attitude_t::filter_t::covariance_t INITIAL_COVARIANCE = {
 bool ins_attitude_t::_valid_config(float q_noise, float bias_noise,
                                    float r_noise, float fading, float accel_lpf)
 {
-    return kf_is_finite(q_noise) && q_noise >= 0.0f &&
-           kf_is_finite(bias_noise) && bias_noise >= 0.0f &&
-           kf_is_finite(r_noise) && r_noise >= 0.0f && kf_is_finite(fading) &&
-           fading > 0.0f && fading <= 1.0f && kf_is_finite(accel_lpf) &&
-           accel_lpf >= 0.0f;
+    return matrix::is_finite(q_noise) && q_noise >= 0.0f &&
+           matrix::is_finite(bias_noise) && bias_noise >= 0.0f &&
+           matrix::is_finite(r_noise) && r_noise >= 0.0f &&
+           matrix::is_finite(fading) && fading > 0.0f && fading <= 1.0f &&
+           matrix::is_finite(accel_lpf) && accel_lpf >= 0.0f;
 }
 
 status_t ins_attitude_t::init(float q_noise, float bias_noise, float r_noise,
                               float fading, float accel_lpf)
 {
-    if (kf_is_finite(fading) && fading > 1.0f)
+    if (matrix::is_finite(fading) && fading > 1.0f)
         // 兼容原接口的上限截断。 / Preserve the legacy upper clamp.
         fading = 1.0f;
     if (!_valid_config(q_noise, bias_noise, r_noise, fading, accel_lpf))
@@ -62,8 +62,8 @@ status_t ins_attitude_t::init(float q_noise, float bias_noise, float r_noise,
     // 首阶段迁移使用原协方差公式和求逆路径，保持正常输入下的数值行为。
     // Preserve normal-input behavior with the original covariance/inverse
     // paths.
-    options.covariance_update = kf_covariance_update_t::SIMPLIFIED;
-    options.solver            = kf_innovation_solver_t::INVERSE;
+    options.covariance_update = filter_t::covariance_update_t::SIMPLIFIED;
+    options.solver            = filter_t::solver_t::INVERSE;
     options.symmetrize        = false;
     _status = ekf.is_initialized() ? ekf.reset(x0, INITIAL_COVARIANCE)
                                    : ekf.init(x0, INITIAL_COVARIANCE, options);
@@ -106,8 +106,8 @@ status_t ins_attitude_t::update(float gx, float gy, float gz, float ax,
 {
     if (!Initialized && init(10.0f, 0.001f, 10000000.0f, 1.0f, 0.0f) != PYRO_OK)
         return _status;
-    if (!kf_is_finite(dt_s) || dt_s <= 0.0f || !kf_is_finite(gx) ||
-        !kf_is_finite(gy) || !kf_is_finite(gz) ||
+    if (!matrix::is_finite(dt_s) || dt_s <= 0.0f || !matrix::is_finite(gx) ||
+        !matrix::is_finite(gy) || !matrix::is_finite(gz) ||
         !_valid_config(Q1, Q2, R, lambda, accLPFcoef))
         return _status = PYRO_PARAM_ERROR;
 
@@ -117,7 +117,7 @@ status_t ins_attitude_t::update(float gx, float gy, float gz, float ax,
     Gyro[2] = gz - GyroBias[2];
     const float gyro_squared =
         Gyro[0] * Gyro[0] + Gyro[1] * Gyro[1] + Gyro[2] * Gyro[2];
-    if (!kf_is_finite(gyro_squared))
+    if (!matrix::is_finite(gyro_squared))
         return _status = PYRO_PARAM_ERROR;
     gyro_norm                     = 1.0f / inverse_sqrt(gyro_squared);
 
@@ -125,8 +125,9 @@ status_t ins_attitude_t::update(float gx, float gy, float gz, float ax,
     // Validate raw acceleration before it can contaminate the LPF history.
     float next_accel[3]           = {ax, ay, az};
     const float raw_accel_squared = ax * ax + ay * ay + az * az;
-    bool accel_valid              = kf_is_finite(ax) && kf_is_finite(ay) &&
-                       kf_is_finite(az) && kf_is_finite(raw_accel_squared) &&
+    bool accel_valid = matrix::is_finite(ax) && matrix::is_finite(ay) &&
+                       matrix::is_finite(az) &&
+                       matrix::is_finite(raw_accel_squared) &&
                        raw_accel_squared > 0.0f;
     if (accel_valid && _accel_initialized)
         for (std::size_t i = 0; i < 3; ++i)
@@ -142,7 +143,7 @@ status_t ins_attitude_t::update(float gx, float gy, float gz, float ax,
                                 next_accel[1] * next_accel[1] +
                                 next_accel[2] * next_accel[2];
     accel_valid =
-        accel_valid && kf_is_finite(accel_squared) && accel_squared > 0.0f;
+        accel_valid && matrix::is_finite(accel_squared) && accel_squared > 0.0f;
     StableFlag = 0;
     if (accel_valid)
     {
@@ -211,7 +212,7 @@ status_t ins_attitude_t::_predict()
     const float qw = x_pred[0], qx = x_pred[1];
     const float qy = x_pred[2], qz = x_pred[3];
     const float q_norm_sq = qw * qw + qx * qx + qy * qy + qz * qz;
-    if (!kf_is_finite(q_norm_sq) || q_norm_sq <= 0.0f)
+    if (!matrix::is_finite(q_norm_sq) || q_norm_sq <= 0.0f)
         return PYRO_PARAM_ERROR;
     const float q_inv_norm = inverse_sqrt(q_norm_sq);
     for (std::size_t i = 0; i < 4; ++i)

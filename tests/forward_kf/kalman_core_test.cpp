@@ -145,6 +145,11 @@ int main()
 {
     using filter_t = linear_kalman_filter_t<2, 3, 1>;
     filter_t filter;
+    linear_kalman_filter_t<2, 3, 1, true> checked_filter;
+    static_assert(!filter_t::check_numerics);
+    static_assert(!kf_t<1, 1>::check_numerics);
+    static_assert(!ekf_t<1, 1>::check_numerics);
+    static_assert(decltype(checked_filter)::check_numerics);
     filter_t::state_t x             = {0.2f, -0.1f};
     filter_t::covariance_t p        = {1, 0.1f, 0.1f, 0.5f};
     filter_t::transition_t f        = {1, 0.001f, 0, 1};
@@ -156,6 +161,7 @@ int main()
     check(filter.predict(f, q) == PYRO_NOT_FOUND, "uninitialized filter");
     const auto allocation_start = allocations;
     check(filter.init(x, p) == PYRO_OK, "init");
+    check(checked_filter.init(x, p) == PYRO_OK, "checked init");
     check(filter.init(x, p) == PYRO_ALREADY_INIT, "repeated init");
     Reference reference;
     for (int i = 0; i < 10000; ++i)
@@ -170,6 +176,11 @@ int main()
         check(filter.predict(f, q, b, u) == PYRO_OK,
               "time-varying control prediction");
         check(filter.correct(z, h, r) == PYRO_OK, "correlated correction");
+        check(checked_filter.predict(f, q, b, u) == PYRO_OK &&
+                  checked_filter.correct(z, h, r) == PYRO_OK &&
+                  checked_filter.get_state() == filter.get_state() &&
+                  checked_filter.get_covariance() == filter.get_covariance(),
+              "checked and unchecked paths are identical for valid models");
         reference.step(f.data(), q.data(), b.data(), u[0], z.data(), h.data(),
                        r.data());
         const auto &cov = filter.get_covariance();
@@ -187,7 +198,7 @@ int main()
     check(allocations == allocation_start, "no new/new[] in core lifecycle");
 
     // Nonadjacent rows must select the full correlated R submatrix.
-    using wide_t = linear_kalman_filter_t<1, 3>;
+    using wide_t = linear_kalman_filter_t<1, 3, 0, true>;
     wide_t wide;
     wide.init({2}, {1});
     wide_t::measurement_mask_t mask        = {true, false, true};
@@ -216,7 +227,8 @@ int main()
     wide.reset({2}, {1});
     check(wide.predict({std::numeric_limits<float>::max()}, {0}) ==
                   PYRO_ERROR &&
-              wide.get_diagnostics().result == kf_result_t::NON_FINITE_RESULT &&
+              wide.get_diagnostics().result ==
+                  wide_t::result_t::NON_FINITE_RESULT &&
               wide.get_state()[0] == 2,
           "finite-input prediction overflow does not commit");
     check(wide.reset({2}, {1}) == PYRO_OK, "recover reset");
@@ -238,7 +250,7 @@ int main()
           "solve recovery");
 
     // EKF residual is z-h(x), not z-H*x; gating stays inside one correction.
-    ekf_t<1, 1> nonlinear;
+    ekf_t<1, 1, true> nonlinear;
     nonlinear.init({2}, {1});
     nonlinear.predict({2}, {1}, {0});
     int policy_calls = 0;
@@ -275,11 +287,12 @@ int main()
     check(nonlinear.correct({5}, {4}, {4}, {1}, nullptr,
                             [](auto &) { return PYRO_ERROR; }) == PYRO_ERROR &&
               nonlinear.get_diagnostics().result ==
-                  kf_result_t::POLICY_FAILURE &&
+                  decltype(nonlinear)::result_t::POLICY_FAILURE &&
               nonlinear.get_state() == before_rejection,
           "policy failure reports without commit");
     nonlinear.correct({5}, {4}, {4}, {1});
-    check(nonlinear.get_diagnostics().result == kf_result_t::CORRECTED,
+    check(nonlinear.get_diagnostics().result ==
+              decltype(nonlinear)::result_t::CORRECTED,
           "correction recovers after a failed policy");
     const auto before_copy = nonlinear.get_state();
     auto copy              = nonlinear;
@@ -296,7 +309,7 @@ int main()
           "variance floor also applies to prediction without measurements");
 
     // Core owns only numerical propagation/fusion; any model supplies x_pred/y.
-    kalman_filter_t<1, 1> core;
+    kf_t<1, 1, true> core;
     core.init({2}, {1});
     check(core.predict({7}, {3}, {2}) == PYRO_OK && core.get_state()[0] == 7 &&
               core.get_covariance()[0] == 11,
@@ -334,7 +347,7 @@ int main()
                        }) == PYRO_PARAM_ERROR &&
               !called,
           "invalid residual fails before invoking policy");
-    kalman_filter_t<1, 1>::measurement_mask_t missing{false};
+    decltype(core)::measurement_mask_t missing{false};
     check(core.correct({nan}, {nan}, {nan}, &missing,
                        [&](auto &)
                        {
@@ -360,6 +373,32 @@ int main()
     check(square.correct({17}, {16}, {8}, {1}) == PYRO_OK &&
               std::fabs(square.get_state()[0] - (4 + 128.0f / 1025)) < 1e-6f,
           "independent EKF uses nonlinear observation and Jacobian");
+
+    kf_t<1, 1> fast_core;
+    check(fast_core.predict({0}, {1}, {0}) == PYRO_NOT_FOUND,
+          "unchecked core retains initialization checks");
+    fast_core.init({0}, {1});
+    // Intentionally violate the numeric input contract to verify scans are absent.
+    check(fast_core.predict({nan}, {1}, {0}) == PYRO_OK &&
+              !matrix::is_finite(fast_core.get_state()[0]),
+          "unchecked prediction does not scan numeric values");
+    fast_core.reset({0}, {0});
+    check(fast_core.correct({1}, {1}, {0}) == PYRO_ERROR &&
+              fast_core.get_diagnostics().math_status ==
+                  ARM_MATH_DECOMPOSITION_FAILURE &&
+              fast_core.get_state()[0] == 0,
+          "unchecked core retains solve errors and commit semantics");
+    fast_core.reset({2}, {1});
+    check(fast_core.correct({nan}, {nan}, {nan}, &missing) == PYRO_WARNING &&
+              fast_core.get_state()[0] == 2,
+          "unchecked missing rows use explicit mask");
+    ekf_t<1, 2> fast_ekf;
+    fast_ekf.init({2}, {1});
+    decltype(fast_ekf)::measurement_mask_t active{true, false};
+    check(fast_ekf.correct({0, nan}, {2, nan}, {1, nan}, {1, nan, nan, nan},
+                           &active) == PYRO_OK &&
+              std::fabs(fast_ekf.get_state()[0] - 1) < 1e-6f,
+          "unchecked EKF excludes explicitly masked invalid rows");
     check(allocations == allocation_start,
           "policies and nonlinear adapters allocate no heap memory");
     std::puts("PASS: generic KF, dynamic matrices/control, correlated/missing "

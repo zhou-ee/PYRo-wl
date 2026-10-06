@@ -160,7 +160,8 @@ class ins_attitude_t
     float R                 = 0.0f;
     /// 最近接受的采样周期，s。 / Last accepted sample period in s.
     float dt                = 0.0f;
-    /// 归一化新息平方 NIS = yᵀS⁻¹y，无量纲。 / Dimensionless NIS = yᵀS⁻¹y.
+    /// 归一化观测残差平方（标准名称：归一化新息平方，NIS），无量纲。
+    /// Normalized innovation squared (NIS) = yᵀS⁻¹y, dimensionless.
     float ChiSquare_Data[1]{};
     /// NIS 拒绝门限，保留原模型调参。 / NIS rejection threshold, legacy tuning.
     float ChiSquareTestThreshold = 1.0e-8f;

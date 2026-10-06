@@ -12,82 +12,13 @@
 #undef PI
 #include "pyro_core_def.h"
 #pragma pop_macro("PI")
-#include "arm_math.h"
+#include "pyro_algo_matrix.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 namespace pyro
 {
-
-// 按 float32 位模式识别 NaN/Inf，避免浮点优化假设绕过输入检查。
-// Inspect float32 bits so floating-point optimizations cannot bypass guards.
-inline bool kf_is_finite(float value)
-{
-    static_assert(sizeof(float) == sizeof(uint32_t), "Requires float32");
-    uint32_t bits;
-    std::memcpy(&bits, &value, sizeof(bits));
-    return (bits & 0x7f800000U) != 0x7f800000U;
-}
-
-/** @brief 协方差修正公式 / Posterior covariance update formula. */
-enum class kf_covariance_update_t : uint8_t
-{
-    // Joseph 形式：(I-KH)·P_pred·(I-KH)^T + K·R·K^T。
-    // Joseph form: (I-KH)·P_pred·(I-KH)^T + K·R·K^T.
-    JOSEPH,
-    // 简化形式：P_pred - K·H·P_pred；兼容旧 EKF，不保证数值半正定性。
-    // Simplified: P_pred - K·H·P_pred; legacy mode, no numerical PSD guarantee.
-    SIMPLIFIED
-};
-
-/** @brief 新息协方差求解方式 / Innovation covariance solver. */
-enum class kf_innovation_solver_t : uint8_t
-{
-    // S = LL^T，再做三角求解；要求 S 正定。
-    // Factor S = LL^T and use triangular solves; S must be positive definite.
-    CHOLESKY,
-    // 兼容路径：显式求逆，使用 S 的副本以保留原始新息协方差。
-    // Compatibility path: invert a copy of S, preserving the original S.
-    INVERSE
-};
-
-/** @brief 最近一次操作的阶段或原因 / Latest operation stage or reason. */
-enum class kf_result_t : uint8_t
-{
-    IDLE,      ///< 无操作或重置完成 / Idle or reset completed.
-    PREDICTED, ///< 已提交预测 / Prediction committed.
-    PREPARED, ///< 修正已准备，尚未提交 / Correction prepared, not committed.
-    CORRECTED,      ///< 已提交修正 / Correction committed.
-    NO_MEASUREMENT, ///< 无有效量测 / No active measurements.
-    REJECTED, ///< 模型门控拒绝量测 / Measurement rejected by model gating.
-    INVALID_INPUT, ///< 输入模型或参数无效 / Invalid model input or parameters.
-    NOT_INITIALIZED, ///< 尚未初始化 / Not initialized.
-    NOT_PREPARED, ///< 无可用的准备结果 / No prepared correction available.
-    POLICY_FAILURE,   ///< 外部策略失败 / External policy failed.
-    MATH_FAILURE,     ///< CMSIS 运算失败 / CMSIS operation failed.
-    NON_FINITE_RESULT ///< 运算产生 NaN/Inf / Operation produced NaN or
-                      ///< infinity.
-};
-
-/** @brief 操作状态和新息统计 / Operation status and innovation statistics. */
-struct kf_diagnostics_t
-{
-    // PYRo 返回码 / PYRo return code.
-    status_t status               = PYRO_OK;
-    // 操作阶段或失败原因 / Operation stage or failure reason.
-    kf_result_t result            = kf_result_t::IDLE;
-    // CMSIS 原始错误码；不被后续成功运算覆盖。
-    // Original CMSIS error code, preserved across subsequent successful work.
-    arm_status math_status        = ARM_MATH_SUCCESS;
-    // 本次准备或修正实际使用的量测行数 / Active rows in this
-    // preparation/correction.
-    std::size_t measurement_count = 0;
-    // 归一化新息平方 y^T S^-1 y；读取时检查 PREPARED/CORRECTED/REJECTED 状态。
-    // Normalized innovation squared y^T S^-1 y; valid after prepare succeeds.
-    float nis                     = 0.0f;
-};
 
 /**
  * @brief 固定维度、逐拍传入模型矩阵的滤波器。
@@ -95,6 +26,10 @@ struct kf_diagnostics_t
  * @tparam N 状态维度 / State dimension.
  * @tparam Z 最大量测维度，可大于 N / Maximum measurement dimension; may exceed
  * N.
+ * @tparam CheckNumerics 是否检查数值有效性，默认关闭；开启后扫描输入和结果。
+ *         Enable numerical validation; off by default; scans inputs and results.
+ *         关闭时由调用方保证有限值、合法协方差和方差下限，缺测使用 mask。
+ *         When off, caller ensures valid numeric inputs; missing rows use mask.
  *
  * 所有矩阵按行优先布局：元素 (row, col) 位于 row * 列数 + col。
  * All matrices are row-major: element (row, col) is at row * columns + col.
@@ -113,16 +48,83 @@ struct kf_diagnostics_t
  * Independent measurements may be corrected successively after one prediction.
  * Concurrent access to one instance must be synchronized by the caller.
  */
-template <std::size_t N, std::size_t Z> class kalman_filter_t
+template <std::size_t N, std::size_t Z, bool CheckNumerics = false> class kf_t
 {
     static_assert(N > 0 && Z > 0 && N <= 65535 && Z <= 65535,
                   "Invalid CMSIS matrix dimensions");
 
   public:
+    /** @brief 协方差修正公式 / Posterior covariance update formula. */
+    enum class covariance_update_t : uint8_t
+    {
+        // Joseph 形式：(I-KH)·P_pred·(I-KH)^T + K·R·K^T。
+        // Joseph form: (I-KH)·P_pred·(I-KH)^T + K·R·K^T.
+        JOSEPH,
+        // 简化形式：P_pred - K·H·P_pred；兼容旧 EKF，不保证数值半正定性。
+        // Simplified: P_pred - K·H·P_pred; legacy mode, no numerical PSD guarantee.
+        SIMPLIFIED
+    };
+
+    /** @brief 观测残差协方差（新息协方差）求解方式。
+     *         Measurement residual covariance (innovation covariance) solver.
+     */
+    enum class solver_t : uint8_t
+    {
+        // S = LL^T，再做三角求解；要求 S 正定。
+        // Factor S = LL^T and use triangular solves; S must be positive definite.
+        CHOLESKY,
+        // 兼容路径：显式求逆，使用 S 的副本以保留原始观测残差协方差。
+        // Compatibility path: invert a copy of S, preserving the original S.
+        INVERSE
+    };
+
+    /** @brief 最近一次操作的阶段或原因 / Latest operation stage or reason. */
+    enum class result_t : uint8_t
+    {
+        IDLE,      ///< 无操作或重置完成 / Idle or reset completed.
+        PREDICTED, ///< 已提交预测 / Prediction committed.
+        PREPARED, ///< 修正已准备，尚未提交 / Correction prepared, not committed.
+        CORRECTED,      ///< 已提交修正 / Correction committed.
+        NO_MEASUREMENT, ///< 无有效量测 / No active measurements.
+        REJECTED, ///< 模型门控拒绝量测 / Measurement rejected by model gating.
+        INVALID_INPUT, ///< 输入模型或参数无效 / Invalid model input or parameters.
+        NOT_INITIALIZED, ///< 尚未初始化 / Not initialized.
+        NOT_PREPARED, ///< 无可用的准备结果 / No prepared correction available.
+        POLICY_FAILURE,   ///< 外部策略失败 / External policy failed.
+        MATH_FAILURE,     ///< CMSIS 运算失败 / CMSIS operation failed.
+        NON_FINITE_RESULT ///< 运算产生 NaN/Inf / Operation produced NaN or
+                          ///< infinity.
+    };
+
+    /** @brief 操作状态和观测残差统计。
+     *         Operation status and measurement residual statistics.
+     */
+    struct diagnostics_t
+    {
+        // PYRo 返回码 / PYRo return code.
+        status_t status               = PYRO_OK;
+        // 操作阶段或失败原因 / Operation stage or failure reason.
+        result_t result               = result_t::IDLE;
+        // CMSIS 原始错误码；不被后续成功运算覆盖。
+        // Original CMSIS error code, preserved across subsequent successful work.
+        arm_status math_status        = ARM_MATH_SUCCESS;
+        // 本次准备或修正实际使用的量测行数 / Active rows in this
+        // preparation/correction.
+        std::size_t measurement_count = 0;
+        // 归一化观测残差平方（标准名称：归一化新息平方，NIS）y^T S^-1 y。
+        // Normalized innovation squared (NIS): squared, normalized residual.
+        // 读取时检查 PREPARED/CORRECTED/REJECTED 状态。
+        // Check PREPARED/CORRECTED/REJECTED before reading.
+        float nis                     = 0.0f;
+    };
+
+    /// 是否编译数值扫描 / Whether numerical scans are compiled in.
+    static constexpr bool check_numerics = CheckNumerics;
+
     /** @brief 状态向量 x 或预测状态 x-，N×1；各元素含义由模型定义。
      *         State or predicted-state vector x/x-, N×1; model-defined entries.
      */
-    using state_t             = std::array<float, N>;
+    using state_t                        = vector_t<N>;
     /** @brief 状态空间协方差 P/P-/P0 或离散过程噪声 Qd，N×N。
      *         State-space covariance P/P-/P0 or discrete process noise Qd, N×N.
      * 对角项为各状态误差方差，非对角项为误差间协方差。
@@ -132,7 +134,7 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
      * deviations. Qd 已包含噪声映射/离散化，核心不会自动乘 dt 或 G。 Qd already
      * includes noise mapping/discretization; no implicit dt or G.
      */
-    using covariance_t        = std::array<float, N * N>;
+    using covariance_t                   = matrix_t<N, N>;
     /** @brief 线性状态转移矩阵 F 或非线性状态函数的 Jacobian，N×N。
      *         Linear state transition F or nonlinear transition Jacobian, N×N.
      * 与 covariance_t 仅共享存储类型；F 无对称或正定要求。
@@ -140,46 +142,48 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
      * 别名不是不同的强类型，物理含义由接口参数确定。
      * Aliases are not distinct strong types; parameter roles define semantics.
      */
-    using transition_t        = std::array<float, N * N>;
-    /** @brief 实际量测 z、预测量测 h(x-) 或新息 y，Z×1。
-     *         Measured z, predicted h(x-), or innovation y vector, Z×1.
+    using transition_t                   = matrix_t<N, N>;
+    /** @brief 实际量测 z、预测量测 z_pred 或观测残差（新息）y，Z×1。
+     *         Measured z, predicted z_pred, or residual (innovation) y, Z×1.
+     * y = z - z_pred，即实际观测减预测观测；EKF 中 z_pred = h(x-)。
+     * Measurement residual y = z - z_pred; in EKF, z_pred = h(x-).
      */
-    using measurement_t       = std::array<float, Z>;
+    using measurement_t                  = vector_t<Z>;
     /** @brief 线性观测矩阵 H 或非线性观测函数的 Jacobian，Z×N。
      *         Linear observation H or nonlinear measurement Jacobian, Z×N.
      * 每行对应一条量测；EKF 中 H*x- 不代替非线性 h(x-)。
      * Each row describes one measurement; H*x- does not replace EKF h(x-).
      */
-    using observation_t       = std::array<float, Z * N>;
-    /** @brief 量测噪声协方差 R，或诊断中的新息协方差 S，Z×Z。
-     *         Measurement noise covariance R or diagnostic innovation S, Z×Z.
+    using observation_t                  = matrix_t<Z, N>;
+    /** @brief 量测噪声协方差 R，或诊断中的观测残差协方差 S，Z×Z。
+     *         Measurement noise covariance R or residual covariance S, Z×Z.
      * R 对角项为量测方差；非对角项表示量测噪声相关性，非标准差。
      * R stores variances/covariances, including correlations, not standard
      * deviations.
      */
-    using measurement_noise_t = std::array<float, Z * Z>;
-    /** @brief 卡尔曼增益 K，N×Z，将量测新息映射为状态增量 K*y。
-     *         Kalman gain K, N×Z; maps innovation to state correction K*y.
+    using measurement_noise_t            = matrix_t<Z, Z>;
+    /** @brief 卡尔曼增益 K，N×Z，将观测残差映射为状态增量 K*y。
+     *         Kalman gain K, N×Z; maps residual to state correction K*y.
      * 公共接口保持原始 Z 列顺序，缺失量测列为零。
      * Public gain keeps original Z-column order; missing columns are zero.
      */
-    using gain_t              = std::array<float, N * Z>;
+    using gain_t                         = matrix_t<N, Z>;
     /** @brief 量测有效掩码，Z 个布尔值；true 启用，false 排除对应行。
      *         Measurement validity mask of Z booleans; true enables a row.
      */
-    using measurement_mask_t  = std::array<bool, Z>;
+    using measurement_mask_t             = std::array<bool, Z>;
 
     /** @brief 初始化时选择的数值策略 / Numerical policies selected at
      * initialization. */
     struct options_t
     {
         // 默认 Joseph 协方差修正 / Joseph covariance correction by default.
-        kf_covariance_update_t covariance_update =
-            kf_covariance_update_t::JOSEPH;
-        // 默认 Cholesky 求解 S / Cholesky innovation solve by default.
-        kf_innovation_solver_t solver = kf_innovation_solver_t::CHOLESKY;
+        covariance_update_t covariance_update = covariance_update_t::JOSEPH;
+        // 默认 Cholesky 求解观测残差协方差 S。
+        // Cholesky solve of residual covariance S by default.
+        solver_t solver                       = solver_t::CHOLESKY;
         // 用 (Pij+Pji)/2 对称化 P / Symmetrize P with (Pij+Pji)/2.
-        bool symmetrize               = true;
+        bool symmetrize                       = true;
         // N 个状态误差方差下限，非状态限幅；初始化、预测、修正后生效。
         // N variance floors, not state limits; applied at
         // reset/predict/correct.
@@ -237,10 +241,11 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
      */
     struct correction_t
     {
-        const measurement_t &y; ///< 新息，Z×1 / Innovation, Z×1.
-        const measurement_noise_t
-            &S; ///< 新息协方差，Z×Z / Innovation covariance.
-        const kf_diagnostics_t &diagnostics; ///< 包含 NIS / Includes NIS.
+        /// 观测残差（新息）y，Z×1 / Measurement residual (innovation), Z×1.
+        const measurement_t &y;
+        /// 观测残差协方差 S，Z×Z / Measurement residual covariance, Z×Z.
+        const measurement_noise_t &S;
+        const diagnostics_t &diagnostics; ///< 包含 NIS / Includes NIS.
         gain_t &K; ///< 可调整增益，N×Z / Adjustable gain, N×Z.
         state_t &dx; ///< 可选外部状态增量，N×1 / Optional external delta, N×1.
         bool use_dx = false; ///< 是否采用外部 dx / Whether to use external dx.
@@ -256,13 +261,13 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
     };
 
     /**
-     * @brief 通用修正：直接融合外部新息 y，保持模型无关。
-     *        Common correction: fuse externally computed innovation y.
-     * @param y 新息，Z×1；线性 y=z-H*x，非线性 y=z-h(x)。
-     *          Innovation, Z×1: linear z-H*x, nonlinear z-h(x).
+     * @brief 通用修正：直接融合外部观测残差 y，保持模型无关。
+     *        Common correction: fuse externally computed residual y.
+     * @param y 观测残差（新息），Z×1；线性 y=z-H*x，非线性 y=z-h(x)。
+     *          Residual (innovation), Z×1: linear z-H*x, nonlinear z-h(x).
      * @param H 观测矩阵或雅可比，Z×N / Observation matrix / Jacobian, Z×N.
      * @param R 量测噪声协方差，Z×Z / Measurement noise covariance, Z×Z.
-     * @param mask 有效行掩码；nullptr 启用全部行；有效行必须有限。
+     * @param mask 有效行掩码；nullptr 启用全部行；有效行由调用方保证有限。
      *             Active mask; nullptr enables all rows; active data must be
      * finite.
      * @param policy 可选无堆分配策略，接收 correction_t&，返回 status_t。
@@ -300,16 +305,17 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
     {
         return K_;
     }
-    /** @brief 最近准备的新息 y，按原始 Z 次序，缺测行置零。
-     *         Latest prepared innovation y in original Z order; missing rows
+    /** @brief 最近准备的观测残差 y，按原始 Z 次序，缺测行置零。
+     *         Latest prepared residual y in original Z order; missing rows
      * are zero.
      */
     [[nodiscard]] const measurement_t &get_innovation() const
     {
         return y_;
     }
-    /** @brief S=H*P*H^T+R，保留原始 Z 行列，不受求逆修改。
-     *         S=H*P*H^T+R in original Z order, preserved during inversion.
+    /** @brief 观测残差协方差 S=H*P*H^T+R，保留原始 Z 行列。
+     *         Residual covariance S=H*P*H^T+R in original Z order.
+     * 求逆不会修改该结果 / Preserved during inversion.
      */
     [[nodiscard]] const measurement_noise_t &get_innovation_covariance() const
     {
@@ -317,7 +323,7 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
     }
     /** @brief 返回最近操作状态和统计 / Return latest operation
      * status/statistics. */
-    [[nodiscard]] const kf_diagnostics_t &get_diagnostics() const
+    [[nodiscard]] const diagnostics_t &get_diagnostics() const
     {
         return _diagnostics;
     }
@@ -334,21 +340,11 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
     }
 
   protected:
-    // 输入检查和 CMSIS 运算封装 / Input validation and CMSIS operation
-    // wrappers.
-    template <std::size_t L>
-    static bool _finite(const std::array<float, L> &values);
+    // 协方差输入约束 / Covariance input constraints.
     static bool _covariance_valid(const float *values, std::size_t size);
-    static arm_status _multiply(const float *a, std::size_t rows,
-                                std::size_t inner, const float *b,
-                                std::size_t cols, float *out);
-    static arm_status _transpose(const float *a, std::size_t rows,
-                                 std::size_t cols, float *out);
-    static arm_status _add(const float *a, const float *b, std::size_t rows,
-                           std::size_t cols, float *out, bool subtract = false);
     // 保存操作结果；首次 CMSIS 失败即停止 / Record result; stop at first CMSIS
     // failure.
-    status_t _report(status_t status, kf_result_t result,
+    status_t _report(status_t status, result_t result,
                      arm_status math_status = ARM_MATH_SUCCESS);
     bool _check(arm_status status);
 
@@ -357,7 +353,8 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
                       const measurement_noise_t &R,
                       const measurement_mask_t *mask);
     status_t _apply(const gain_t &K, const state_t *dx_override);
-    // 求解 S、K 和 NIS / Solve innovation covariance, gain and NIS.
+    // 求解观测残差协方差 S、增益 K 和 NIS。
+    // Solve residual covariance S, gain K and NIS.
     status_t _solve_innovation();
     // 对称化和对角方差下限 / Symmetrization and diagonal variance floors.
     void _finish_covariance(covariance_t &P) const;
@@ -371,7 +368,7 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
     std::array<std::size_t, Z> _active{};
     // 数值配置和最近操作诊断 / Numerical policies and latest diagnostics.
     options_t _options{};
-    kf_diagnostics_t _diagnostics{};
+    diagnostics_t _diagnostics{};
     // N×1：已提交状态、候选状态和修正增量 / Committed/candidate state and
     // increment.
     state_t x_{}, x_next_{}, dx_{};
@@ -384,8 +381,8 @@ template <std::size_t N, std::size_t Z> class kalman_filter_t
     // 容量 Z*N：有效 H(m×N)、H^T(N×m) 和中间结果。
     // Capacity Z*N: active H(m×N), H^T(N×m) and intermediates.
     observation_t H_active_{}, Ht_active_{}, zn_{};
-    // 原始次序 y、压缩 y 和 S 求解结果 / Original/packed innovation and solve
-    // result.
+    // 原始次序观测残差 y、压缩残差和 NIS 求解中间结果。
+    // Original/packed measurement residual and NIS solve intermediate.
     measurement_t y_{}, y_active_{}, y_solved_{};
     // 公共 S 为 Z×Z；内部 R/S/因子/逆及工作区按有效 m×m 紧凑存储。
     // Public S is Z×Z; internal R/S/factor/inverse/workspace use packed m×m.

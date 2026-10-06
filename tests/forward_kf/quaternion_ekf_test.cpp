@@ -17,11 +17,11 @@ static void check(bool passed, const char *message)
 static void finite_output(const ins_attitude_t &filter)
 {
     for (float value : filter.ekf.get_state())
-        check(kf_is_finite(value), "finite QEKF state");
+        check(matrix::is_finite(value), "finite QEKF state");
     for (float value : filter.ekf.get_covariance())
-        check(kf_is_finite(value), "finite QEKF covariance");
-    check(kf_is_finite(filter.Roll) && kf_is_finite(filter.Pitch) &&
-              kf_is_finite(filter.Yaw),
+        check(matrix::is_finite(value), "finite QEKF covariance");
+    check(matrix::is_finite(filter.Roll) && matrix::is_finite(filter.Pitch) &&
+              matrix::is_finite(filter.Yaw),
           "finite angles");
 }
 int main()
@@ -51,7 +51,8 @@ int main()
           "invalid fading rejected without clearing filter");
     check(filter.update(0, 0, 0, nan, 0, 9.81f, 0.001f) == PYRO_WARNING,
           "NaN accel predicts only");
-    check(filter.ekf.get_diagnostics().result == kf_result_t::NO_MEASUREMENT,
+    check(filter.ekf.get_diagnostics().result ==
+              ins_attitude_t::filter_t::result_t::NO_MEASUREMENT,
           "missing accel diagnostics");
     finite_output(filter);
     filter.update(0, 0, 0, 0, 0, 9.81f, 0.001f);

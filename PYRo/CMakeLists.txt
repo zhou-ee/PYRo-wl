@@ -37,6 +37,7 @@ target_sources(PYRo PRIVATE
         Peripheral/UART/pyro_bsp_uart.cpp
 
         # --- Algorithm ---
+        Algorithm/Matrix/pyro_algo_matrix.cpp
         Algorithm/Kinematics/pyro_kin_hybrid.cpp
         Algorithm/Kinematics/pyro_kin_mec.cpp
         Algorithm/Kinematics/pyro_kin_rudder.cpp
@@ -106,6 +107,7 @@ target_include_directories(PYRo PUBLIC
 
         # --- Algorithm ---
         Algorithm/Common
+        Algorithm/Matrix
         Algorithm/Kinematics
         Algorithm/OLS
         Algorithm/PID
