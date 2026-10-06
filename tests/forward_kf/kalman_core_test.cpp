@@ -1,5 +1,5 @@
 #include "pyro_algo_kf.h"
-#include "pyro_algo_linear_kf.h"
+#include "pyro_algo_lkf.h"
 #include "pyro_algo_ekf.h"
 
 #include <cmath>
@@ -143,9 +143,9 @@ struct Reference
 
 int main()
 {
-    using filter_t = linear_kalman_filter_t<2, 3, 1>;
+    using filter_t = lkf_t<2, 3, 1>;
     filter_t filter;
-    linear_kalman_filter_t<2, 3, 1, true> checked_filter;
+    lkf_t<2, 3, 1, true> checked_filter;
     static_assert(!filter_t::check_numerics);
     static_assert(!kf_t<1, 1>::check_numerics);
     static_assert(!ekf_t<1, 1>::check_numerics);
@@ -198,7 +198,7 @@ int main()
     check(allocations == allocation_start, "no new/new[] in core lifecycle");
 
     // Nonadjacent rows must select the full correlated R submatrix.
-    using wide_t = linear_kalman_filter_t<1, 3, 0, true>;
+    using wide_t = lkf_t<1, 3, 0, true>;
     wide_t wide;
     wide.init({2}, {1});
     wide_t::measurement_mask_t mask        = {true, false, true};
@@ -298,8 +298,8 @@ int main()
     auto copy              = nonlinear;
     copy.reset({0}, {1});
     check(nonlinear.get_state() == before_copy, "copied objects do not alias");
-    linear_kalman_filter_t<1, 1> bounded;
-    linear_kalman_filter_t<1, 1>::options_t options;
+    lkf_t<1, 1> bounded;
+    lkf_t<1, 1>::options_t options;
     options.min_variance[0] = 0.1f;
     bounded.init({0}, {0}, options);
     check(bounded.get_covariance()[0] == 0.1f,

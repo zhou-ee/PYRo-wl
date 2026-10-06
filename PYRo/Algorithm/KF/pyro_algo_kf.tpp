@@ -50,16 +50,6 @@ status_t kf_t<N, Z, CheckNumerics>::_report(status_t status, result_t result,
 }
 
 template <std::size_t N, std::size_t Z, bool CheckNumerics>
-bool kf_t<N, Z, CheckNumerics>::_check(arm_status status)
-{
-    if (status == ARM_MATH_SUCCESS)
-        return true;
-    _prepared = false;
-    _report(PYRO_ERROR, result_t::MATH_FAILURE, status);
-    return false;
-}
-
-template <std::size_t N, std::size_t Z, bool CheckNumerics>
 status_t kf_t<N, Z, CheckNumerics>::init(const state_t &x0,
                                          const covariance_t &P0,
                                          const options_t &options)
@@ -132,17 +122,25 @@ status_t kf_t<N, Z, CheckNumerics>::predict(const state_t &x_pred,
             if (P[row * N + row] < 0.0f)
                 return _report(PYRO_PARAM_ERROR, result_t::INVALID_INPUT);
     }
+    // 宏直接早退；预设失败诊断，成功后由 _report 覆盖。
+    // Macro exits directly; prime failure diagnostics, overwritten on success.
+    _diagnostics.status = PYRO_ERROR;
+    _diagnostics.result = result_t::MATH_FAILURE;
     // P_pred = F·P·Fᵀ + Qd；x_pred 已由调用方的状态函数计算。
     // P_pred = F·P·Fᵀ + Qd; the caller's model already computed
     // x_pred.
-    if (!_check(matrix::transpose({F.data(), N, N}, {nn2_.data(), N, N})) ||
-        !_check(matrix::multiply({F.data(), N, N}, {P.data(), N, N},
-                                 {nn1_.data(), N, N})) ||
-        !_check(matrix::multiply({nn1_.data(), N, N}, {nn2_.data(), N, N},
-                                 {P_next_.data(), N, N})) ||
-        !_check(matrix::add({P_next_.data(), N, N}, {Q_d.data(), N, N},
-                            {P_next_.data(), N, N})))
-        return PYRO_ERROR;
+    _diagnostics.math_status =
+        matrix::transpose({F.data(), N, N}, {nn2_.data(), N, N});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    _diagnostics.math_status = matrix::multiply(
+        {F.data(), N, N}, {P.data(), N, N}, {nn1_.data(), N, N});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    _diagnostics.math_status = matrix::multiply(
+        {nn1_.data(), N, N}, {nn2_.data(), N, N}, {P_next_.data(), N, N});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    _diagnostics.math_status = matrix::add(
+        {P_next_.data(), N, N}, {Q_d.data(), N, N}, {P_next_.data(), N, N});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
     if constexpr (CheckNumerics)
     {
         if (!matrix::is_finite(P_next_))
@@ -233,19 +231,25 @@ status_t kf_t<N, Z, CheckNumerics>::_prepare(const measurement_t &y,
         if (!_covariance_valid(R_active_.data(), count))
             return _report(PYRO_PARAM_ERROR, result_t::INVALID_INPUT);
     }
+    _diagnostics.status      = PYRO_ERROR;
+    _diagnostics.result      = result_t::MATH_FAILURE;
     // S = H·P·Hᵀ + R（m×m）；公共 S 按原观测索引回填。
     // S = H·P·Hᵀ + R (m×m); scatter public S back to original indices.
-    if (!_check(matrix::transpose({H_active_.data(), count, N},
-                                  {Ht_active_.data(), N, count})) ||
-        !_check(matrix::multiply({H_active_.data(), count, N},
-                                 {P_.data(), N, N}, {zn_.data(), count, N})) ||
-        !_check(matrix::multiply({zn_.data(), count, N},
-                                 {Ht_active_.data(), N, count},
-                                 {zz_.data(), count, count})) ||
-        !_check(matrix::add({zz_.data(), count, count},
-                            {R_active_.data(), count, count},
-                            {S_active_.data(), count, count})))
-        return PYRO_ERROR;
+    _diagnostics.math_status = matrix::transpose({H_active_.data(), count, N},
+                                                 {Ht_active_.data(), N, count});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    _diagnostics.math_status =
+        matrix::multiply({H_active_.data(), count, N}, {P_.data(), N, N},
+                         {zn_.data(), count, N});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    _diagnostics.math_status =
+        matrix::multiply({zn_.data(), count, N}, {Ht_active_.data(), N, count},
+                         {zz_.data(), count, count});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    _diagnostics.math_status = matrix::add({zz_.data(), count, count},
+                                           {R_active_.data(), count, count},
+                                           {S_active_.data(), count, count});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
     for (std::size_t row = 0; row < count; ++row)
         for (std::size_t col = 0; col < count; ++col)
         {
@@ -279,56 +283,65 @@ status_t kf_t<N, Z, CheckNumerics>::_solve_innovation()
     {
         // 显式求逆兼容路径：K = P·Hᵀ·S⁻¹，NIS = yᵀ·S⁻¹·y。
         // Explicit-inverse compatibility path: K = P·Hᵀ·S⁻¹, NIS = yᵀ·S⁻¹·y.
-        if (!_check(matrix::inverse({S_active_.data(), count, count},
-                                    {S_inv_.data(), count, count},
-                                    {L_.data(), count, count})) ||
-            !_check(matrix::multiply({S_inv_.data(), count, count},
-                                     {y_active_.data(), count, 1},
-                                     {y_solved_.data(), count, 1})) ||
-            !_check(matrix::multiply({y_active_.data(), 1, count},
-                                     {y_solved_.data(), count, 1},
-                                     {&_diagnostics.nis, 1, 1})) ||
-            !_check(matrix::multiply({P_.data(), N, N},
-                                     {Ht_active_.data(), N, count},
-                                     {PHt_.data(), N, count})) ||
-            !_check(matrix::multiply({PHt_.data(), N, count},
-                                     {S_inv_.data(), count, count},
-                                     {K_active_.data(), N, count})))
-            return PYRO_ERROR;
+        _diagnostics.math_status = matrix::inverse(
+            {S_active_.data(), count, count}, {S_inv_.data(), count, count},
+            {L_.data(), count, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::multiply(
+            {S_inv_.data(), count, count}, {y_active_.data(), count, 1},
+            {y_solved_.data(), count, 1});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::multiply(
+            {y_active_.data(), 1, count}, {y_solved_.data(), count, 1},
+            {&_diagnostics.nis, 1, 1});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status =
+            matrix::multiply({P_.data(), N, N}, {Ht_active_.data(), N, count},
+                             {PHt_.data(), N, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::multiply(
+            {PHt_.data(), N, count}, {S_inv_.data(), count, count},
+            {K_active_.data(), N, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
     }
     else
     {
         // S=L·Lᵀ；先求 L·v=y，再取 NIS=vᵀ·v，无需显式求逆。
         // S=L·Lᵀ; solve L·v=y, then NIS=vᵀ·v, without explicit inversion.
-        if (!_check(matrix::cholesky({S_active_.data(), count, count},
-                                     {L_.data(), count, count})))
-            return PYRO_ERROR;
-        if (!_check(matrix::solve_lower({L_.data(), count, count},
-                                        {y_active_.data(), count, 1},
-                                        {y_solved_.data(), count, 1})) ||
-            !_check(matrix::multiply({y_solved_.data(), 1, count},
-                                     {y_solved_.data(), count, 1},
-                                     {&_diagnostics.nis, 1, 1})) ||
-            !_check(matrix::multiply({P_.data(), N, N},
-                                     {Ht_active_.data(), N, count},
-                                     {PHt_.data(), N, count})) ||
-            !_check(matrix::transpose({PHt_.data(), N, count},
-                                      {zn_.data(), count, N})))
-            return PYRO_ERROR;
+        _diagnostics.math_status = matrix::cholesky(
+            {S_active_.data(), count, count}, {L_.data(), count, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::solve_lower(
+            {L_.data(), count, count}, {y_active_.data(), count, 1},
+            {y_solved_.data(), count, 1});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::multiply(
+            {y_solved_.data(), 1, count}, {y_solved_.data(), count, 1},
+            {&_diagnostics.nis, 1, 1});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status =
+            matrix::multiply({P_.data(), N, N}, {Ht_active_.data(), N, count},
+                             {PHt_.data(), N, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status =
+            matrix::transpose({PHt_.data(), N, count}, {zn_.data(), count, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
         // 依次解 L·A=(P·Hᵀ)ᵀ、Lᵀ·Kᵀ=A，得到 N×m 增益。
         // Solve L·A=(P·Hᵀ)ᵀ, then Lᵀ·Kᵀ=A, yielding the N×m gain.
-        if (!_check(matrix::solve_lower({L_.data(), count, count},
-                                        {zn_.data(), count, N},
-                                        {nz_.data(), count, N})) ||
-            !_check(matrix::transpose({L_.data(), count, count},
-                                      {zz_.data(), count, count})))
-            return PYRO_ERROR;
-        if (!_check(matrix::solve_upper({zz_.data(), count, count},
-                                        {nz_.data(), count, N},
-                                        {zn_.data(), count, N})) ||
-            !_check(matrix::transpose({zn_.data(), count, N},
-                                      {K_active_.data(), N, count})))
-            return PYRO_ERROR;
+        _diagnostics.math_status =
+            matrix::solve_lower({L_.data(), count, count},
+                                {zn_.data(), count, N}, {nz_.data(), count, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::transpose(
+            {L_.data(), count, count}, {zz_.data(), count, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status =
+            matrix::solve_upper({zz_.data(), count, count},
+                                {nz_.data(), count, N}, {zn_.data(), count, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::transpose(
+            {zn_.data(), count, N}, {K_active_.data(), N, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
     }
     return PYRO_OK;
 }
@@ -370,28 +383,35 @@ status_t kf_t<N, Z, CheckNumerics>::_apply(const gain_t &K,
     for (std::size_t row = 0; row < N; ++row)
         for (std::size_t col = 0; col < count; ++col)
             K_active_[row * count + col] = K[row * Z + _active[col]];
+    _diagnostics.status = PYRO_ERROR;
+    _diagnostics.result = result_t::MATH_FAILURE;
     // 默认增量为 K·y；外部可覆盖增量，但协方差仍由传入 K 更新。
     // Default delta is K·y; an override changes delta, while P still uses K.
     if (dx_override)
         dx_ = *dx_override;
-    else if (!_check(matrix::multiply({K_active_.data(), N, count},
-                                      {y_active_.data(), count, 1},
-                                      {dx_.data(), N, 1})))
-        return PYRO_ERROR;
-    if (!_check(matrix::add({x_.data(), N, 1}, {dx_.data(), N, 1},
-                            {x_next_.data(), N, 1})) ||
-        !_check(matrix::multiply({K_active_.data(), N, count},
-                                 {H_active_.data(), count, N},
-                                 {nn1_.data(), N, N})))
-        return PYRO_ERROR;
+    else
+    {
+        _diagnostics.math_status =
+            matrix::multiply({K_active_.data(), N, count},
+                             {y_active_.data(), count, 1}, {dx_.data(), N, 1});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    }
+    _diagnostics.math_status = matrix::add(
+        {x_.data(), N, 1}, {dx_.data(), N, 1}, {x_next_.data(), N, 1});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
+    _diagnostics.math_status =
+        matrix::multiply({K_active_.data(), N, count},
+                         {H_active_.data(), count, N}, {nn1_.data(), N, N});
+    CHECK_ARM_MATH_RET(_diagnostics.math_status);
     if (_options.covariance_update == covariance_update_t::SIMPLIFIED)
     {
         // 简化公式 P_new=P-K·H·P。 / Simplified update: P_new=P-K·H·P.
-        if (!_check(matrix::multiply({nn1_.data(), N, N}, {P_.data(), N, N},
-                                     {nn2_.data(), N, N})) ||
-            !_check(matrix::subtract({P_.data(), N, N}, {nn2_.data(), N, N},
-                                     {P_next_.data(), N, N})))
-            return PYRO_ERROR;
+        _diagnostics.math_status = matrix::multiply(
+            {nn1_.data(), N, N}, {P_.data(), N, N}, {nn2_.data(), N, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::subtract(
+            {P_.data(), N, N}, {nn2_.data(), N, N}, {P_next_.data(), N, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
     }
     else
     {
@@ -401,23 +421,30 @@ status_t kf_t<N, Z, CheckNumerics>::_apply(const gain_t &K,
             for (std::size_t col = 0; col < N; ++col)
                 nn1_[row * N + col] =
                     (row == col ? 1.0f : 0.0f) - nn1_[row * N + col];
-        if (!_check(matrix::multiply({nn1_.data(), N, N}, {P_.data(), N, N},
-                                     {nn2_.data(), N, N})) ||
-            !_check(
-                matrix::transpose({nn1_.data(), N, N}, {nn3_.data(), N, N})) ||
-            !_check(matrix::multiply({nn2_.data(), N, N}, {nn3_.data(), N, N},
-                                     {P_next_.data(), N, N})) ||
-            !_check(matrix::multiply({K_active_.data(), N, count},
-                                     {R_active_.data(), count, count},
-                                     {nz_.data(), N, count})) ||
-            !_check(matrix::transpose({K_active_.data(), N, count},
-                                      {zn_.data(), count, N})) ||
-            !_check(matrix::multiply({nz_.data(), N, count},
-                                     {zn_.data(), count, N},
-                                     {nn1_.data(), N, N})) ||
-            !_check(matrix::add({P_next_.data(), N, N}, {nn1_.data(), N, N},
-                                {P_next_.data(), N, N})))
-            return PYRO_ERROR;
+        _diagnostics.math_status = matrix::multiply(
+            {nn1_.data(), N, N}, {P_.data(), N, N}, {nn2_.data(), N, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status =
+            matrix::transpose({nn1_.data(), N, N}, {nn3_.data(), N, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::multiply(
+            {nn2_.data(), N, N}, {nn3_.data(), N, N}, {P_next_.data(), N, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::multiply(
+            {K_active_.data(), N, count}, {R_active_.data(), count, count},
+            {nz_.data(), N, count});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status = matrix::transpose(
+            {K_active_.data(), N, count}, {zn_.data(), count, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status =
+            matrix::multiply({nz_.data(), N, count}, {zn_.data(), count, N},
+                             {nn1_.data(), N, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
+        _diagnostics.math_status =
+            matrix::add({P_next_.data(), N, N}, {nn1_.data(), N, N},
+                        {P_next_.data(), N, N});
+        CHECK_ARM_MATH_RET(_diagnostics.math_status);
     }
     // 开启数值检查时，先检查有限性再施加下限。
     // With numerical validation enabled, inspect finiteness before flooring.

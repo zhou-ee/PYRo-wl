@@ -10,7 +10,7 @@ Component/INS/pyro_ins.h/.cpp
                  └─ Algorithm/Matrix/pyro_algo_matrix.h/.tpp/.cpp   通用矩阵运算
 
 任意线性应用
-  └─ Algorithm/KF/pyro_algo_linear_kf.h   可选线性适配器
+  └─ Algorithm/KF/pyro_algo_lkf.h   可选线性适配器
        └─ 相同数值核心
 ```
 
@@ -53,7 +53,7 @@ KF 求解路径继续使用工作区和带状态码接口。矩阵不再是数�
 ```cpp
 pyro::kf_t<6, 3> kf;            // 默认不扫描数值
 pyro::ekf_t<6, 3, true> checked_ekf;      // 显式开启数值检查
-pyro::linear_kalman_filter_t<2, 1, 1, true> checked_linear;
+pyro::lkf_t<2, 1, 1, true> checked_linear;
 ```
 
 开启后检查 NaN/Inf、协方差近似对称/非负对角及结果溢出；
@@ -110,8 +110,8 @@ F/H/Q_d/R 每次传入，可实时变化。默认仅按 mask 排除缺测；开�
 ## 3. 可选线性适配器
 
 ```cpp
-#include "pyro_algo_linear_kf.h"
-pyro::linear_kalman_filter_t<2, 1, 1> kf; // N=2，Z=1，U=1
+#include "pyro_algo_lkf.h"
+pyro::lkf_t<2, 1, 1> kf; // N=2，Z=1，U=1
 kf.init({0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f});
 if (kf.predict({1, 0.001f, 0, 1}, {1e-6f, 0, 0, 1e-3f},
                {0.0000005f, 0.001f}, {0.3f}) == pyro::PYRO_OK)

@@ -346,7 +346,6 @@ template <std::size_t N, std::size_t Z, bool CheckNumerics = false> class kf_t
     // failure.
     status_t _report(status_t status, result_t result,
                      arm_status math_status = ARM_MATH_SUCCESS);
-    bool _check(arm_status status);
 
   private:
     status_t _prepare(const measurement_t &y, const observation_t &H,

@@ -1,10 +1,10 @@
 /**
- * @file pyro_algo_linear_kf.h
+ * @file pyro_algo_lkf.h
  * @brief 通用 KF 核心的可选线性模型适配器。
  *        Optional linear-model adapter over the common KF core.
  */
-#ifndef PYRO_ALGO_LINEAR_KF_H
-#define PYRO_ALGO_LINEAR_KF_H
+#ifndef PYRO_ALGO_LKF_H
+#define PYRO_ALGO_LKF_H
 
 #include "pyro_algo_kf.h"
 
@@ -21,7 +21,7 @@ namespace pyro
  */
 template <std::size_t N, std::size_t Z, std::size_t U = 0,
           bool CheckNumerics = false>
-class linear_kalman_filter_t : public kf_t<N, Z, CheckNumerics>
+class lkf_t : public kf_t<N, Z, CheckNumerics>
 {
     using base_t = kf_t<N, Z, CheckNumerics>;
     static_assert(U <= 65535, "Invalid CMSIS control dimension");
@@ -106,11 +106,14 @@ class linear_kalman_filter_t : public kf_t<N, Z, CheckNumerics>
                         return this->_report(PYRO_PARAM_ERROR,
                                              result_t::INVALID_INPUT);
             }
-            float z_pred = 0.0f;
-            if (!this->_check(matrix::multiply({H.data() + row * N, 1, N},
-                                               {this->get_state().data(), N, 1},
-                                               {&z_pred, 1, 1})))
-                return PYRO_ERROR;
+            float z_pred                 = 0.0f;
+            const arm_status math_status = matrix::multiply(
+                {H.data() + row * N, 1, N}, {this->get_state().data(), N, 1},
+                {&z_pred, 1, 1});
+            // 记录底层状态；宏早退时保留失败诊断。
+            // Record backend status so macro early returns preserve diagnostics.
+            this->_report(PYRO_ERROR, result_t::MATH_FAILURE, math_status);
+            CHECK_ARM_MATH_RET(math_status);
             y[row] = z[row] - z_pred;
             if constexpr (CheckNumerics)
             {
@@ -124,4 +127,4 @@ class linear_kalman_filter_t : public kf_t<N, Z, CheckNumerics>
 };
 
 } // namespace pyro
-#endif // PYRO_ALGO_LINEAR_KF_H
+#endif // PYRO_ALGO_LKF_H
