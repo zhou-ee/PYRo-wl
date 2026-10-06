@@ -169,7 +169,7 @@ status_t kf_t<N, Z, CheckNumerics>::correct(const measurement_t &y,
     if (prepared != PYRO_OK)
         return prepared;
     dx_.fill(0.0f);
-    correction_t correction{y_, S_, _diagnostics, K_, dx_};
+    correction_t correction{.y = y_, .S = S_, .diagnostics = _diagnostics, .K = K_, .dx = dx_};
     const status_t decision = policy(correction);
     if (decision == PYRO_OK)
         return _apply(correction.K,
