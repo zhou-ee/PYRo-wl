@@ -74,7 +74,13 @@ class warning_drv_t
 
     warning_task_t _task;
     warning_type_t _current_warning_level = warning_type_t::NONE;
-    BuzzerTask* _buzzer_task;  // ← 新增：旋律任务指针
+    //蜂鸣器模块所需内容
+    BuzzerTask* _buzzer_task;  
+
+    //ws2812模块所需内容
+    const uint16_t RGB_NUM = 1;
+    const ws2812_hw_t RGB_HW = WS2812_HW_TIM3_CH2;
+    ws2812_t* _rgb;
 
 };
 
