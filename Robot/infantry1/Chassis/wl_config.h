@@ -32,9 +32,9 @@ constexpr float LEFT_HIP_OFFSET =
 constexpr float LEFT_KNEE_OFFSET =
     -loop_fp32_PI(3.04188f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(0.46332f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.60560f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(-0.34750f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(-0.38767f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
@@ -97,7 +97,7 @@ constexpr float GETOVER_BETA_THRESHOLD = 8.0f * PI / 180.0f;
 constexpr float GETOVER_SHORTEN_LENGTH = 0.05f;
 constexpr float GETOVER_MIN_TARGET_LENGTH = 0.20f;
 constexpr float GETOVER_FORWARD_RAD = 2.0f * PI / 180.0f;
-constexpr float GETOVER_FORCE_SCALE = 1.0f;
+constexpr float GETOVER_FORCE_SCALE = 2.0f;
 constexpr float GETOVER_TIMEOUT = 0.12f;
 constexpr float GETOVER_REARM_DELAY = 1.0f;
 // Airborne and landing detection defaults. Tune from logged support-force data.
@@ -105,8 +105,8 @@ constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，
 constexpr float NORMAL_LENGTH_TARGET                 = 0.25f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
-constexpr float AIR_TAKEOFF_FORCE_ON                 = 40.0f;//单腿支持力阈值，越小越易离地
-constexpr float AIR_CONTACT_FORCE_OFF                = 30.0f;
+constexpr float AIR_TAKEOFF_FORCE_ON                 = 50.0f;//单腿支持力阈值，越小越易离地
+constexpr float AIR_CONTACT_FORCE_OFF                = 25.0f;
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
 constexpr float AIR_LENGTH_RECOVERY_RATE             = 0.20f;
