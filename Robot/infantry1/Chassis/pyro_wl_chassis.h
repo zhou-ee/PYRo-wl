@@ -218,9 +218,11 @@ struct wl_chassis_data_ctx_t
     jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
     float jump_phase_time = 0.0f;
     float jump_heading_ref = 0.0f;
+    float jump_forward_velocity_ref = 0.0f; // 进入跳跃时锁存的前进速度 (m/s)
     float jump_vertical_velocity_integral = 0.0f; // 跳跃期间竖直去重力加速度积分得到的速度观测值 (m/s)
+    float jump_leg_extension_speed_peak[2] = {0.0f, 0.0f}; // 进入 AIR 后各腿伸展速度的逐拍最大值 (m/s)
+    float jump_landing_confirm_time = 0.0f; // 落地判据连续成立的时间 (s)
     uint16_t jump_push_accel_hold_ticks = 0;
-    uint16_t jump_landing_counter = 0;
     bool jump_virtual_wall_bypass = false;
     float _dt;
     float normal_roll_force_trim;
@@ -273,7 +275,6 @@ class wl_chassis_t final
     void _vmc_trans_v2j();
     void _send_joint_torque() const;
     void _send_wheel_torque() const;
-    float _jump_beta_torque(uint8_t leg_index, float limit) const;
     void _update_accel_heading_frame();
     void _calc_support_force();
     bool _detect_takeoff();
