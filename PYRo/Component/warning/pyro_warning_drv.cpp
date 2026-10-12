@@ -1,5 +1,6 @@
 #include "pyro_warning_drv.h"
 #include "pyro_core_def.h"
+#include "string.h"
 
 using namespace pyro;
 
@@ -57,6 +58,9 @@ status_t warning_drv_t::task_init()
     {
         return pyro::PYRO_ERROR;
     }
+    available_color_count = 0;
+    memset(color_lists, 0, sizeof(color_lists));
+    memset(rgb_waring_count, 0, sizeof(rgb_waring_count));
 
 
     //蜂鸣器初始化
@@ -164,195 +168,140 @@ void warning_drv_t::task_run_loop()
     while (true)
     {
         static int tick = 0;
-        tick += 2;
-        tick %= 1000; // 每5秒钟循环一次
-        switch (_current_warning_level)
-        {
-        case warning_type_t::NONE:
-        {
-            // 处理无报警状态
-            _rgb->set_led(0,0, 0, 0);
-            buzzer.stop();  // ← 改为 stop()，彻底停止
-            break;
-        }
-        case warning_type_t::PLAYING:
-        {
-            // 处理娱乐状态
-            //rgb部分
-            static uint16_t hue = 0;
-            hue = (hue + 1) % 360; // 色相滚动
-            auto output = _rgb->hsv_to_rgb(hue, 255, 100);
-            _rgb->set_led(0, output.r, output.g, output.b);
-
-            // 蜂鸣器部分
-            static bool melody_loaded = false;
-            if (!melody_loaded && _buzzer_task != nullptr)
-            {
-                buzzer.loadTask(_buzzer_task);  // 加载旋律
-                melody_loaded = true;
-            }
-
-            // 如果旋律播放完毕，重置标志以便循环播放
-            if (!(buzzer.getState() & BUZZER_STATE_MUSIC_PLAYING_BIT))
-            {
-                melody_loaded = false;  // 重新加载
-            }
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_1:
-        {
-            // 处理警告等级1
-            // 每5秒闪烁一次红灯
-            if(tick < 50)
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_2:
-        {
-            // 处理警告等级2
-            // 每5秒闪烁两次红灯
-            if(tick < 50 || (tick >= 100 && tick < 150))
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-
-
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_3:
-        {
-            // 处理警告等级3
-            // 每5秒闪烁三次红灯
-            if (tick < 50 || (tick >= 100 && tick < 150) ||
-                (tick >= 200 && tick < 250))
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_4:
-        {
-            // 处理警告等级4
-            // 每5秒闪烁四次红灯
-            if (tick < 50 || (tick >= 100 && tick < 150) || 
-                (tick >= 200 && tick < 250) || (tick >= 300 && tick < 350))
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_5:
-        {
-            // 处理警告等级5
-            // 每55秒闪烁五次红灯
-            if (tick < 50 || (tick >= 100 && tick < 150) || 
-                (tick >= 200 && tick < 250) || (tick >= 300 && tick < 350) ||
-                (tick >= 400 && tick < 450))
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_6:
-        {
-            // 处理警告等级6
-            // 每5秒闪烁六次红灯
-            if (tick < 50 || (tick >= 100 && tick < 150) || 
-                (tick >= 200 && tick < 250) || (tick >= 300 && tick < 350) ||
-                (tick >= 400 && tick < 450) || (tick >= 500 && tick < 550))
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_7:
-        {
-            // 处理警告等级7
-            // 每5秒闪烁七次红灯
-            if (tick < 50 || (tick >= 100 && tick < 150) || 
-                (tick >= 200 && tick < 250) || (tick >= 300 && tick < 350) ||
-                (tick >= 400 && tick < 450) || (tick >= 500 && tick < 550) ||
-                (tick >= 600 && tick < 650))
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-            break;
-        }
-        case warning_type_t::WARNING_TYPE_8:
-        {
-            // 处理警告等级8
-            // 每5秒闪烁八次红灯
-            if (tick < 50 || (tick >= 100 && tick < 150) || 
-                (tick >= 200 && tick < 250) || (tick >= 300 && tick < 350) ||
-                (tick >= 400 && tick < 450) || (tick >= 500 && tick < 550) ||
-                (tick >= 600 && tick < 650) || (tick >= 700 && tick < 750))
-            {
-                _rgb->set_led(0, 255, 0, 0); // 红色
-                buzzer.tone_set(1000, 100); // 频率1000Hz，音量100%
-                buzzer.tone_start();
-            }
-            else
-            {
-                _rgb->set_led(0, 0, 0, 0); // 灭灯
-                buzzer.tone_stop();
-            }
-            break;
-        }
-        }
+        tick += TICK_STEP;
+        tick %= TICK_PERIOD; // 每5秒钟循环一次
+        //蜂鸣器部分
+        handle_buzzer(tick, buzzer);
         
+        //rgb部分
+        static int current_each_color_shine_times = 0;        //目前每个灯亮几个循环
+        if(tick == 0)
+        {
+            available_color_count = 0;
+            memset(color_lists, 0, sizeof(color_lists));
+            //一轮循环后集体减一整轮循环的时间,并重新计算接下来这段时间会亮几种颜色
+            for(int i = 0; i < (int)RGB_waring_type_t::COUNT - 1; i++)
+            {
+                if(rgb_waring_count[i] >= RGB_DECAY_STEP)
+                {
+                    rgb_waring_count[i] -= RGB_DECAY_STEP;
+                    //记录下要亮的颜色
+                    color_lists[available_color_count] = (RGB_waring_type_t)i;
+                    available_color_count ++;
+                    
+                }
+                else 
+                {
+                    rgb_waring_count[i] = 0;
+                }
+            }
+            if (available_color_count > 0) 
+            {
+                current_each_color_shine_times = TICK_PERIOD / available_color_count;
+            } else 
+            {
+                current_each_color_shine_times = 0;
+            }
+        }
+
+        if(available_color_count != 0)
+        {
+            if(available_color_count == 6)
+            {
+                //不是哥们，六种灯全亮上了，那还说啥了
+                //我直接给你个彩虹灯得了
+                static uint16_t hue = 0;
+                hue = (hue + 1) % 360; // 色相滚动
+                auto output = _rgb->hsv_to_rgb(hue, 255, 100);
+                _rgb->set_led(0, output.r, output.g, output.b);
+            }
+            else 
+            {
+                int idx = tick / current_each_color_shine_times;
+                if (idx >= available_color_count) idx = available_color_count - 1;
+                switch (color_lists[idx])
+                {
+                    case RGB_waring_type_t::BLUE:
+                        _rgb->set_led(0, 0, 0, 255);
+                        break;
+                    case RGB_waring_type_t::CYAN:
+                        _rgb->set_led(0, 0, 255, 255);
+                        break;
+                    case RGB_waring_type_t::GREEN:
+                        _rgb->set_led(0, 0, 255, 0);
+                        break;
+                    case RGB_waring_type_t::PURPLE:
+                        _rgb->set_led(0, 255, 0, 255);
+                        break;
+                    case RGB_waring_type_t::RED:
+                        _rgb->set_led(255, 0, 0, 255);
+                        break;
+                    case RGB_waring_type_t::YELLOW:
+                        _rgb->set_led(0, 255, 255, 0);
+                        break;
+                    default:
+                        _rgb->set_led(0, 0, 0, 0);
+                        break;
+                }
+            }
+        }
+        else 
+        {
+            //没有逝故，不亮灯
+            _rgb->set_led(0, 0, 0, 0);
+        }
         _rgb->update();
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
     
+}
+
+bool warning_drv_t::should_play_warning_tone(int tick, int level) const
+{
+    for (int i = 0; i < level; ++i)
+    {
+        int start = i * WARN_PULSE_GAP_TICK;
+        if (tick >= start && tick < start + WARN_PULSE_ON_TICK)
+            return true;
+    }
+    return false;
+}
+
+void warning_drv_t::handle_buzzer(int tick, BuzzerPlayer &buzzer)
+{
+    switch (_current_buzzer_warning_level)
+    {
+    case buzzer_warning_level_t::NONE:
+        buzzer.stop();
+        return;
+
+    case buzzer_warning_level_t::PLAYING:
+        if (!melody_loaded && _buzzer_task != nullptr)
+        {
+            buzzer.loadTask(_buzzer_task);
+            melody_loaded = true;
+        }
+        if (!(buzzer.getState() & BUZZER_STATE_MUSIC_PLAYING_BIT))
+        {
+            melody_loaded = false;
+        }
+        return;
+
+    default:
+        break;
+    }
+
+    // WARNING_LEVEL_1 ~ WARNING_LEVEL_8 统一处理
+    int pulses = (int)_current_buzzer_warning_level -
+                 (int)buzzer_warning_level_t::WARNING_LEVEL_1 + 1;
+
+    if (should_play_warning_tone(tick, pulses))
+    {
+        buzzer.tone_set(WARN_TONE_FREQ_HZ, WARN_TONE_VOLUME);
+        buzzer.tone_start();
+    }
+    else
+    {
+        buzzer.tone_stop();
+    }
 }

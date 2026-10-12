@@ -25,7 +25,7 @@ void pyro_init_thread(void *argument)
     bsp_can::init_all();
     pyro::rc_drv_t::init_virtual_rc();
     warning_drv_t::instance().start();
-    warning_drv_t::instance().set_warning_level(warning_drv_t::warning_type_t::WARNING_TYPE_3);
+
 
     can1_drv = &bsp_can::get_can1();
     can2_drv = &bsp_can::get_can2();
