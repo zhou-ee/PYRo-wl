@@ -318,11 +318,55 @@ class wl_chassis_t final
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
             };
-            struct state_jump_t final : public state_t<owner>
+            struct state_jump_t final : public fsm_t<owner>
             {
-                void enter(owner *owner) override;
-                void execute(owner *owner) override;
-                void exit(owner *owner) override;
+                struct state_pre_compress_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+                struct state_push_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+                struct state_recovery_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+                struct state_air_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+                struct state_return_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+
+                void on_enter(owner *owner) override;
+                void on_execute(owner *owner) override;
+                void on_exit(owner *owner) override;
+
+              private:
+                // Switch after the current phase's output, without an extra
+                // transition-only control tick in the shared FSM framework.
+                void _transition_phase(owner *owner, state_t<wl_chassis_t> *next);
+                void _abort_jump(owner *owner);
+                void _request_balance(owner *owner);
+
+                state_pre_compress_t _state_pre_compress;
+                state_push_t _state_push;
+                state_recovery_t _state_recovery;
+                state_air_t _state_air;
+                state_return_t _state_return;
             };
             struct state_spin_t final : public state_t<owner>
             {

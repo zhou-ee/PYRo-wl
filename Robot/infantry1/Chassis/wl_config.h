@@ -41,7 +41,7 @@ constexpr float RIGHT_KNEE_OFFSET =
 // constexpr float RIGHT_KNEE_OFFSET =0;
 
 constexpr float MAX_LEG_LENGTH        = 0.38f;
-constexpr float MIN_LEG_LENGTH        = 0.17f;
+constexpr float MIN_LEG_LENGTH        = 0.18f;
 constexpr float LEG_LENGTH_WALL_MARGIN = 0.01f;
 constexpr float LEG_LENGTH_WALL_MAX    = MAX_LEG_LENGTH - LEG_LENGTH_WALL_MARGIN;
 constexpr float LEG_LENGTH_WALL_MIN    = MIN_LEG_LENGTH + LEG_LENGTH_WALL_MARGIN;

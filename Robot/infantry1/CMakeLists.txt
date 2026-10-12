@@ -17,18 +17,23 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 pyro_mission_planer.cpp
 
                 Chassis/pyro_wl_chassis.cpp
-                Chassis/fsm/pyro_wl_active_state.cpp
-                Chassis/fsm/pyro_wl_manual_state.cpp
+                Chassis/fsm/active/pyro_wl_active_state.cpp
+                Chassis/fsm/active/pyro_wl_manual_state.cpp
                 Chassis/fsm/pyro_wl_passive_state.cpp
-                Chassis/fsm/pyro_wl_normal_state.cpp
-                Chassis/fsm/pyro_wl_getover_state.cpp
-                Chassis/fsm/pyro_wl_air_state.cpp
-                Chassis/fsm/pyro_wl_align_state.cpp
-                Chassis/fsm/pyro_wl_step_state.cpp
-                Chassis/fsm/pyro_wl_balance_state.cpp
-                Chassis/fsm/pyro_wl_jump_state.cpp
-                Chassis/fsm/pyro_wl_spin_state.cpp
-                Chassis/fsm/pyro_wl_rescue_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_normal_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_getover_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_air_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_align_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_step_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_balance_state.cpp
+                Chassis/fsm/active/normal/jump/pyro_wl_jump_state.cpp
+                Chassis/fsm/active/normal/jump/pyro_wl_jump_pre_compress_state.cpp
+                Chassis/fsm/active/normal/jump/pyro_wl_jump_push_state.cpp
+                Chassis/fsm/active/normal/jump/pyro_wl_jump_recovery_state.cpp
+                Chassis/fsm/active/normal/jump/pyro_wl_jump_air_state.cpp
+                Chassis/fsm/active/normal/jump/pyro_wl_jump_return_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_spin_state.cpp
+                Chassis/fsm/active/normal/pyro_wl_rescue_state.cpp
 
 
                 Application/Chassis_board/pyro_wl_chassis_app.cpp
