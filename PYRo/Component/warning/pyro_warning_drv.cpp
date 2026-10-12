@@ -305,3 +305,33 @@ void warning_drv_t::handle_buzzer(int tick, BuzzerPlayer &buzzer)
         buzzer.tone_stop();
     }
 }
+
+
+
+
+
+void warning_drv_t::set_buzzer_warning_level(buzzer_warning_level_t level)
+    {
+        taskENTER_CRITICAL();
+        _current_buzzer_warning_level = level;
+        melody_loaded = false;
+        taskEXIT_CRITICAL();
+    }
+    void warning_drv_t::add_rgb_warning_type(RGB_waring_type_t type)
+    {
+        taskENTER_CRITICAL();
+        if(type != RGB_waring_type_t::NONE && type != RGB_waring_type_t::COUNT)
+        {
+            rgb_waring_count[(int)type] = 15000;//周期数，换算出来是5min
+        }
+        taskEXIT_CRITICAL();
+    }
+    void warning_drv_t::clear_rgb_warning_type(RGB_waring_type_t type)
+    {
+        taskENTER_CRITICAL();
+        if(type != RGB_waring_type_t::NONE && type != RGB_waring_type_t::COUNT)
+        {
+            rgb_waring_count[(int)type] = 0;
+        }
+        taskEXIT_CRITICAL();
+    }

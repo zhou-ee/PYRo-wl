@@ -49,23 +49,9 @@ class warning_drv_t
     void stop();
 
 
-    void set_buzzer_warning_level(buzzer_warning_level_t level)
-    {
-        taskENTER_CRITICAL();
-        _current_buzzer_warning_level = level;
-        melody_loaded = false;
-        taskEXIT_CRITICAL();
-    }
-    void add_rgb_warning_type(RGB_waring_type_t type)
-    {
-        taskENTER_CRITICAL();
-        if(type != RGB_waring_type_t::NONE && type != RGB_waring_type_t::COUNT)
-        {
-            rgb_waring_count[(int)type] = 15000;//周期数，换算出来是5min
-        }
-        taskEXIT_CRITICAL();
-        
-    }
+    void set_buzzer_warning_level(buzzer_warning_level_t level);
+    void add_rgb_warning_type(RGB_waring_type_t type);
+    void clear_rgb_warning_type(RGB_waring_type_t type);
 
   protected:
 
