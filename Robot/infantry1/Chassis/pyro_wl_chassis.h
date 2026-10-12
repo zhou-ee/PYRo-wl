@@ -176,6 +176,16 @@ struct ins_data_t
 struct airborne_data_t
 {
     bool landing_recovery = false;
+    bool attitude_recovery = false;
+    bool contact[2] = {false, false};
+    float contact_confirm_time[2] = {0.0f, 0.0f};
+    float contact_release_time[2] = {0.0f, 0.0f};
+    float extension_speed_peak[2] = {0.0f, 0.0f};
+    float flight_time = 0.0f;
+    float forward_velocity_ref = 0.0f;
+    float gain_tp[2][6] = {};
+    bool length_filter_override = false;
+    uint8_t length_improve_saved[2] = {};
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
     float L_ref = NORMAL_LENGTH_TARGET;
@@ -210,6 +220,9 @@ struct wl_chassis_data_ctx_t
     airborne_data_t airborne;
     jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
     float jump_phase_time = 0.0f;
+    float jump_recovery_hold_time = 0.0f;
+    float jump_cooldown_remaining = 0.0f;
+    float balance_stable_time = 0.0f;
     float jump_heading_ref = 0.0f;
     float jump_forward_velocity_ref = 0.0f; // 进入跳跃时锁存的前进速度 (m/s)
     float jump_vertical_velocity_integral = 0.0f; // 跳跃期间竖直去重力加速度积分得到的速度观测值 (m/s)
@@ -273,6 +286,11 @@ class wl_chassis_t final
     bool _detect_takeoff();
     bool _detect_landing();
     void _execute_air_control();
+    void _airborne_gain_calculate();
+    void _execute_airborne_lqr();
+    void _reset_air_contacts();
+    void _prepare_air_length_control();
+    void _restore_air_length_control();
     void _execute_landing_recovery();
 
     using owner = wl_chassis_t;

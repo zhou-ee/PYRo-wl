@@ -17,7 +17,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_push_t::ent
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_push_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = true;
+    data.jump_virtual_wall_bypass = false;
     data.target_state.psi = data.jump_heading_ref;
     data.target_state.dot_psi = 0.0f;
     data.target_state.x += data.jump_forward_velocity_ref * data._dt;
@@ -55,15 +55,13 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_push_t::exe
         const uint8_t leg_swing_input = i == leg_def::L
                                             ? lqr_input_def::T_P1
                                             : lqr_input_def::T_P2;
-        const uint8_t force_input = i == leg_def::L
-                                        ? lqr_input_def::F_L1
-                                        : lqr_input_def::F_L2;
         leg.out_T_p = std::clamp(jump_lqr_output(leg_swing_input),
                                  -JUMP_T_P_LIMIT, JUMP_T_P_LIMIT);
         const float open_loop_force = 2.0f * JUMP_TAU / leg.J_L;
-        leg.out_F_L = std::clamp(
-            open_loop_force + jump_lqr_output(force_input),
-                                 -500.0f, 500.0f);
+        // Opposite joint torques, as in Eq.135; do not add ground F_L/U0.
+        // The physical gas spring remains present during the thrust.
+        leg.out_F_L = leg.current_leg_length >= MAX_LEG_LENGTH - JUMP_PUSH_HARD_MARGIN
+            ? -leg.gas_spring_force : open_loop_force;
         data.wheel[i].out_T_w = std::clamp(
             jump_lqr_output(wheel_input), -MAX_T_W, MAX_T_W);
         data.wheel[i].out_current = std::clamp(
@@ -72,27 +70,18 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_push_t::exe
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
-    // accel_z_y_lpf 是去重力加速度；失重后竖直分量趋近 -g，
-    // 表示机体不再受到地面推力，进入收腿阶段。
-    const bool accel_near_gravity =
-        std::fabs(data.airborne.accel_z_y_lpf + GRAVITY_ACCELERATION) <=
-        JUMP_PUSH_ACCEL_EPSILON;
-    if (data.jump_phase_time >= JUMP_PUSH_MIN_TIME &&
-        accel_near_gravity)
+    // Eq.136: geometry ends thrust, not free-fall acceleration at the body IMU.
+    const bool extended =
+        data.leg[leg_def::L].current_leg_length >= MAX_LEG_LENGTH - JUMP_PUSH_LENGTH_MARGIN &&
+        data.leg[leg_def::R].current_leg_length >= MAX_LEG_LENGTH - JUMP_PUSH_LENGTH_MARGIN;
+    if (extended)
     {
-        if (data.jump_push_accel_hold_ticks <
-            JUMP_PUSH_ACCEL_HOLD_TICKS)
-        {
-            ++data.jump_push_accel_hold_ticks;
-        }
-    }
-    else
-    {
-        data.jump_push_accel_hold_ticks = 0;
-    }
-
-    if (data.jump_push_accel_hold_ticks >= JUMP_PUSH_ACCEL_HOLD_TICKS)
-    {
+        const float position_error = std::clamp(
+            data.target_state.x - data.measured_state.x,
+            -JUMP_POSITION_ERROR_LIMIT, JUMP_POSITION_ERROR_LIMIT);
+        data.odom.real_x = 0.0f;
+        data.measured_state.x = 0.0f;
+        data.target_state.x = position_error;
         auto &jump = owner->_state_active._state_normal._state_jump;
         jump._transition_phase(owner, &jump._state_recovery);
     }

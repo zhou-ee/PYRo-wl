@@ -14,6 +14,8 @@ static int reset_count;
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
 
+    owner->_ctx.data.balance_stable_time = 0.0f;
+    owner->_ctx.data.airborne.attitude_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.odom.real_x            = 0;
 
     owner->_ctx.data.target_state.x         = 0;
@@ -37,6 +39,13 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     owner->_ctx.data.target_state.beta2     = 0.0f;
     owner->_ctx.data.target_state.dot_beta1 = 0.0f;
     owner->_ctx.data.target_state.dot_beta2 = 0.0f;
+    if (owner->_ctx.data.airborne.attitude_recovery)
+    {
+        auto &data = owner->_ctx.data;
+        data.target_state.theta = data.measured_state.theta;
+        data.target_state.beta1 = data.measured_state.beta1;
+        data.target_state.beta2 = data.measured_state.beta2;
+    }
     owner->_ctx.data.normal_roll_force_trim = 0.0f;
 
 
@@ -208,8 +217,44 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     #endif
     
 
+    auto &data = owner->_ctx.data;
+    const float previous_beta[2] = {data.target_state.beta1, data.target_state.beta2};
     owner->_gain_calculate();
+    if (data.airborne.attitude_recovery)
+    {
+        const float pitch_step = std::clamp(-data.target_state.theta,
+            -LANDING_PITCH_REFERENCE_RATE * data._dt, LANDING_PITCH_REFERENCE_RATE * data._dt);
+        data.target_state.theta += pitch_step;
+        data.target_state.dot_theta = pitch_step / data._dt;
+        float *beta_ref[2] = {&data.target_state.beta1, &data.target_state.beta2};
+        float *beta_speed_ref[2] = {&data.target_state.dot_beta1, &data.target_state.dot_beta2};
+        bool restored = std::fabs(data.target_state.theta) < 1.0e-4f;
+        for (uint8_t i = 0; i < 2; ++i)
+        {
+            const float error = *beta_ref[i] - previous_beta[i];
+            const float step = std::clamp(error,
+                -LANDING_BETA_REFERENCE_RATE * data._dt, LANDING_BETA_REFERENCE_RATE * data._dt);
+            *beta_ref[i] = previous_beta[i] + step;
+            *beta_speed_ref[i] = step / data._dt;
+            restored &= std::fabs(error) < 1.0e-4f;
+        }
+        if (restored && !data.airborne.landing_recovery)
+        {
+            data.airborne.attitude_recovery = false;
+            data.target_state.dot_theta = 0.0f;
+            data.target_state.dot_beta1 = data.target_state.dot_beta2 = 0.0f;
+        }
+    }
     owner->_balance_control();
+    const bool stable = !data.airborne.landing_recovery && !data.airborne.attitude_recovery &&
+        std::fabs(data.measured_state.theta) < JUMP_READY_ANGLE &&
+        std::fabs(data.measured_state.phi) < JUMP_READY_ANGLE &&
+        std::fabs(data.measured_state.dot_theta) < JUMP_READY_ANGULAR_SPEED &&
+        std::fabs(data.measured_state.dot_phi) < JUMP_READY_ANGULAR_SPEED &&
+        data.airborne.support_force[leg_def::L] > AIR_CONTACT_FORCE_OFF &&
+        data.airborne.support_force[leg_def::R] > AIR_CONTACT_FORCE_OFF;
+    data.balance_stable_time = stable ? std::min(
+        data.balance_stable_time + data._dt, JUMP_STAND_CONFIRM_TIME) : 0.0f;
 
     // const float roll_error = owner->_ctx.data.target_state.phi -
     //                          owner->_ctx.data.measured_state.phi;

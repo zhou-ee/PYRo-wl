@@ -1,4 +1,5 @@
 #include "pyro_wl_chassis.h"
+#include "airborne_lqr_coef.h"
 
 #include "pyro_algo_common.h"
 #include "pyro_dwt_drv.h"
@@ -46,6 +47,9 @@ void wl_chassis_t::_update_feedback()
     const float measured_dt = dwt_drv_t::get_delta_t(&dwt_cnt);
     _ctx.data._dt =
         (measured_dt > 1.0e-5f && measured_dt < 0.1f) ? measured_dt : 0.001f;
+
+    _ctx.data.jump_cooldown_remaining = std::max(
+        0.0f, _ctx.data.jump_cooldown_remaining - _ctx.data._dt);
 
     // 2. Update all motor feedback before reading cached values.
     for (uint8_t leg = 0; leg < 2; ++leg)
@@ -322,6 +326,99 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         GAS_SPRING_FORCE_POLY_DEGREE);
 }
 __attribute__((optimize("O3")))
+void wl_chassis_t::_airborne_gain_calculate()
+{
+    const float lambda1 = std::clamp(
+        (_ctx.data.leg[leg_def::L].current_leg_length - airborne_lqr::LENGTH_CENTER_M) /
+            airborne_lqr::LENGTH_HALF_RANGE_M, -1.0f, 1.0f);
+    const float lambda2 = std::clamp(
+        (_ctx.data.leg[leg_def::R].current_leg_length - airborne_lqr::LENGTH_CENTER_M) /
+            airborne_lqr::LENGTH_HALF_RANGE_M, -1.0f, 1.0f);
+    for (uint8_t input = 0; input < airborne_lqr::INPUT_DIM; ++input)
+    {
+        for (uint8_t state = 0; state < airborne_lqr::STATE_DIM; ++state)
+        {
+            float rows[airborne_lqr::K_POLY_DEGREE + 1];
+            for (uint8_t p = 0; p <= airborne_lqr::K_POLY_DEGREE; ++p)
+            {
+                rows[p] = evaluate_polynomial_ascending(
+                    lambda2, airborne_lqr::K_COEF[input][state][p],
+                    airborne_lqr::K_POLY_DEGREE);
+            }
+            _ctx.data.airborne.gain_tp[input][state] = evaluate_polynomial_ascending(
+                lambda1, rows, airborne_lqr::K_POLY_DEGREE);
+        }
+    }
+}
+
+void wl_chassis_t::_execute_airborne_lqr()
+{
+    _airborne_gain_calculate();
+    const auto &state = _ctx.data.measured_state;
+    // Our beta=0 denotes a world-vertical leg; do not copy the document's
+    // mechanism angle formula, which uses a different body-pitch convention.
+    const float error[airborne_lqr::STATE_DIM] = {
+        state.beta1, state.dot_beta1, state.beta2, state.dot_beta2,
+        state.theta, state.dot_theta};
+    for (uint8_t input = 0; input < airborne_lqr::INPUT_DIM; ++input)
+    {
+        float torque = 0.0f;
+        for (uint8_t index = 0; index < airborne_lqr::STATE_DIM; ++index)
+        {
+            torque -= _ctx.data.airborne.gain_tp[input][index] * error[index];
+        }
+        _ctx.data.leg[input].out_T_p = std::clamp(torque, -MAX_T_P, MAX_T_P);
+    }
+}
+
+void wl_chassis_t::_reset_air_contacts()
+{
+    auto &air = _ctx.data.airborne;
+    air.flight_time = 0.0f;
+    for (uint8_t i = 0; i < 2; ++i)
+    {
+        air.contact[i] = false;
+        air.contact_confirm_time[i] = 0.0f;
+        air.contact_release_time[i] = 0.0f;
+        air.extension_speed_peak[i] = 0.0f;
+    }
+}
+
+void wl_chassis_t::_prepare_air_length_control()
+{
+    auto &air = _ctx.data.airborne;
+    if (air.length_filter_override)
+    {
+        return;
+    }
+    for (uint8_t i = 0; i < 2; ++i)
+    {
+        auto *pd = _ctx.pid.leg_length[i];
+        air.length_improve_saved[i] = pd->get_improve();
+        // The unloaded leg moves quickly. Ground filters delay its damping
+        // feedback; retain configured gains and integral options, bypass LPFs.
+        pd->set_improve(air.length_improve_saved[i] &
+            ~(pd_ctrl_t::OUTPUT_FILTER | pd_ctrl_t::DERIVATIVE_FILTER));
+        pd->clear();
+    }
+    air.length_filter_override = true;
+}
+
+void wl_chassis_t::_restore_air_length_control()
+{
+    auto &air = _ctx.data.airborne;
+    if (!air.length_filter_override)
+    {
+        return;
+    }
+    for (uint8_t i = 0; i < 2; ++i)
+    {
+        _ctx.pid.leg_length[i]->set_improve(air.length_improve_saved[i]);
+        _ctx.pid.leg_length[i]->clear();
+    }
+    air.length_filter_override = false;
+}
+
 void wl_chassis_t::_gain_calculate()
 {
     // const float norm_delta_L =

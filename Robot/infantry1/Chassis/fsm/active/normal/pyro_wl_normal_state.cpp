@@ -2,6 +2,7 @@
 #include "pyro_wl_chassis.h"
 
 #include <algorithm>
+#include <cmath>
 
 
 namespace pyro
@@ -41,6 +42,11 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
         owner->_ctx.data.current_function = chassis_function_state_t::NONE;
     }
     last_function = owner->_current_cmd.cmd_function_state;
+    // Jump is atomic; the outer power/manual modes can still interrupt it.
+    if (_active_state == &_state_jump)
+    {
+        return;
+    }
 
 
     if(owner->_ctx.data.current_function == chassis_function_state_t::STEP)
@@ -49,7 +55,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
     }
     else if(owner->_ctx.data.current_function == chassis_function_state_t::JUMP)
     {
-        change_state(&_state_jump);
+        const auto &data = owner->_ctx.data;
+        const bool ready = JUMP_ENABLED && _active_state == &_state_balance &&
+            !data.airborne.landing_recovery && !data.airborne.attitude_recovery &&
+            data.balance_stable_time >= JUMP_STAND_CONFIRM_TIME &&
+            data.jump_cooldown_remaining <= 0.0f;
+        if (ready)
+        {
+            change_state(&_state_jump);
+        }
     }
     else if(owner->_ctx.data.current_function == chassis_function_state_t::SPIN_TOGGLE)
     {
