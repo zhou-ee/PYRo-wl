@@ -56,7 +56,7 @@ enum class jump_phase_t : uint8_t
     JUMP,
     RECOVERY,
     AIR,
-    RETURN,
+    COMPLETE, // Diagnostic marker; no independent FSM state.
 };
 
 struct wl_chassis_cmd_t final : public cmd_base_t
@@ -362,12 +362,6 @@ class wl_chassis_t final
                     void execute(owner *owner) override;
                     void exit(owner *owner) override;
                 };
-                struct state_return_t final : public state_t<owner>
-                {
-                    void enter(owner *owner) override;
-                    void execute(owner *owner) override;
-                    void exit(owner *owner) override;
-                };
 
                 void on_enter(owner *owner) override;
                 void on_execute(owner *owner) override;
@@ -384,7 +378,6 @@ class wl_chassis_t final
                 state_push_t _state_push;
                 state_recovery_t _state_recovery;
                 state_air_t _state_air;
-                state_return_t _state_return;
             };
             struct state_spin_t final : public state_t<owner>
             {

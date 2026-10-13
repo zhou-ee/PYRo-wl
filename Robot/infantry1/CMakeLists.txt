@@ -31,7 +31,6 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 Chassis/fsm/active/normal/jump/pyro_wl_jump_push_state.cpp
                 Chassis/fsm/active/normal/jump/pyro_wl_jump_recovery_state.cpp
                 Chassis/fsm/active/normal/jump/pyro_wl_jump_air_state.cpp
-                Chassis/fsm/active/normal/jump/pyro_wl_jump_return_state.cpp
                 Chassis/fsm/active/normal/pyro_wl_spin_state.cpp
                 Chassis/fsm/active/normal/pyro_wl_rescue_state.cpp
 

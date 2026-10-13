@@ -34,8 +34,18 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_air_t::exec
     owner->_send_wheel_torque();
     if (landed)
     {
-        auto &jump = owner->_state_active._state_normal._state_jump;
-        jump._transition_phase(owner, &jump._state_return);
+        // Handover directly after this tick's contact-aware outputs. Balance
+        // retains the existing length and attitude recovery on its next entry.
+        data.airborne.L_ref = 0.5f * (data.leg[leg_def::L].current_leg_length +
+                                     data.leg[leg_def::R].current_leg_length);
+        data.target_state.L = data.airborne.L_ref;
+        data.target_state.dot_L = 0.0f;
+        data.target_state.psi = data.jump_heading_ref;
+        data.target_state.dot_psi = 0.0f;
+        data.airborne.landing_recovery = true;
+        data.jump_phase = jump_phase_t::COMPLETE;
+        data.jump_phase_time = 0.0f;
+        owner->_state_active._state_normal._state_jump._request_balance(owner);
     }
     else if (data.jump_phase_time >= JUMP_TOTAL_TIMEOUT)
     {
