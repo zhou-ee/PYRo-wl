@@ -12,37 +12,29 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_recovery_t:
     data.jump_phase = jump_phase_t::RECOVERY;
     data.jump_phase_time = 0.0f;
     data.jump_recovery_hold_time = 0.0f;
-    owner->_prepare_air_length_control();
     for (uint8_t i = 0; i < 2; ++i)
     {
-        data.airborne.L_air_ref[i] = data.leg[i].current_leg_length;
-        owner->_ctx.pid.leg_length[i]->clear();
+        data.airborne.L_air_ref[i] = JUMP_AIR_LENGTH;
     }
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_recovery_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = false;
     owner->_execute_airborne_lqr();
     bool settled = true;
     for (uint8_t i = 0; i < 2; ++i)
     {
         auto &leg = data.leg[i];
-        float &reference = data.airborne.L_air_ref[i];
-        const float step = JUMP_RECOVERY_LENGTH_RATE * data._dt;
-        reference += std::clamp(JUMP_AIR_LENGTH - reference, -step, step);
-        leg.target_leg_length = reference;
-        // Eq.139 is a total virtual force; convert once to active motor force.
-        const float total_force = std::clamp(owner->_ctx.pid.leg_length[i]->calculate(
-            reference, leg.current_leg_length, leg.current_leg_speed),
-            -JUMP_RECOVERY_FORCE_MAX, JUMP_RECOVERY_FORCE_MAX)
-            - (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION;
-        leg.out_F_L = total_force - leg.gas_spring_force;
+        // The reference is for phase completion/telemetry, not a length loop.
+        leg.target_leg_length = JUMP_AIR_LENGTH;
+        leg.out_F_L = owner->_motor_torque_to_leg_force(leg, -JUMP_RECOVERY_MOTOR_TORQUE)
+            - (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION
+            - leg.gas_spring_force;
         data.wheel[i].out_T_w = 0.0f;
         data.wheel[i].out_current = 0.0f;
-        // A slightly shorter leg has completed retraction as well. The existing
-        // zero-integral PD plus negative foot feedforward has a static offset.
+        // Retraction effort continues until handover; the lower virtual wall
+        // provides the opposing force when the leg reaches its short end.
         settled &= leg.current_leg_length < JUMP_AIR_LENGTH + JUMP_LENGTH_TOLERANCE &&
                    std::fabs(leg.current_leg_speed) < JUMP_SETTLED_LEG_SPEED;
     }

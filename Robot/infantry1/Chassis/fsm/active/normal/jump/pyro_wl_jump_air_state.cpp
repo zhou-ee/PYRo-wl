@@ -17,16 +17,11 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_air_t::ente
     data.jump_leg_extension_speed_peak[leg_def::R] = 0.0f;
     data.jump_landing_confirm_time = 0.0f;
     owner->_reset_air_contacts();
-    for (uint8_t i = 0; i < 2; ++i)
-    {
-        owner->_ctx.pid.leg_length[i]->clear();
-    }
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_air_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = false;
     const bool landed = owner->_detect_landing();
     owner->_execute_air_control();
     owner->_vmc_trans_v2j();

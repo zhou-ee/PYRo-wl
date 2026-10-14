@@ -296,23 +296,39 @@ void wl_chassis_t::_manual_control()
 
 float wl_chassis_t::_calc_leg_length_wall_force(const leg_ctx_t &leg) const
 {
-    if (leg.current_leg_length > LEG_LENGTH_WALL_MAX)
+    // Damping opposes motion toward the stop over the wider region; the
+    // narrower stiffness region supplies a static restoring force.
+    if (leg.current_leg_length > LEG_LENGTH_WALL_DAMPING_MAX)
     {
-        const float penetration = leg.current_leg_length - LEG_LENGTH_WALL_MAX;
+        const float penetration = std::max(
+            leg.current_leg_length - LEG_LENGTH_WALL_MAX, 0.0f);
         const float damping_force =
             LEG_LENGTH_WALL_D * std::max(leg.current_leg_speed, 0.0f);
         return -LEG_LENGTH_WALL_K * penetration - damping_force;
     }
 
-    if (leg.current_leg_length < LEG_LENGTH_WALL_MIN)
+    if (leg.current_leg_length < LEG_LENGTH_WALL_DAMPING_MIN)
     {
-        const float penetration = LEG_LENGTH_WALL_MIN - leg.current_leg_length;
+        const float penetration = std::max(
+            LEG_LENGTH_WALL_MIN - leg.current_leg_length, 0.0f);
         const float damping_force =
             LEG_LENGTH_WALL_D * std::max(-leg.current_leg_speed, 0.0f);
         return LEG_LENGTH_WALL_K * penetration + damping_force;
     }
 
     return 0.0f;
+}
+
+float wl_chassis_t::_motor_torque_to_leg_force(const leg_ctx_t &leg, const float signed_torque) const
+{
+    const float jacobian = std::fabs(leg.J_L);
+    if (!std::isfinite(jacobian) || jacobian < 1.0e-4f)
+    {
+        return 0.0f;
+    }
+    // Positive signed_torque always means extension (+F_L), independent of
+    // the kinematic branch. Each joint receives +/- its magnitude in VMC.
+    return 2.0f * signed_torque / jacobian;
 }
 
 float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
@@ -382,41 +398,6 @@ void wl_chassis_t::_reset_air_contacts()
         air.contact_release_time[i] = 0.0f;
         air.extension_speed_peak[i] = 0.0f;
     }
-}
-
-void wl_chassis_t::_prepare_air_length_control()
-{
-    auto &air = _ctx.data.airborne;
-    if (air.length_filter_override)
-    {
-        return;
-    }
-    for (uint8_t i = 0; i < 2; ++i)
-    {
-        auto *pd = _ctx.pid.leg_length[i];
-        air.length_improve_saved[i] = pd->get_improve();
-        // The unloaded leg moves quickly. Ground filters delay its damping
-        // feedback; retain configured gains and integral options, bypass LPFs.
-        pd->set_improve(air.length_improve_saved[i] &
-            ~(pd_ctrl_t::OUTPUT_FILTER | pd_ctrl_t::DERIVATIVE_FILTER));
-        pd->clear();
-    }
-    air.length_filter_override = true;
-}
-
-void wl_chassis_t::_restore_air_length_control()
-{
-    auto &air = _ctx.data.airborne;
-    if (!air.length_filter_override)
-    {
-        return;
-    }
-    for (uint8_t i = 0; i < 2; ++i)
-    {
-        _ctx.pid.leg_length[i]->set_improve(air.length_improve_saved[i]);
-        _ctx.pid.leg_length[i]->clear();
-    }
-    air.length_filter_override = false;
 }
 
 void wl_chassis_t::_gain_calculate()
@@ -518,24 +499,13 @@ void wl_chassis_t::_vmc_trans_v2j()
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
 
-    // Every active mode eventually reaches this VMC-to-joint conversion.
-    // Apply the passive gas-spring contribution here so ALIGN, MANUAL, AIR,
-    // STEP and BALANCE all use the same motor-side compensation.
-
+    // All active modes use the same always-on wall. Inputs are already
+    // motor-side forces; each phase applies its own feedforward exactly once.
     for (auto &leg : _ctx.data.leg)
     {
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
-        // const float f_l_before_wall = leg.out_F_L -
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
-        const float f_l_before_wall = leg.out_F_L ;
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
         const float t_p_motor = leg.out_T_p;
-        const float wall_force = _ctx.data.jump_virtual_wall_bypass
-                                     ? 0.0f
-                                     : leg.virtual_wall_force;
-        leg.motor_f_l = std::clamp(f_l_before_wall + wall_force,
+        leg.motor_f_l = std::clamp(leg.out_F_L + leg.virtual_wall_force,
                                    -MAX_F_L, MAX_F_L);
         leg.motor_t_p = t_p_motor;
 

@@ -184,8 +184,6 @@ struct airborne_data_t
     float flight_time = 0.0f;
     float forward_velocity_ref = 0.0f;
     float gain_tp[2][6] = {};
-    bool length_filter_override = false;
-    uint8_t length_improve_saved[2] = {};
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
     float L_ref = NORMAL_LENGTH_TARGET;
@@ -229,7 +227,6 @@ struct wl_chassis_data_ctx_t
     float jump_leg_extension_speed_peak[2] = {0.0f, 0.0f}; // 进入 AIR 后各腿伸展速度的逐拍最大值 (m/s)
     float jump_landing_confirm_time = 0.0f; // 落地判据连续成立的时间 (s)
     uint16_t jump_push_accel_hold_ticks = 0;
-    bool jump_virtual_wall_bypass = false;
     float _dt;
     float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
@@ -275,6 +272,7 @@ class wl_chassis_t final
     void _vmc_trans_j2v();
     void _manual_control();
     float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
+    float _motor_torque_to_leg_force(const leg_ctx_t &leg, float signed_torque) const;
     float _calc_gas_spring_force(float leg_length) const;
     void _gain_calculate();
     void _balance_control();
@@ -289,8 +287,6 @@ class wl_chassis_t final
     void _airborne_gain_calculate();
     void _execute_airborne_lqr();
     void _reset_air_contacts();
-    void _prepare_air_length_control();
-    void _restore_air_length_control();
     void _execute_landing_recovery();
 
     using owner = wl_chassis_t;

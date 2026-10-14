@@ -18,7 +18,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_pre_compres
     data.jump_leg_extension_speed_peak[leg_def::R] = 0.0f;
     data.jump_landing_confirm_time = 0.0f;
     data.jump_push_accel_hold_ticks = 0;
-    data.jump_virtual_wall_bypass = false;
     data.airborne.takeoff_counter = 0;
     data.airborne.landing_counter = 0;
     data.airborne.landing_recovery = false;
@@ -50,7 +49,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_pre_compres
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_pre_compress_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = false;
     data.target_state.L = JUMP_PRECOMPRESS_LENGTH;
     data.target_state.dot_L = 0.0f;
     data.target_state.psi = data.jump_heading_ref;
@@ -60,6 +58,12 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_pre_compres
     data.target_state.dot_x = data.jump_forward_velocity_ref;
     owner->_gain_calculate();
     owner->_balance_control();
+    for (auto &leg : data.leg)
+    {
+        // Keep ground balance and add a fixed per-motor retraction effort.
+        leg.out_F_L += owner->_motor_torque_to_leg_force(
+            leg, -JUMP_PRECOMPRESS_MOTOR_TORQUE);
+    }
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();

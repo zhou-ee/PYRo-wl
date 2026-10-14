@@ -65,7 +65,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::_transition_phase
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::_abort_jump(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = false;
     data.airborne.landing_recovery = false;
     for (uint8_t i = 0; i < 2; ++i)
     {
@@ -91,8 +90,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::_request_balance(
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::on_exit(wl_chassis_t *owner)
 {
-    owner->_restore_air_length_control();
-    owner->_ctx.data.jump_virtual_wall_bypass = false;
     owner->_ctx.data.jump_cooldown_remaining = JUMP_COOLDOWN_TIME;
 }
 

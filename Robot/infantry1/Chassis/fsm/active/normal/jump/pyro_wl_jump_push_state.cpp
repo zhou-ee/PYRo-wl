@@ -17,7 +17,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_push_t::ent
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_push_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = false;
     data.target_state.psi = data.jump_heading_ref;
     data.target_state.dot_psi = 0.0f;
     data.target_state.x += data.jump_forward_velocity_ref * data._dt;
@@ -57,11 +56,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_push_t::exe
                                             : lqr_input_def::T_P2;
         leg.out_T_p = std::clamp(jump_lqr_output(leg_swing_input),
                                  -JUMP_T_P_LIMIT, JUMP_T_P_LIMIT);
-        const float open_loop_force = 2.0f * JUMP_TAU / leg.J_L;
-        // Opposite joint torques, as in Eq.135; do not add ground F_L/U0.
-        // The physical gas spring remains present during the thrust.
-        leg.out_F_L = leg.current_leg_length >= MAX_LEG_LENGTH - JUMP_PUSH_HARD_MARGIN
-            ? -leg.gas_spring_force : open_loop_force;
+        // Fixed extension torque contribution; keep the physical gas spring.
+        // The always-on virtual wall supplies the boundary correction in VMC.
+        leg.out_F_L = owner->_motor_torque_to_leg_force(leg, JUMP_PUSH_MOTOR_TORQUE);
         data.wheel[i].out_T_w = std::clamp(
             jump_lqr_output(wheel_input), -MAX_T_W, MAX_T_W);
         data.wheel[i].out_current = std::clamp(

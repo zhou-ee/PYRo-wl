@@ -118,7 +118,7 @@ bool wl_chassis_t::_detect_landing()
             air.extension_speed_peak[i], leg.current_leg_speed);
         const bool reverse = leg.current_leg_speed < JUMP_LANDING_REVERSE_SPEED;
         const bool driven_extension = leg.current_leg_length <
-            LEG_LENGTH_WALL_MAX - AIR_EXTENSION_BRAKE_MARGIN;
+            LEG_LENGTH_WALL_MAX - AIR_CONTACT_WALL_GUARD_MARGIN;
         const bool slowed = driven_extension &&
             leg.current_leg_length < MAX_LEG_LENGTH - JUMP_LANDING_LENGTH_MARGIN &&
             air.extension_speed_peak[i] > JUMP_LANDING_EXTENSION_SPEED_MIN &&
@@ -135,7 +135,6 @@ bool wl_chassis_t::_detect_landing()
             {
                 air.contact[i] = true;
                 air.L_air_ref[i] = leg.current_leg_length;
-                _ctx.pid.leg_length[i]->clear();
             }
         }
         else
@@ -182,20 +181,18 @@ void wl_chassis_t::_execute_landing_recovery()
 
 void wl_chassis_t::_execute_air_control()
 {
-    // Ground U0 is already active motor force; use it only on confirmed contact.
-    _gain_calculate();
     _execute_airborne_lqr();
     auto &data = _ctx.data;
     auto &air = data.airborne;
     for (uint8_t i = 0; i < 2; ++i)
     {
         auto &leg = data.leg[i];
+        // Fixed extension effort on both airborne and confirmed-contact legs.
+        // No gas-spring cancellation or length PD; boundary feedback is in VMC.
+        leg.target_leg_length = LEG_LENGTH_WALL_MAX;
+        leg.out_F_L = _motor_torque_to_leg_force(leg, JUMP_AIR_MOTOR_TORQUE);
         if (air.contact[i])
         {
-            leg.target_leg_length = air.L_air_ref[i];
-            const uint8_t force_input = i == leg_def::L ? lqr_input_def::F_L1 : lqr_input_def::F_L2;
-            leg.out_F_L = data.U0[force_input] + _ctx.pid.leg_length[i]->calculate(
-                leg.target_leg_length, leg.current_leg_length, leg.current_leg_speed);
             const float wheel_target = air.forward_velocity_ref / WHEEL_RADIUS;
             data.wheel[i].out_T_w = std::clamp(
                 AIR_WHEEL_LOCK_K * (wheel_target - data.wheel[i].current_radps), -MAX_T_W, MAX_T_W);
@@ -204,17 +201,6 @@ void wl_chassis_t::_execute_air_control()
         }
         else
         {
-            leg.target_leg_length = LEG_LENGTH_WALL_MAX;
-            float total_force = AIR_EXTENSION_FORCE;
-            if (leg.current_leg_length >= LEG_LENGTH_WALL_MAX - AIR_EXTENSION_BRAKE_MARGIN)
-            {
-                // Drop the extra extension force near the stop and brake/hold
-                // inside the mechanical limit with the existing length PD.
-                total_force = _ctx.pid.leg_length[i]->calculate(
-                    leg.target_leg_length, leg.current_leg_length, leg.current_leg_speed)
-                    - (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION;
-            }
-            leg.out_F_L = total_force - leg.gas_spring_force;
             data.wheel[i].out_T_w = 0.0f;
             data.wheel[i].out_current = 0.0f;
         }
@@ -223,7 +209,6 @@ void wl_chassis_t::_execute_air_control()
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::enter(wl_chassis_t *owner)
 {
-    owner->_prepare_air_length_control();
     owner->_ctx.data.airborne.landing_counter = 0;
     owner->_reset_air_contacts();
     owner->_ctx.data.airborne.forward_velocity_ref = owner->_ctx.data.measured_state.dot_x;
@@ -268,7 +253,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::execute(wl_chassis
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::exit(wl_chassis_t *owner)
 {
-    owner->_restore_air_length_control();
     for (auto &wheel : owner->_ctx.data.wheel)
     {
         wheel.out_T_w = 0.0f;
