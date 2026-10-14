@@ -211,7 +211,7 @@ void warning_drv_t::task_run_loop()
                 //不是哥们，六种灯全亮上了，那还说啥了
                 //我直接给你个彩虹灯得了
                 static uint16_t hue = 0;
-                hue = (hue + 1) % 360; // 色相滚动
+                hue = (hue + 5) % 360; // 色相滚动
                 auto output = _rgb->hsv_to_rgb(hue, 255, 100);
                 _rgb->set_led(0, output.r, output.g, output.b);
             }
@@ -234,7 +234,7 @@ void warning_drv_t::task_run_loop()
                         _rgb->set_led(0, 255, 0, 255);
                         break;
                     case RGB_waring_type_t::RED:
-                        _rgb->set_led(255, 0, 0, 255);
+                        _rgb->set_led(0, 255, 0, 0);
                         break;
                     case RGB_waring_type_t::YELLOW:
                         _rgb->set_led(0, 255, 255, 0);
@@ -273,6 +273,7 @@ void warning_drv_t::handle_buzzer(int tick, BuzzerPlayer &buzzer)
     {
     case buzzer_warning_level_t::NONE:
         buzzer.stop();
+        buzzer.tone_stop();
         return;
 
     case buzzer_warning_level_t::PLAYING:
@@ -290,7 +291,7 @@ void warning_drv_t::handle_buzzer(int tick, BuzzerPlayer &buzzer)
     default:
         break;
     }
-
+    buzzer.stop();
     // WARNING_LEVEL_1 ~ WARNING_LEVEL_8 统一处理
     int pulses = (int)_current_buzzer_warning_level -
                  (int)buzzer_warning_level_t::WARNING_LEVEL_1 + 1;
@@ -313,7 +314,11 @@ void warning_drv_t::handle_buzzer(int tick, BuzzerPlayer &buzzer)
 void warning_drv_t::set_buzzer_warning_level(buzzer_warning_level_t level)
     {
         taskENTER_CRITICAL();
-        _current_buzzer_warning_level = level;
+        if(level == warning_drv_t::buzzer_warning_level_t::NONE)
+        {
+            _current_buzzer_warning_level = level;
+        }
+        _current_buzzer_warning_level = (int)level > (int)_current_buzzer_warning_level ? level : _current_buzzer_warning_level;
         melody_loaded = false;
         taskEXIT_CRITICAL();
     }

@@ -97,7 +97,7 @@ class warning_drv_t
     uint8_t available_color_count = 0;
 
     static constexpr int TICK_PERIOD         = 1000; // 一个完整周期 tick 数 (5s)
-    static constexpr int TICK_STEP           = 4;    // 每次循环 tick 增量
+    static constexpr int TICK_STEP           = 8;    // 每次循环 tick 增量
     static constexpr int WARN_TONE_FREQ_HZ   = 1000;
     static constexpr int WARN_TONE_VOLUME    = 100;
     static constexpr int WARN_PULSE_ON_TICK  = 50;   // 每段蜂鸣持续 tick 数

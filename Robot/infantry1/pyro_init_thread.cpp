@@ -79,6 +79,44 @@ void pyro_init_thread(void *argument)
     supercap_drv_t::get_instance()->start_rx();
 #endif
 
+
+
+
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::PLAYING);
+    warning_drv_t::instance().add_rgb_warning_type(warning_drv_t::RGB_waring_type_t::RED);
+    vTaskDelay(10000);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::WARNING_LEVEL_1);
+    warning_drv_t::instance().add_rgb_warning_type(warning_drv_t::RGB_waring_type_t::BLUE);
+    vTaskDelay(10000);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::NONE);
+    warning_drv_t::instance().add_rgb_warning_type(warning_drv_t::RGB_waring_type_t::GREEN);
+    vTaskDelay(10000);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::NONE);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::WARNING_LEVEL_2);
+    warning_drv_t::instance().add_rgb_warning_type(warning_drv_t::RGB_waring_type_t::CYAN);
+    vTaskDelay(10000);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::NONE);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::WARNING_LEVEL_4);
+    warning_drv_t::instance().add_rgb_warning_type(warning_drv_t::RGB_waring_type_t::PURPLE);
+    vTaskDelay(10000);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::NONE);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::WARNING_LEVEL_6);
+    warning_drv_t::instance().add_rgb_warning_type(warning_drv_t::RGB_waring_type_t::YELLOW);
+    vTaskDelay(10000);
+    warning_drv_t::instance().set_buzzer_warning_level(warning_drv_t::buzzer_warning_level_t::NONE);
+    warning_drv_t::instance().clear_rgb_warning_type(warning_drv_t::RGB_waring_type_t::RED);
+    vTaskDelay(10000);
+    warning_drv_t::instance().clear_rgb_warning_type(warning_drv_t::RGB_waring_type_t::BLUE);
+    vTaskDelay(10000);
+    warning_drv_t::instance().clear_rgb_warning_type(warning_drv_t::RGB_waring_type_t::GREEN);
+    vTaskDelay(10000);
+    warning_drv_t::instance().clear_rgb_warning_type(warning_drv_t::RGB_waring_type_t::CYAN);
+    vTaskDelay(10000);
+    warning_drv_t::instance().clear_rgb_warning_type(warning_drv_t::RGB_waring_type_t::PURPLE);
+    vTaskDelay(10000);
+    warning_drv_t::instance().clear_rgb_warning_type(warning_drv_t::RGB_waring_type_t::YELLOW);
+    vTaskDelay(10000);
+
     vTaskDelete(nullptr);
 }
 }
