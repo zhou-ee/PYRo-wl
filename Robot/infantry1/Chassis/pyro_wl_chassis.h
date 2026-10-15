@@ -178,6 +178,8 @@ struct airborne_data_t
     bool landing_recovery = false;
     bool attitude_recovery = false;
     bool velocity_recovery = false;
+    float pitch_reference_acceleration = 0.0f; // 本拍 pitch 参考角速度变化率 (rad/s^2)
+    float beta_reference_acceleration[2] = {0.0f, 0.0f}; // 本拍左右腿角参考角速度变化率 (rad/s^2)
     bool contact[2] = {false, false};
     float contact_confirm_time[2] = {0.0f, 0.0f};
     float contact_release_time[2] = {0.0f, 0.0f};

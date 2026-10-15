@@ -2,6 +2,7 @@
 #include "stm32h7xx_hal_rcc_ex.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 float debug = 0;
 float debug2 = 0;
@@ -10,6 +11,106 @@ namespace pyro
 
 static int reset_count;
 
+namespace
+{
+// Advance an exact acceleration/cruise/braking trajectory by one control tick.
+// Replanning from the previous reference also follows a moving beta trim without
+// resetting its velocity. References finish at the goal with zero velocity.
+bool advance_landing_angle_reference(const float goal, const float max_velocity,
+                                     const float max_acceleration, const float dt,
+                                     float &angle, float &velocity, float &acceleration)
+{
+    acceleration = 0.0f;
+    if (!std::isfinite(dt) || dt <= 0.0f)
+    {
+        return false;
+    }
+
+    const double q0 = angle;
+    const double v0 = velocity;
+    const double distance = static_cast<double>(goal) - q0;
+    const double acceleration_limit = max_acceleration;
+    const double velocity_limit = max_velocity;
+    double duration = std::numeric_limits<double>::infinity();
+    double a = 0.0, peak = 0.0, accelerating_time = 0.0, cruise_time = 0.0;
+    for (const double sign : {-1.0, 1.0})
+    {
+        const double signed_a = sign * acceleration_limit;
+        const double square = signed_a * distance + 0.5 * v0 * v0;
+        if (square < 0.0)
+        {
+            continue;
+        }
+        double candidate_peak = sign * std::sqrt(square);
+        double first = (candidate_peak - v0) / signed_a;
+        double coast = 0.0;
+        double last = candidate_peak / signed_a;
+        if (std::fabs(candidate_peak) > velocity_limit)
+        {
+            candidate_peak = sign * velocity_limit;
+            first = (candidate_peak - v0) / signed_a;
+            last = candidate_peak / signed_a;
+            const double consumed = (2.0 * candidate_peak * candidate_peak - v0 * v0) /
+                                    (2.0 * signed_a);
+            coast = (distance - consumed) / candidate_peak;
+        }
+        if (first < -1.0e-10 || coast < -1.0e-10 || last < -1.0e-10)
+        {
+            continue;
+        }
+        first = std::max(0.0, first);
+        coast = std::max(0.0, coast);
+        last = std::max(0.0, last);
+        const double candidate_duration = first + coast + last;
+        if (candidate_duration < duration)
+        {
+            duration = candidate_duration;
+            a = signed_a;
+            peak = candidate_peak;
+            accelerating_time = first;
+            cruise_time = coast;
+        }
+    }
+    if (!std::isfinite(duration))
+    {
+        return false;
+    }
+
+    const double t = dt;
+    const bool finished = t >= duration;
+    if (finished)
+    {
+        angle = goal;
+        velocity = 0.0f;
+    }
+    else if (t < accelerating_time)
+    {
+        angle = static_cast<float>(q0 + v0 * t + 0.5 * a * t * t);
+        velocity = static_cast<float>(v0 + a * t);
+    }
+    else
+    {
+        const double after_acceleration = t - accelerating_time;
+        const double q1 = q0 + v0 * accelerating_time +
+                          0.5 * a * accelerating_time * accelerating_time;
+        if (after_acceleration < cruise_time)
+        {
+            angle = static_cast<float>(q1 + peak * after_acceleration);
+            velocity = static_cast<float>(peak);
+        }
+        else
+        {
+            const double braking_time = after_acceleration - cruise_time;
+            angle = static_cast<float>(q1 + peak * cruise_time + peak * braking_time -
+                                       0.5 * a * braking_time * braking_time);
+            velocity = static_cast<float>(peak - a * braking_time);
+        }
+    }
+    acceleration = static_cast<float>((static_cast<double>(velocity) - v0) / t);
+    return finished;
+}
+} // namespace
+
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
@@ -17,6 +118,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     owner->_ctx.data.balance_stable_time = 0.0f;
     owner->_ctx.data.airborne.attitude_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.velocity_recovery = owner->_ctx.data.airborne.landing_recovery;
+    owner->_ctx.data.airborne.pitch_reference_acceleration = 0.0f;
+    owner->_ctx.data.airborne.beta_reference_acceleration[0] = 0.0f;
+    owner->_ctx.data.airborne.beta_reference_acceleration[1] = 0.0f;
     owner->_ctx.data.odom.real_x            = 0;
 
     owner->_ctx.data.target_state.x         = 0;
@@ -222,24 +326,29 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 
     auto &data = owner->_ctx.data;
     const float previous_beta[2] = {data.target_state.beta1, data.target_state.beta2};
+    const float previous_beta_speed[2] = {data.target_state.dot_beta1, data.target_state.dot_beta2};
+    data.airborne.pitch_reference_acceleration = 0.0f;
+    data.airborne.beta_reference_acceleration[0] = 0.0f;
+    data.airborne.beta_reference_acceleration[1] = 0.0f;
     owner->_gain_calculate();
     if (data.airborne.attitude_recovery)
     {
-        const float pitch_step = std::clamp(-data.target_state.theta,
-            -LANDING_PITCH_REFERENCE_RATE * data._dt, LANDING_PITCH_REFERENCE_RATE * data._dt);
-        data.target_state.theta += pitch_step;
-        data.target_state.dot_theta = pitch_step / data._dt;
+        bool restored = advance_landing_angle_reference(
+            0.0f, LANDING_PITCH_REFERENCE_RATE, LANDING_PITCH_REFERENCE_ACCELERATION,
+            data._dt, data.target_state.theta, data.target_state.dot_theta,
+            data.airborne.pitch_reference_acceleration);
         float *beta_ref[2] = {&data.target_state.beta1, &data.target_state.beta2};
         float *beta_speed_ref[2] = {&data.target_state.dot_beta1, &data.target_state.dot_beta2};
-        bool restored = std::fabs(data.target_state.theta) < 1.0e-4f;
         for (uint8_t i = 0; i < 2; ++i)
         {
-            const float error = *beta_ref[i] - previous_beta[i];
-            const float step = std::clamp(error,
-                -LANDING_BETA_REFERENCE_RATE * data._dt, LANDING_BETA_REFERENCE_RATE * data._dt);
-            *beta_ref[i] = previous_beta[i] + step;
-            *beta_speed_ref[i] = step / data._dt;
-            restored &= std::fabs(error) < 1.0e-4f;
+            const float trim = *beta_ref[i]; // _gain_calculate() schedules the current trim.
+            *beta_ref[i] = previous_beta[i];
+            *beta_speed_ref[i] = previous_beta_speed[i];
+            const bool beta_restored = advance_landing_angle_reference(
+                trim, LANDING_BETA_REFERENCE_RATE, LANDING_BETA_REFERENCE_ACCELERATION,
+                data._dt, *beta_ref[i], *beta_speed_ref[i],
+                data.airborne.beta_reference_acceleration[i]);
+            restored &= beta_restored;
         }
         if (restored && !data.airborne.landing_recovery)
         {
@@ -291,6 +400,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::exit(wl_chassis_t *owner)
 {
     owner->_ctx.data.airborne.velocity_recovery = false;
+    owner->_ctx.data.airborne.pitch_reference_acceleration = 0.0f;
+    owner->_ctx.data.airborne.beta_reference_acceleration[0] = 0.0f;
+    owner->_ctx.data.airborne.beta_reference_acceleration[1] = 0.0f;
 }
 
 } // namespace pyro

@@ -156,9 +156,16 @@ constexpr float AIR_CONTACT_WALL_GUARD_MARGIN        = 0.03f; // 触地速度判
 constexpr float AIR_CONTACT_MIN_TIME                = 0.025f;
 constexpr float AIR_CONTACT_RELEASE_FORCE           = 20.0f;
 constexpr float AIR_CONTACT_RELEASE_TIME            = 0.02f;
-constexpr float LANDING_PITCH_REFERENCE_RATE         = 10.0f;
-constexpr float LANDING_BETA_REFERENCE_RATE          = 5.0f;
+constexpr float LANDING_PITCH_REFERENCE_RATE         = 10.0f; // rad/s; pitch 参考角速度上限
+constexpr float LANDING_PITCH_REFERENCE_ACCELERATION = 10.0f; // rad/s^2; pitch 参考角加速度上限
+constexpr float LANDING_BETA_REFERENCE_RATE          = 10.0f; // rad/s; 两侧腿角参考角速度上限
+constexpr float LANDING_BETA_REFERENCE_ACCELERATION  = 15.0f; // rad/s^2; 两侧腿角参考角加速度上限
 constexpr float LANDING_VELOCITY_REFERENCE_RATE      = 5.0f; // m/s^2; 落地速度参考向当前遥控速度的变化率
+static_assert(LANDING_PITCH_REFERENCE_RATE > 0.0f &&
+              LANDING_PITCH_REFERENCE_ACCELERATION > 0.0f &&
+              LANDING_BETA_REFERENCE_RATE > 0.0f &&
+              LANDING_BETA_REFERENCE_ACCELERATION > 0.0f,
+              "Landing angular reference limits must be positive");
 
 constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 
