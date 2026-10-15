@@ -3,83 +3,74 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 
 namespace pyro
 {
 
 void wl_forward_kf_t::init()
 {
-    if (_kf.xhat_data != nullptr)
+    if (_kf.is_initialized())
         return;
-
-    Kalman_Filter_Init(&_kf, 4, 0, 3);
-    _kf.UseAutoAdjustment = 0;
-    _kf.UseJosephForm = 1;
-    _kf.UserData = this;
-    // Runs after xminus/Pminus, before the gain and measurement correction.
-    _kf.User_Func2_f = _adjust_wheel_r;
 
     const float t = FORWARD_KF_TS;
     const float half_t2 = 0.5f * t * t;
-    const float f_init[16] = {
+    F_ = {
         1.0f, t, half_t2, 0.0f,
         0.0f, 1.0f, t, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
     };
-    const float h_init[12] = {
+    H_ = {
         0.0f, 0.0f, 1.0f, 1.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
     };
-    std::memcpy(_kf.F_data, f_init, sizeof(f_init));
-    std::memcpy(_kf.H_data, h_init, sizeof(h_init));
+    filter_t::options_t options;
+    options.covariance_update = filter_t::covariance_update_t::JOSEPH;
+    options.solver            = filter_t::solver_t::INVERSE;
+    options.symmetrize        = true;
+    filter_t::covariance_t P0{};
     const float g_a[4] = {half_t2, t, 1.0f, 0.0f};
     for (uint8_t row = 0; row < 4; ++row)
     {
-        _kf.StateMinVariance[row] = FORWARD_KF_MIN_VARIANCE[row];
+        options.min_variance[row] = FORWARD_KF_MIN_VARIANCE[row];
+        P0(row, row) = FORWARD_KF_P_INIT[row];
         for (uint8_t col = 0; col < 4; ++col)
-            _kf.Q_data[row * 4 + col] =
-                FORWARD_KF_ACCEL_VARIANCE * g_a[row] * g_a[col];
+            Q_d_(row, col) = FORWARD_KF_ACCEL_VARIANCE * g_a[row] * g_a[col];
     }
-    _kf.Q_data[15] = FORWARD_KF_BIAS_VARIANCE;
-    _kf.R_data[0] = FORWARD_KF_R_IMU;
-    _kf.R_data[4] = FORWARD_KF_R_MODEL;
-    _kf.R_data[8] = FORWARD_KF_R_WHEEL;
-    reset(0.0f, 0.0f, 0.0f);
+    Q_d_(3, 3) = FORWARD_KF_BIAS_VARIANCE;
+    R_(0, 0) = FORWARD_KF_R_IMU;
+    R_(1, 1) = FORWARD_KF_R_MODEL;
+    R_(2, 2) = FORWARD_KF_R_WHEEL;
+    _kf.init({}, P0, options);
+    // 与旧 init 的零速 reset 一致，首个有效轮速仍参与微分。
+    // Match the old zero-speed reset: differentiate the first valid wheel sample.
+    _wheel_valid = _wheel_was_valid = true;
 }
 
 ForwardStateEstimate wl_forward_kf_t::reset(float x, float v_wheel, float a_imu,
                                            bool wheel_valid)
 {
-    _wheel_valid = wheel_valid && std::isfinite(v_wheel);
+    init();
+    _wheel_valid = wheel_valid && matrix::is_finite(v_wheel);
     _wheel_was_valid = _wheel_valid;
     _previous_wheel_v = _wheel_valid ? v_wheel : 0.0f;
     _wheel_accel = 0.0f;
     _slip_score = 0.0f;
-    _kf.xhat_data[0] = x;
-    _kf.xhat_data[1] = _previous_wheel_v;
-    _kf.xhat_data[2] = a_imu;
-    _kf.xhat_data[3] = 0.0f;
-    std::memcpy(_kf.xhatminus_data, _kf.xhat_data, 4 * sizeof(float));
-    std::memcpy(_kf.FilteredValue, _kf.xhat_data, 4 * sizeof(float));
-    std::memset(_kf.P_data, 0, 16 * sizeof(float));
-    std::memset(_kf.MeasuredVector, 0, 3 * sizeof(float));
+    const filter_t::state_t x0 = {x, _previous_wheel_v, a_imu, 0.0f};
+    filter_t::covariance_t P0{};
     for (uint8_t i = 0; i < 4; ++i)
-        _kf.P_data[i * 4 + i] = FORWARD_KF_P_INIT[i];
-    std::memcpy(_kf.Pminus_data, _kf.P_data, 16 * sizeof(float));
-    _kf.H_data[9] = _wheel_valid ? 1.0f : 0.0f;
-    _kf.R_data[8] = FORWARD_KF_R_WHEEL;
-    _kf.MeasurementUpdateFailed = 0;
-    _kf.MatStatus = ARM_MATH_SUCCESS;
+        P0(i, i) = FORWARD_KF_P_INIT[i];
+    R_(2, 2) = FORWARD_KF_R_WHEEL;
+    _kf.reset(x0, P0);
     return _get_estimate();
 }
 
 ForwardStateEstimate wl_forward_kf_t::update(float a_imu, float a_model, float v_wheel,
                                             bool wheel_valid)
 {
-    _wheel_valid = wheel_valid && std::isfinite(v_wheel);
+    init();
+    _wheel_valid = wheel_valid && matrix::is_finite(v_wheel);
     if (_wheel_valid && _wheel_was_valid)
         _wheel_accel = FORWARD_KF_WHEEL_DIFF_A * _wheel_accel +
                       FORWARD_KF_WHEEL_DIFF_B * (v_wheel - _previous_wheel_v);
@@ -89,27 +80,33 @@ ForwardStateEstimate wl_forward_kf_t::update(float a_imu, float a_model, float v
         _previous_wheel_v = v_wheel;
     _wheel_was_valid = _wheel_valid;
 
-    _kf.MeasuredVector[0] = a_imu;
-    _kf.MeasuredVector[1] = a_model;
-    _kf.MeasuredVector[2] = _wheel_valid ? v_wheel : 0.0f;
-    // Disable only a truly invalid encoder row; valid zero speed is retained.
-    _kf.H_data[9] = _wheel_valid ? 1.0f : 0.0f;
-    Kalman_Filter_Update(&_kf);
+    const filter_t::measurement_t z = {a_imu, a_model, _wheel_valid ? v_wheel : 0.0f};
+    if (_kf.predict(F_, Q_d_) != PYRO_OK)
+        return _get_estimate();
+    _adjust_wheel_r(z);
+    // 仅屏蔽失效编码器，合法零轮速仍参与；其余两条加速度量测保持融合。
+    // Mask only an invalid encoder, retaining valid zero speed and both accelerations.
+    const filter_t::measurement_mask_t mask = {true, true, _wheel_valid};
+    _kf.correct(z, H_, R_, &mask);
     return _get_estimate();
 }
 
-void wl_forward_kf_t::_adjust_wheel_r(KalmanFilter_t *kf)
+void wl_forward_kf_t::_adjust_wheel_r(const filter_t::measurement_t &z)
 {
-    auto &filter = *static_cast<wl_forward_kf_t *>(kf->UserData);
     float slip_target = 0.0f;
-    if (filter._wheel_valid)
+    if (_wheel_valid)
     {
-        const float r_v = kf->z_data[2] - kf->xhatminus_data[1];
-        const float nis = r_v * r_v / (kf->Pminus_data[5] + FORWARD_KF_R_WHEEL);
+        const auto &x_pred = _kf.get_state();
+        const auto &P_pred = _kf.get_covariance();
+        const float r_v    = z[2] - x_pred[1];
+        // 单条轮速量测的 NIS 使用基础 R，不使用本拍放大值或整体 NIS。
+        // Wheel-only NIS uses baseline R, not this cycle's inflated R or joint NIS.
+        const float nis = r_v * r_v / (P_pred(1, 1) + FORWARD_KF_R_WHEEL);
+        // 预测零偏避免将本拍轮速校正反馈到滑移判断。
         // Prior bias avoids feeding the current wheel correction back into gating.
-        const float a_imu_corrected = kf->z_data[0] - kf->xhatminus_data[3];
-        const float r_wi = filter._wheel_accel - a_imu_corrected;
-        const float r_im = a_imu_corrected - kf->z_data[1];
+        const float a_imu_corrected = z[0] - x_pred[3];
+        const float r_wi = _wheel_accel - a_imu_corrected;
+        const float r_im = a_imu_corrected - z[1];
         const float g_v = std::clamp(
             (nis - FORWARD_KF_SLIP_NIS_LOW) /
                 (FORWARD_KF_SLIP_NIS_HIGH - FORWARD_KF_SLIP_NIS_LOW),
@@ -124,19 +121,19 @@ void wl_forward_kf_t::_adjust_wheel_r(KalmanFilter_t *kf)
             0.0f, 1.0f);
         slip_target = reference_confidence * 0.5f * (g_v + g_a);
     }
-    const float tau = slip_target > filter._slip_score
+    const float tau = slip_target > _slip_score
                           ? FORWARD_KF_SLIP_RISE_TAU
                           : FORWARD_KF_SLIP_FALL_TAU;
     const float alpha = FORWARD_KF_TS / (tau + FORWARD_KF_TS);
-    filter._slip_score += alpha * (slip_target - filter._slip_score);
-    kf->R_data[8] = FORWARD_KF_R_WHEEL *
-        (1.0f + filter._slip_score * (FORWARD_KF_WHEEL_R_MULTIPLIER - 1.0f));
+    _slip_score += alpha * (slip_target - _slip_score);
+    R_(2, 2) = FORWARD_KF_R_WHEEL *
+        (1.0f + _slip_score * (FORWARD_KF_WHEEL_R_MULTIPLIER - 1.0f));
 }
 
 ForwardStateEstimate wl_forward_kf_t::_get_estimate() const
 {
-    return {_kf.FilteredValue[0], _kf.FilteredValue[1], _kf.FilteredValue[2],
-            _kf.FilteredValue[3], _slip_score};
+    const auto &x = _kf.get_state();
+    return {x[0], x[1], x[2], x[3], _slip_score};
 }
 
 } // namespace pyro

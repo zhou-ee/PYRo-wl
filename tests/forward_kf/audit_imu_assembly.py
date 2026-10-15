@@ -68,7 +68,7 @@ def main():
         "current_attitude": repo / "PYRo/Component/INS/pyro_ins_attitude.cpp",
         "current_matrix": repo / "PYRo/Algorithm/Matrix/pyro_algo_matrix.cpp",
         "legacy_attitude": repo / "tests/forward_kf/reference/quaternion_ekf_reference.cpp",
-        "legacy_kf": repo / "PYRo/Algorithm/KF/kalman_filter.cpp",
+        "legacy_kf": repo / "tests/forward_kf/reference/kalman_filter.cpp",
     }
     report = {"compiler": run([str(compiler), "--version"]).splitlines()[0],
               "flags": flags, "profiles": {},

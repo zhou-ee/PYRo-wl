@@ -18,7 +18,6 @@ set(DSP_SOURCES
 )
 set(KF_SOURCES
     ${REPO_ROOT}/Robot/infantry1/Chassis/pyro_wl_forward_kf.cpp
-    ${REPO_ROOT}/PYRo/Algorithm/KF/kalman_filter.cpp
     ${DSP_SOURCES})
 set(ATTITUDE_SOURCES
     ${REPO_ROOT}/PYRo/Component/INS/pyro_ins_attitude.cpp)
@@ -49,8 +48,12 @@ add_executable(quaternion_ekf_test quaternion_ekf_test.cpp ${ATTITUDE_SOURCES} $
 add_executable(quaternion_ekf_trace quaternion_ekf_trace.cpp ${ATTITUDE_SOURCES} ${DSP_SOURCES})
 add_executable(quaternion_ekf_reference_trace quaternion_ekf_trace.cpp
     reference/quaternion_ekf_reference.cpp
-    ${REPO_ROOT}/PYRo/Algorithm/KF/kalman_filter.cpp ${DSP_SOURCES})
+    reference/kalman_filter.cpp ${DSP_SOURCES})
 target_compile_definitions(quaternion_ekf_reference_trace PRIVATE QEKF_REFERENCE)
+add_executable(forward_kf_trace forward_kf_trace.cpp ${KF_SOURCES})
+add_executable(forward_kf_reference_trace forward_kf_trace.cpp
+    reference/forward_kf_reference.cpp reference/kalman_filter.cpp ${DSP_SOURCES})
+target_compile_definitions(forward_kf_reference_trace PRIVATE FORWARD_KF_REFERENCE)
 
 set(OPTIMIZED_TEST_TARGETS)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -58,7 +61,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_executable(kalman_core_optimized_test kalman_core_test.cpp ${DSP_SOURCES})
     add_executable(quaternion_ekf_optimized_test quaternion_ekf_test.cpp
         ${ATTITUDE_SOURCES} ${DSP_SOURCES})
-    set(OPTIMIZED_TEST_TARGETS matrix_optimized_test kalman_core_optimized_test quaternion_ekf_optimized_test)
+    add_executable(forward_kf_optimized_test forward_kf_test.cpp ${KF_SOURCES} ${ATTITUDE_SOURCES})
+    set(OPTIMIZED_TEST_TARGETS matrix_optimized_test kalman_core_optimized_test quaternion_ekf_optimized_test forward_kf_optimized_test)
     foreach(TEST_TARGET ${OPTIMIZED_TEST_TARGETS})
         # Verify bit-based finite guards even with finite-math assumptions.
         target_compile_options(${TEST_TARGET} PRIVATE
@@ -68,6 +72,7 @@ endif()
 
 foreach(TEST_TARGET matrix_test forward_kf_test chassis_control_test kalman_core_test
         quaternion_ekf_test quaternion_ekf_trace quaternion_ekf_reference_trace
+        forward_kf_trace forward_kf_reference_trace
         ${OPTIMIZED_TEST_TARGETS})
     target_sources(${TEST_TARGET} PRIVATE ${MATRIX_SOURCES})
     target_include_directories(${TEST_TARGET} PRIVATE
@@ -86,6 +91,12 @@ foreach(TEST_TARGET matrix_test forward_kf_test chassis_control_test kalman_core
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(${TEST_TARGET} PRIVATE -ffp-contract=off -fno-strict-aliasing)
     endif()
+endforeach()
+foreach(TRACE_SCENARIO normal stress)
+    add_test(NAME forward_trace_${TRACE_SCENARIO}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/compare_forward_trace.py
+            $<TARGET_FILE:forward_kf_reference_trace> $<TARGET_FILE:forward_kf_trace>
+            ${CMAKE_CURRENT_BINARY_DIR}/forward-trace-${TRACE_SCENARIO} ${TRACE_SCENARIO})
 endforeach()
 add_test(NAME matrix_checks COMMAND matrix_test)
 add_test(NAME forward_kf_checks COMMAND forward_kf_test)

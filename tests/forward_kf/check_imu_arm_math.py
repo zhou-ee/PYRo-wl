@@ -43,7 +43,7 @@ def build(database, output, profile):
                repo / "PYRo/Component/INS/pyro_ins_attitude.cpp",
                repo / "PYRo/Algorithm/Matrix/pyro_algo_matrix.cpp",
                repo / "tests/forward_kf/reference/quaternion_ekf_reference.cpp",
-               repo / "PYRo/Algorithm/KF/kalman_filter.cpp"]
+               repo / "tests/forward_kf/reference/kalman_filter.cpp"]
     dsp = repo / "third_party/CMSIS-DSP/Source/MatrixFunctions"
     sources += [dsp / (name + ".c") for name in (
         "arm_mat_init_f32", "arm_mat_add_f32", "arm_mat_sub_f32", "arm_mat_mult_f32",

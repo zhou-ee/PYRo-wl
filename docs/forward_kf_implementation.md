@@ -1,6 +1,8 @@
 # 四状态前向 KF 与下位机实现
 
-实现位于 `Robot/infantry1/Chassis/pyro_wl_forward_kf.cpp/.h`，复用 `PYRo/Algorithm/KF/kalman_filter.cpp/.h` 和真实 CMSIS-DSP 矩阵函数。参数集中在 `wl_config.h` 的全大写 `FORWARD_KF_*` 常量中。
+实现位于 `Robot/infantry1/Chassis/pyro_wl_forward_kf.cpp/.h`，使用通用 `lkf_t<4,3>`
+和真实 CMSIS-DSP 矩阵函数。参数集中在 `wl_config.h` 的全大写 `FORWARD_KF_*` 常量中。
+2026-10-16 已完成旧库迁移，仿真对照和清理范围见 [forward_kf_migration.md](forward_kf_migration.md)。
 
 当前在地面 `state_balance_t` 和 `state_spin_t` 启用，覆盖调用 `_balance_control()` 的两条控制路径，使用已有 `ddot_x_imu`、无扰动的 `ddot_x_model` 和原始当拍轮速。只替换十四状态 LQR 的 `measured_state.x`、`measured_state.dot_x`。其他状态仍来自既有反馈路径。其余模式暂停前向 KF 更新；进入 balance 或 spin 时重置前向 KF，避免把暂停前的状态当作上一毫秒的数据。
 
@@ -76,19 +78,22 @@ R_0=\operatorname{diag}(0.25,1.0,0.0025),
 \qquad P_0=\operatorname{diag}(0.01,0.25,1.0,0.25).
 \]
 
-R 的单位依次为 `(m/s²)²`、`(m/s²)²`、`(m/s)²`；P 的单位依次为 `m²`、`(m/s)²`、`(m/s²)²`、`(m/s²)²`。`StateMinVariance=[1e-8,1e-6,1e-5,1e-8]`，防止各状态方差过度收敛。
+R 的单位依次为 `(m/s²)²`、`(m/s²)²`、`(m/s)²`；P 的单位依次为 `m²`、`(m/s)²`、`(m/s²)²`、`(m/s²)²`。`options.min_variance=[1e-8,1e-6,1e-5,1e-8]`，防止各状态方差过度收敛。
 
 对应初始化入口：
 
 ```cpp
-Kalman_Filter_Init(&_kf, 4, 0, 3);
-_kf.UseAutoAdjustment = 0;
-_kf.UseJosephForm = 1;
-_kf.UserData = this;
-_kf.User_Func2_f = _adjust_wheel_r;
+using filter_t = lkf_t<4, 3>;
+filter_t::options_t options;
+options.covariance_update = filter_t::covariance_update_t::JOSEPH;
+options.solver = filter_t::solver_t::INVERSE;
+options.symmetrize = true;
+// 设置 options.min_variance 及 P0 后初始化。
+_kf.init({}, P0, options);
 ```
 
-`wl_forward_kf_t::init()` 直接写入上述 F/H/Q/R、最小方差，并通过 `reset()` 写入 P。沿用库的初始化分配，整个底盘生命周期仅分配一次；`init()` 重复调用不会再次分配，周期更新和模式重置没有动态分配。没有引入 Eigen。
+`wl_forward_kf_t::init()` 构造 F/H/Q_d/R、最小方差及 P0，再初始化固定存储的滤波器。
+`init()` 重复调用不改变状态；初始化、周期更新和模式重置均不分配堆内存。没有引入 Eigen。
 
 初次初始化为 `[0,0,0,0]`。进入 balance 或 spin 时不能保证机器人静止，因此用
 
@@ -177,18 +182,25 @@ Rimu、Rmodel 固定，Rwheel 连续变化。即使 s 接近 1，轮速观测仍
 
 ### 当拍时序
 
-`Kalman_Filter_Update()` 中 `User_Func2_f` 位于预测完成之后、增益计算之前。因此由 `_adjust_wheel_r()` 写入 `R_data[8]`，可以准确使用当前 Pminus 和预测速度，无需手动执行一遍预测，也无需使用上一拍 NIS。
+`predict()` 完成后，`get_state()/get_covariance()` 即为当前预测状态和 Pminus。
+随后 `_adjust_wheel_r(z)` 写入 `R_(2,2)`，再进入 `correct()` 计算 S/K 并融合。
+因此评分准确使用当前预测，而非上一拍 NIS，也无需回调或重复预测。
 
 每周期外部入口仍为：
 
 ```cpp
-_kf.MeasuredVector[0] = a_imu;
-_kf.MeasuredVector[1] = a_model;
-_kf.MeasuredVector[2] = v_wheel; // 有效时，0.0f 也会参与融合
-Kalman_Filter_Update(&_kf);     // 当拍回调先更新 R_data[8]，再融合
+const filter_t::measurement_t z = {a_imu, a_model, wheel_valid ? v_wheel : 0.0f};
+if (_kf.predict(F_, Q_d_) != PYRO_OK)
+    return _get_estimate();
+_adjust_wheel_r(z);
+const filter_t::measurement_mask_t mask = {true, true, wheel_valid};
+_kf.correct(z, H_, R_, &mask);
 ```
 
-两轮 `is_online()` 同时为真才启用平均轮速观测；离线/CAN 超时或轮速非有限值时，直接把完整 H 的第三行置零，并把该量测置零。其余两条加速度量测继续使用。轮速恢复时重新播种微分器，避免把缺失期间的差值作为单拍加速度。本实现仅对轮速做这一有效性判断，IMU 和模型输入沿用既有反馈有效性约定。
+两轮 `is_online()` 同时为真才启用平均轮速观测；离线/CAN 超时或轮速非有限值时，
+将 mask 第三项设为 false，H 保持模型定义不变。其余两条加速度量测继续使用。
+轮速恢复时重新播种微分器，避免把缺失期间的差值作为单拍加速度。
+本实现仅对轮速做这一有效性判断，IMU 和模型输入沿用既有反馈有效性约定。
 
 ## 4. 量测修正与数值稳定
 
@@ -206,9 +218,12 @@ X=X^-+K(z-HX^-).
 P=(I-KH)P^-(I-KH)^T+KRK^T.
 \]
 
-复用现有三个临时矩阵和两个临时向量，不新增周期内存分配。后处理以 `0.5*(Pij+Pji)` 对称化非对角元素，再施加最小对角方差。
+使用通用核心拥有的固定工作区，不做周期堆内存分配。
+核心在初始化、预测和校正后按选项对称化 P 并施加最小对角方差。
 
-标准 `Kalman_Filter_SetK()` 检查 CMSIS 矩阵逆的返回值。逆失败则置 `MeasurementUpdateFailed=1`，该拍保留 `Xminus/Pminus`，不使用旧 K；下拍重试并清除失败标记。`MatStatus` 保留失败原因以供诊断。不会通过清零状态掩盖求逆失败。
+通用核心检查 CMSIS 返回码。求逆失败时诊断为 `PYRO_ERROR/MATH_FAILURE`，
+保留已提交的预测状态和协方差，不使用旧 K；下一拍可重新预测、校正并恢复。
+`get_diagnostics().math_status` 保留底层失败原因，不会通过清零状态掩盖求逆失败。
 
 ## 5. 底盘接入与诊断输出
 
@@ -251,13 +266,17 @@ struct ForwardStateEstimate
 };
 ```
 
-`reset()/update()` 返回该值。为复用已有监测字段，底盘保存至 `odom.X[0..3]` 和 `odom.slip_score`；`odom.wheel_x`、`wheel_dot_x`、两路原始加速度仍保留作对照。`get_filter()` 的只读引用可检查 P、K、Rwheel、MatStatus 和 MeasurementUpdateFailed。
+`reset()/update()` 返回该值。为复用已有监测字段，底盘保存至 `odom.X[0..3]` 和 `odom.slip_score`；`odom.wheel_x`、`wheel_dot_x`、两路原始加速度仍保留作对照。
+`get_filter()` 的只读引用通过 `get_state()/get_covariance()/get_gain()/get_diagnostics()`
+读取状态、P、K 和失败原因；`get_measurement_noise()` 读取本拍 R，轮速方差为 `(2,2)`。
 
 x 没有绝对位置观测，因此只能继承初始化原点并累计相对位移；位置偏差不可通过本 KF 自身完全消除。模型加速度的持续偏差会影响 a 和 IMU bias 的分离；ba 是前向映射残差的慢变估计，不保证等同于加速度计硬件零偏。
 
 ## 6. 共用 KF 库的修改与 IMU 兼容性
 
-下面记录前向 KF 接入时对旧 `kalman_filter.cpp/.h` 的修改。当前姿态估计已迁移到
+下面记录前向 KF 最初接入时对旧 `kalman_filter.cpp/.h` 的历史修改；旧库现在仅在
+`tests/forward_kf/reference` 中保留冻结参考，生产代码不再使用这些字段。
+当前姿态估计已迁移到
 `Component/INS/pyro_ins_attitude`，由 INS 持有模型和通用 `ekf_t<6,3>`；
 算法层不再保留 QuaternionEKF、全局 QEKF_INS 或姿态回调接口。
 
@@ -267,20 +286,21 @@ x 没有绝对位置观测，因此只能继承初始化原点并累计相对位
 | 临时矩阵/向量按 max(xhatSize,zSize) 分配 | 6 状态、3 量测姿态实例的缓冲区容量不变；修复一般 zSize>xhatSize 时的越界 |
 | 新增 UserData 回调上下文 | 前向 KF 指向自身；当前 INS 使用独立通用 EKF，不读取此字段 |
 | 新增 UseJosephForm，初始化默认零 | 前向 KF 显式开启；INS 姿态模型显式选择 SIMPLIFIED，保持原 P 更新 |
-| 新增 MeasurementUpdateFailed、标准逆失败回退 | 前向 KF 继续使用旧库保护；INS 由通用核心检查 CMSIS 错误，失败保留预测 |
+| 新增 MeasurementUpdateFailed、标准逆失败回退 | 旧版前向 KF 使用此保护；当前前向 KF 与 INS 均由通用核心检查 CMSIS 错误，失败保留预测 |
 
 前向 KF 与 INS 内部的 `_attitude.ekf` 为独立实例，F/H/Q/R/P、状态和缓冲区各自拥有，
 不复用任何 IMU 姿态状态。新数值稳定行为不是全局开关。
 
 当前姿态模型通过通用 `correct` 策略完成门控、增益调整和增量限幅，数值核心统一检查求逆结果。
-姿态估计公式和调参保持原行为。旧 `KalmanFilter_t` 增加字段，依赖它的源码仍需一起重新编译。
+姿态估计公式和调参保持原行为。前向滤波器的动态 R 在 predict 与 correct 之间由应用调整，
+不再依赖 UserData/User_Func 回调；实例拥有固定存储，不再动态分配状态或矩阵。
 
 ## 7. 实机整定顺序
 
 1. 保持机器人静止，记录两路原始加速度、轮速及 bias。去掉均值后估算 Rimu/Rwheel；包含结构振动和实际映射残差，而非仅引用传感器手册噪声。零速时三条量测均应参与。
 2. 在可信无滑移运动段比较模型加速度与参考加速度，选择 Rmodel。多项式系数拟合误差不能直接当作模型加速度量测方差；实际还包含参数误差、未建模耦合和输入误差。
 3. 调 σa²：跟随加速明显滞后时提高；估计 a 抖动过强时降低，同时核对 R。σb² 远小于 σa²，bias 应慢变；不要用快速 bias 去吸收真实加速度。
-4. 用启动重复性确定 P0。bias 初始不确定度要允许收敛；检查 StateMinVariance 不高到压倒 Q/R。进入 balance 或 spin 会重新学习 bias。
+4. 用启动重复性确定 P0。bias 初始不确定度要允许收敛；检查 min_variance 不高到压倒 Q/R。进入 balance 或 spin 会重新学习 bias。
 5. 记录正常加速段的 γv、rwi、rim。带限轮速微分有相位滞后，阈值须覆盖正常动态和机械振动，先确认正常运动不会持续放大 Rwheel。
 6. 再用可控滑移数据调 NIS/加速度阈值、3 ms 上升/30 ms 下降时间常数和最大倍率。500 是初始值，允许在 100–1000 范围实验；分别检查短促打滑时的降权速度和证据消失后的恢复速度，以及静止轮被架空转动时的速度估计。
 7. 同步查看 x/v、估计 a、bias、slip score、Rwheel、求逆状态和实际周期。当前 F/Q/微分均按 1 ms 配置，周期明显变化或漏拍应先修正调度或引入真实 T。
@@ -303,9 +323,9 @@ cmake --build build/forward-kf-tests --parallel 4
 ctest --test-dir build/forward-kf-tests -V
 ```
 
-检查已通过：20,000 拍静止合法零量测和协方差正定/对称性、15,000 拍静态 bias 收敛、30,000 拍运动轨迹与独立 double KF、当拍打滑降权与参考一致性门控、单拍轮速异常的 3 ms 上升及 30 ms 恢复尾部、编码器无效与恢复、真实 CMSIS 求逆失败回退、zSize>xhatSize 临时缓冲区、原 QuaternionEKF 的 10,000 拍静止回归。运动轨迹的 float32 状态与 double 参考最大差约 `3.34e-4`（不同状态的数值比较，非实机估计精度）。
+迁移后仍通过：20,000 拍静止合法零量测和协方差正定/对称性、15,000 拍静态 bias 收敛、30,000 拍运动轨迹与独立 double KF、当拍打滑降权与参考一致性门控、单拍轮速异常的 3 ms 上升及 30 ms 恢复尾部、编码器无效与恢复、真实 CMSIS 求逆失败回退、Z>N 的工作区和当前 INS 的 10,000 拍静止回归。运动轨迹的 float32 状态与 double 参考最大差约 `3.34e-4`（不同状态的数值比较，非实机估计精度）。
 
-`chassis_control_chain` 从固件提取真实反馈、模型、KF 适配、LQR 及 balance/spin 状态函数，连续执行各三拍，包含单拍轮速异常。验证反馈不被原始轮里程覆盖、两种模式进入时的 KF 重置、每拍先调度再计算模型并融合、RDOB/LQR 读到当拍 KF 输出、其他十二项状态保持原值，以及下一拍模型读取上一拍限幅后的输入。传感器、执行器转换和 RDOB 入口采用测试替身；测试验证软件接线与 LQR 指令，不验证硬件动态或 RDOB 数值算法。两项 CTest 均已通过。
+`chassis_control_chain` 从固件提取真实反馈、模型、KF 适配、LQR 及 balance/spin 状态函数，连续执行各三拍，包含单拍轮速异常。验证反馈不被原始轮里程覆盖、两种模式进入时的 KF 重置、每拍先调度再计算模型并融合、RDOB/LQR 读到当拍 KF 输出、其他十二项状态保持原值，以及下一拍模型读取上一拍限幅后的输入。传感器、执行器转换和 RDOB 入口采用测试替身；测试验证软件接线与 LQR 指令，不验证硬件动态或 RDOB 数值算法。当前总共 13 项 CTest，包含前向新旧各 30,000 拍 normal/stress 对照及优化构建检查。
 
 另用 `tests/forward_kf/quaternion_ekf_trace.cpp` 对修改前后 KF 库输入相同的 20,000 拍三轴动态 IMU 序列，对比每拍四元数、gyro bias、姿态角、6 维状态和 6×6 协方差，共 52 个 float/拍，结果逐字节一致。该对照使用同一 PC 编译器和真实 CMSIS 矩阵实现；验证本次库改动未改变已有姿态路径的计算结果，不代表 ARM 与 PC 位级一致。
 

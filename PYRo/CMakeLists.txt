@@ -45,7 +45,6 @@ target_sources(PYRo PRIVATE
         Algorithm/OLS/pyro_algo_ols.cpp
         Algorithm/PID/pyro_algo_pid.cpp
         Algorithm/PD/pyro_algo_pd.cpp
-        Algorithm/KF/kalman_filter.cpp
         Algorithm/Common/pyro_algo_common.cpp
         Algorithm/CRC/PYRo_crc.cpp
         Algorithm/Powercontrol/pyro_power_control.cpp

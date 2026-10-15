@@ -142,8 +142,8 @@ struct wl_chassis_t
     void check_current_kf_feedback()
     {
         const auto &kf = _forward_kf.get_filter();
-        check(_ctx.data.measured_state.x == kf.FilteredValue[0] &&
-              _ctx.data.measured_state.dot_x == kf.FilteredValue[1], "consumer reads current KF x/v");
+        check(_ctx.data.measured_state.x == kf.get_state()[0] &&
+              _ctx.data.measured_state.dot_x == kf.get_state()[1], "consumer reads current KF x/v");
         check(_ctx.data.measured_state.x == _ctx.data.odom.X[0] &&
               _ctx.data.measured_state.dot_x == _ctx.data.odom.X[1], "state and diagnostic KF output agree");
     }

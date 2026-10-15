@@ -1,4 +1,7 @@
-# PYRo 卡尔曼滤波器 (`kf_t`) 技术说明文档
+# 旧版 PYRo 卡尔曼滤波器（Infantry2）技术说明文档
+
+> 本文仅说明 Infantry2 仍在使用的 `kf.cpp/.h`，不适用于通用 `kf_t`。
+> infantry1 已使用 `lkf_t`；当前通用 KF/EKF 文档见 [README.md](README.md)。
 
 > **目标平台**: STM32H723 (Cortex-M7, FPv5 硬浮点)  
 > **依赖库**: ARM CMSIS-DSP (C API + dsppp C++ 扩展)  

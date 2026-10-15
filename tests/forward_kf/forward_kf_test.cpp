@@ -20,20 +20,22 @@ static void check(bool condition, const char *message)
     }
 }
 
-static void check_covariance(const KalmanFilter_t &kf)
+static void check_covariance(const wl_forward_kf_t::filter_t &kf)
 {
+    const auto &x = kf.get_state();
+    const auto &P = kf.get_covariance();
     double lower[16]{};
     for (int row = 0; row < 4; ++row)
     {
-        check(std::isfinite(kf.FilteredValue[row]), "finite state");
-        check(kf.P_data[row * 4 + row] >= kf.StateMinVariance[row],
+        check(matrix::is_finite(x[row]), "finite state");
+        check(P(row, row) >= kf.get_options().min_variance[row],
               "variance floor");
         for (int col = 0; col < 4; ++col)
-            check(kf.P_data[row * 4 + col] == kf.P_data[col * 4 + row],
+            check(P(row, col) == P(col, row),
                   "symmetric P");
         for (int col = 0; col <= row; ++col)
         {
-            double value = kf.P_data[row * 4 + col];
+            double value = P(row, col);
             for (int i = 0; i < col; ++i)
                 value -= lower[row * 4 + i] * lower[col * 4 + i];
             if (row == col)
@@ -55,16 +57,23 @@ struct ReferenceKF
     double f[16]{};
     double q[16]{};
 
-    explicit ReferenceKF(const KalmanFilter_t &kf)
+    explicit ReferenceKF(const wl_forward_kf_t::filter_t &kf)
     {
         for (int i = 0; i < 4; ++i)
-            x[i] = kf.xhat_data[i];
+            x[i] = kf.get_state()[i];
         for (int i = 0; i < 16; ++i)
         {
-            p[i] = kf.P_data[i];
-            f[i] = kf.F_data[i];
-            q[i] = kf.Q_data[i];
+            p[i] = kf.get_covariance()[i];
         }
+        const double t = FORWARD_KF_TS;
+        const double half_t2 = float(0.5f * FORWARD_KF_TS * FORWARD_KF_TS);
+        const double model[16] = {1,t,half_t2,0, 0,1,t,0, 0,0,1,0, 0,0,0,1};
+        std::copy_n(model, 16, f);
+        const float g_a[4] = {float(half_t2), FORWARD_KF_TS, 1.0f, 0.0f};
+        for (int row = 0; row < 4; ++row)
+            for (int col = 0; col < 4; ++col)
+                q[row * 4 + col] = FORWARD_KF_ACCEL_VARIANCE * g_a[row] * g_a[col];
+        q[15] = FORWARD_KF_BIAS_VARIANCE;
     }
 
     void update(const double z[3], const float *h, const float *r)
@@ -163,13 +172,15 @@ int main()
     wl_forward_kf_t filter;
     filter.init();
     const auto &kf = filter.get_filter();
-    check(kf.xhatSize == 4 && kf.uSize == 0 && kf.zSize == 3, "KF dimensions");
-    check(kf.UseAutoAdjustment == 0 && kf.UseJosephForm == 1, "KF modes");
-    check(kf.u_data == nullptr && kf.ControlVector == nullptr,
-          "no control allocation");
-    const float *allocated_state = kf.xhat_data;
+    using filter_t = wl_forward_kf_t::filter_t;
+    static_assert(filter_t::state_t::rows == 4 && filter_t::measurement_t::rows == 3);
+    check(kf.get_options().covariance_update == filter_t::covariance_update_t::JOSEPH &&
+          kf.get_options().solver == filter_t::solver_t::INVERSE, "KF modes");
+    const auto state_before_init = kf.get_state();
+    const auto P_before_init = kf.get_covariance();
     filter.init();
-    check(kf.xhat_data == allocated_state, "init does not allocate again");
+    check(kf.get_state() == state_before_init && kf.get_covariance() == P_before_init,
+          "repeated init retains state and covariance");
 
     for (int i = 0; i < 20000; ++i)
     {
@@ -193,6 +204,7 @@ int main()
 
     filter.reset(0.0f, 0.0f, 0.35f);
     ReferenceKF reference(kf);
+    const float H[12] = {0,0,1,1, 0,0,1,0, 0,1,0,0};
     double true_x = 0.0, true_v = 0.0, max_difference = 0.0;
     for (int i = 1; i <= 30000; ++i)
     {
@@ -206,12 +218,13 @@ int main()
         const float wheel = float(true_v);
         state             = filter.update(imu, acceleration, wheel);
         const double z[3] = {imu, acceleration, wheel};
-        reference.update(z, kf.H_data, kf.R_data);
+        reference.update(z, H, filter.get_measurement_noise().data());
         for (int j = 0; j < 4; ++j)
             max_difference = std::max(
-                max_difference, std::abs(kf.FilteredValue[j] - reference.x[j]));
+                max_difference, std::abs(kf.get_state()[j] - reference.x[j]));
         check_covariance(kf);
-        check(!kf.MeasurementUpdateFailed && kf.MatStatus == ARM_MATH_SUCCESS,
+        check(kf.get_diagnostics().status == PYRO_OK &&
+              kf.get_diagnostics().math_status == ARM_MATH_SUCCESS,
               "CMSIS update success");
     }
     check(max_difference < 0.002 && std::abs(state.v - true_v) < 0.02 &&
@@ -225,15 +238,15 @@ int main()
     filter.reset(0.0f, 0.0f, 0.0f);
     for (int i = 0; i < 2000; ++i)
         filter.update(0.0f, 0.0f, 0.0f);
-    const float prior_gain = kf.K_data[1 * 3 + 2];
+    const float prior_gain = kf.get_gain()(1, 2);
     state                  = filter.update(0.0f, 0.0f, 3.0f);
-    check(state.slip_score > 0.0f && kf.R_data[8] > FORWARD_KF_R_WHEEL &&
-              kf.K_data[1 * 3 + 2] < prior_gain,
+    check(state.slip_score > 0.0f && filter.get_measurement_noise()(2, 2) > FORWARD_KF_R_WHEEL &&
+              kf.get_gain()(1, 2) < prior_gain,
           "wheel slip lowers current wheel gain");
     const float slip_step_v     = state.v;
     const float slip_step_score = state.slip_score;
     check(std::abs(slip_step_score - 0.25f) < 1.0e-6f &&
-              std::abs(kf.R_data[8] / FORWARD_KF_R_WHEEL - 125.75f) < 1.0e-4f &&
+              std::abs(filter.get_measurement_noise()(2, 2) / FORWARD_KF_R_WHEEL - 125.75f) < 1.0e-4f &&
               std::abs(slip_step_v) < 0.001f,
           "one-tick slip receives fast current-cycle downweighting");
 
@@ -253,7 +266,7 @@ int main()
     check(state.slip_score > 0.0f && state.slip_score < peak_score &&
               std::abs(state.slip_score - previous_score * (30.0f / 31.0f)) <
                   1.0e-6f &&
-              kf.R_data[8] > FORWARD_KF_R_WHEEL,
+              filter.get_measurement_noise()(2, 2) > FORWARD_KF_R_WHEEL,
           "slip pulse retains a 30 ms recovery tail");
     std::printf("PASS: one-tick slip, 3 ms rise and 30 ms recovery, first "
                 "score %.4f, tail %.4f\n",
@@ -261,7 +274,7 @@ int main()
     // An IMU/model conflict must suppress reference confidence, despite a bad wheel.
     filter.reset(0.0f, 0.0f, 0.0f);
     state = filter.update(8.0f, -8.0f, 3.0f);
-    check(state.slip_score == 0.0f && kf.R_data[8] == FORWARD_KF_R_WHEEL,
+    check(state.slip_score == 0.0f && filter.get_measurement_noise()(2, 2) == FORWARD_KF_R_WHEEL,
           "IMU-model disagreement gates slip confidence");
     std::printf("PASS: slip adaptation and reference confidence, step v %.4f, "
                 "score %.4f\n",
@@ -269,52 +282,41 @@ int main()
 
     filter.reset(0.0f, 1.0f, 0.0f);
     state = filter.update(0.0f, 0.0f, std::numeric_limits<float>::quiet_NaN());
-    check(std::isfinite(state.v) && state.v == 1.0f && kf.H_data[9] == 0.0f &&
-              kf.K_data[1 * 3 + 2] == 0.0f,
+        check(matrix::is_finite(state.v) && state.v == 1.0f &&
+              kf.get_diagnostics().measurement_count == 2 && kf.get_gain()(1, 2) == 0.0f,
           "invalid wheel disables only wheel measurement");
     state = filter.update(0.0f, 0.0f, 1000.0f, false);
     check(state.v == 1.0f, "offline wheel value is ignored");
     state = filter.update(0.0f, 0.0f, 1.0f, true);
-    check(kf.H_data[9] == 1.0f && state.slip_score == 0.0f,
+    check(kf.get_diagnostics().measurement_count == 3 && state.slip_score == 0.0f,
           "wheel recovery has no derivative impulse");
     filter.reset(0.0f, std::numeric_limits<float>::quiet_NaN(), 0.0f, false);
-    check(kf.xhat_data[1] == 0.0f, "invalid wheel at reset");
+    check(kf.get_state()[1] == 0.0f, "invalid wheel at reset");
     std::puts("PASS: encoder invalidation and recovery");
 
     // Deliberately singular scalar innovation; exercise the real CMSIS failure path.
-    KalmanFilter_t singular{};
-    Kalman_Filter_Init(&singular, 1, 0, 1);
-    singular.F_data[0]         = 1.0f;
-    singular.H_data[0]         = 1.0f;
-    singular.xhat_data[0]      = 2.0f;
-    singular.MeasuredVector[0] = 100.0f;
-    Kalman_Filter_Update(&singular);
-    check(singular.MeasurementUpdateFailed &&
-              singular.MatStatus == ARM_MATH_SINGULAR &&
-              singular.FilteredValue[0] == 2.0f && singular.P_data[0] == 0.0f,
+    lkf_t<1, 1> singular;
+    lkf_t<1, 1>::options_t inverse_options;
+    inverse_options.solver = lkf_t<1, 1>::solver_t::INVERSE;
+    singular.init({2}, {0}, inverse_options);
+    singular.predict({1}, {0});
+    singular.correct({100}, {1}, {0});
+    check(singular.get_diagnostics().math_status == ARM_MATH_SINGULAR &&
+              singular.get_state()[0] == 2.0f && singular.get_covariance()[0] == 0.0f,
           "inverse failure retains prediction");
-    singular.R_data[0] = 1.0f;
-    Kalman_Filter_Update(&singular);
-    check(!singular.MeasurementUpdateFailed &&
-              singular.MatStatus == ARM_MATH_SUCCESS,
+    singular.predict({1}, {0});
+    check(singular.correct({100}, {1}, {1}) == PYRO_OK &&
+              singular.get_diagnostics().math_status == ARM_MATH_SUCCESS,
           "inverse failure clears next cycle");
     std::puts("PASS: innovation inverse failure and next-cycle recovery");
 
     // More measurements than states used to overflow the shared scratch arrays.
-    KalmanFilter_t wide{};
-    Kalman_Filter_Init(&wide, 1, 0, 3);
-    wide.UseJosephForm = 1;
-    wide.F_data[0]     = 1.0f;
-    wide.P_data[0]     = 1.0f;
-    for (int i = 0; i < 3; ++i)
-    {
-        wide.H_data[i]         = 1.0f;
-        wide.R_data[i * 3 + i] = 1.0f;
-        wide.MeasuredVector[i] = 1.0f;
-    }
-    Kalman_Filter_Update(&wide);
-    check(std::abs(wide.FilteredValue[0] - 0.75f) < 1.0e-5f &&
-              std::abs(wide.P_data[0] - 0.25f) < 1.0e-5f,
+    lkf_t<1, 3> wide;
+    wide.init({0}, {1});
+    wide.predict({1}, {0});
+    wide.correct({1, 1, 1}, {1, 1, 1}, {1,0,0, 0,1,0, 0,0,1});
+    check(std::abs(wide.get_state()[0] - 0.75f) < 1.0e-5f &&
+              std::abs(wide.get_covariance()[0] - 0.25f) < 1.0e-5f,
           "scratch supports zSize > xhatSize");
     std::puts("PASS: scratch storage for more measurements than states");
 
@@ -325,7 +327,7 @@ int main()
           "existing EKF covariance mode preserved");
     for (int i = 0; i < 10000; ++i)
         attitude.update(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 9.81f, 0.001f);
-    check(std::isfinite(attitude.q[0]) &&
+    check(matrix::is_finite(attitude.q[0]) &&
               std::abs(attitude.q[0] - 1.0f) < 0.005f,
           "existing quaternion EKF regression");
     std::puts("PASS: existing quaternion EKF, 10000 steps");

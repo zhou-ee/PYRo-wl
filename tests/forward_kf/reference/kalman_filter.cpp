@@ -1,3 +1,4 @@
+// Frozen legacy KF backend; test-only, never linked into firmware.
 /**
  ******************************************************************************
  * @file    kalman filter.c

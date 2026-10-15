@@ -175,8 +175,12 @@ IMU 预处理、四元数积分/归一化、重力观测、渐消、门控、增
 均属于 INS。为保持调参行为，应用显式选择 INVERSE、SIMPLIFIED、不对称化；
 保留归一化前构造 F 耦合、归一化后构造 H 的时序。
 异常陀螺/dt 保持姿态，异常/零加速度仅预测且不污染低通历史；求解失败保留预测并可恢复。
-infantry1 前向 KF 仍用旧 kalman_filter.cpp/.h，Infantry2 仍用旧 kf.cpp/.h；
-本次不改前向 KF 的 IMU 依赖、底盘模型或控制时序。
+infantry1 前向滤波器使用 `lkf_t<4,3>`，保留原状态/观测模型、INVERSE、Joseph、
+方差下限和连续滑移权重。每拍先 predict，再由预测 x/P 计算单条轮速 NIS 和滑移评分，
+调整本拍 Rwheel 后 correct；失效轮速使用 mask，合法零轮速正常参与。
+底盘模型、IMU 输入映射及控制时序保持原设计。
+旧 kalman_filter.cpp/.h 已移至 tests/forward_kf/reference，仅作为冻结参考；
+无调用的 pyro_kalman_filter.cpp/.h 已删除。Infantry2 仍使用 kf.cpp/.h，暂时保留。
 
 ```powershell
 cmake --build build/forward-kf-tests --parallel 4
@@ -189,5 +193,8 @@ cmake --build cmake-build-debug-stm32 --parallel 4
 另验证默认无扫描路径与开启检查路径的一致性，以及 -O3、unsafe-math、finite-math
 下显式开启的异常输入保护。INS 保留传感器边界检查，不在通用 KF 中重复扫描矩阵。
 两组姿态轨迹各 20,000 拍，比较 q、bias、角度、6 维状态及 6×6 P，共 52 个 float32/拍。
-旧 QEKF 仅作为 tests/forward_kf/reference 冻结参考，不链接进固件；位级对照仅适用于
+旧 QEKF 和前向滤波器仅作为 tests/forward_kf/reference 冻结参考，不链接进固件；
+前向 normal/stress 各 30,000 拍对照 x/v/a/bias/slip/P/K/R，并验证独立 double 参考、
+轮速失效及恢复、O3/unsafe-math/finite-math 和底盘控制接线。
+前向迁移的数值差异和复现方法见 docs/forward_kf_migration.md。位级对照仅适用于
 相同主机编译器和浮点选项。尚未刷机或测量板上执行时间、任务栈高水位与动态闭环。
