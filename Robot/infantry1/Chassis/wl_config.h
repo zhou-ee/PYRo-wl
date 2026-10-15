@@ -109,7 +109,7 @@ constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，
 constexpr float NORMAL_LENGTH_TARGET                 = 0.25f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
-constexpr float AIR_TAKEOFF_FORCE_ON                 = 50.0f;//单腿支持力阈值，越小越易离地
+constexpr float AIR_TAKEOFF_FORCE_ON                 = 40.0f;//单腿支持力阈值，越小越易离地
 constexpr float AIR_CONTACT_FORCE_OFF                = 50.0f;
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
@@ -128,7 +128,7 @@ constexpr float JUMP_AIR_LENGTH                       = 0.20f; // 收腿完成�
 // Positive magnitudes per motor. Call sites choose extension (+F_L) or
 // retraction (-F_L); equivalent F_L = 2 * signed_torque / abs(J_L).
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f;
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 15.0f;
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 18.0f;
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f;
 constexpr float JUMP_AIR_MOTOR_TORQUE                 = 2.0f;
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 文档式预压缩超时 (s)
@@ -151,14 +151,14 @@ constexpr float JUMP_READY_ANGLE                     = 5.0f * PI / 180.0f;
 constexpr float JUMP_READY_ANGULAR_SPEED             = 0.5f;
 constexpr float JUMP_COOLDOWN_TIME                   = 1.0f;
 constexpr float JUMP_POSITION_ERROR_LIMIT            = 0.8f;
-constexpr float JUMP_LANDING_VELOCITY_SCALE          = 0.9f; // 退出预压缩时实测速度到落地参考的比例
+constexpr float JUMP_LANDING_VELOCITY_SCALE          = 0.8f; // 退出预压缩时实测速度到落地参考的比例
 constexpr float AIR_CONTACT_WALL_GUARD_MARGIN        = 0.03f; // 触地速度判据排除末端制动区
 constexpr float AIR_CONTACT_MIN_TIME                = 0.025f;
 constexpr float AIR_CONTACT_RELEASE_FORCE           = 20.0f;
 constexpr float AIR_CONTACT_RELEASE_TIME            = 0.02f;
-constexpr float LANDING_PITCH_REFERENCE_RATE         = 3.0f;
+constexpr float LANDING_PITCH_REFERENCE_RATE         = 10.0f;
 constexpr float LANDING_BETA_REFERENCE_RATE          = 5.0f;
-constexpr float LANDING_VELOCITY_REFERENCE_RATE      = 2.0f; // m/s^2; 落地速度参考向当前遥控速度的变化率
+constexpr float LANDING_VELOCITY_REFERENCE_RATE      = 5.0f; // m/s^2; 落地速度参考向当前遥控速度的变化率
 
 constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 
