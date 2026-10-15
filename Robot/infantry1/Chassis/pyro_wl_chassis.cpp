@@ -785,7 +785,7 @@ void wl_chassis_t::_update_forward_kf()
     const bool wheel_valid = _ctx.motor.wheel[leg_def::L]->is_online() &&
                              _ctx.motor.wheel[leg_def::R]->is_online();
     const auto estimate = _forward_kf.update(
-        odom.ddot_x_imu, odom.ddot_x_model, odom.wheel_dot_x[0], wheel_valid);
+        odom.ddot_x_imu, odom.wheel_dot_x[0], wheel_valid);
     odom.X[0] = estimate.x;
     odom.X[1] = estimate.v;
     odom.X[2] = estimate.a;

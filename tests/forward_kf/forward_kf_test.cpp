@@ -76,9 +76,9 @@ struct ReferenceKF
         q[15] = FORWARD_KF_BIAS_VARIANCE;
     }
 
-    void update(const double z[3], const float *h, const float *r)
+    void update(const double z[2], const float *h, const float *r, bool freeze_bias)
     {
-        double xm[4]{}, pm[16]{}, gain[12]{}, aug[3][6]{};
+        double xm[4]{}, pm[16]{}, gain[8]{}, aug[2][4]{};
         for (int i = 0; i < 4; ++i)
         {
             for (int j = 0; j < 4; ++j)
@@ -92,44 +92,46 @@ struct ReferenceKF
                             f[i * 4 + a] * p[a * 4 + b] * f[j * 4 + b];
             }
         }
-        for (int i = 0; i < 3; ++i)
-            for (int j = 0; j < 3; ++j)
+        for (int i = 0; i < 2; ++i)
+            for (int j = 0; j < 2; ++j)
             {
-                aug[i][j]     = r[i * 3 + j];
-                aug[i][j + 3] = i == j ? 1.0 : 0.0;
+                aug[i][j]     = r[i * 2 + j];
+                aug[i][j + 2] = i == j ? 1.0 : 0.0;
                 for (int a = 0; a < 4; ++a)
                     for (int b = 0; b < 4; ++b)
                         aug[i][j] +=
                             h[i * 4 + a] * pm[a * 4 + b] * h[j * 4 + b];
             }
-        for (int c = 0; c < 3; ++c)
+        for (int c = 0; c < 2; ++c)
         {
             int pivot = c;
-            for (int row = c + 1; row < 3; ++row)
+            for (int row = c + 1; row < 2; ++row)
                 if (std::abs(aug[row][c]) > std::abs(aug[pivot][c]))
                     pivot = row;
-            for (int j = 0; j < 6; ++j)
+            for (int j = 0; j < 4; ++j)
                 std::swap(aug[c][j], aug[pivot][j]);
             const double diagonal = aug[c][c];
             check(std::abs(diagonal) > 1.0e-15, "reference innovation inverse");
-            for (int j = 0; j < 6; ++j)
+            for (int j = 0; j < 4; ++j)
                 aug[c][j] /= diagonal;
-            for (int row = 0; row < 3; ++row)
+            for (int row = 0; row < 2; ++row)
                 if (row != c)
                 {
                     const double scale = aug[row][c];
-                    for (int j = 0; j < 6; ++j)
+                    for (int j = 0; j < 4; ++j)
                         aug[row][j] -= scale * aug[c][j];
                 }
         }
         for (int i = 0; i < 4; ++i)
-            for (int j = 0; j < 3; ++j)
+            for (int j = 0; j < 2; ++j)
                 for (int a = 0; a < 4; ++a)
-                    for (int b = 0; b < 3; ++b)
-                        gain[i * 3 + j] +=
-                            pm[i * 4 + a] * h[b * 4 + a] * aug[b][j + 3];
-        double residual[3]{}, transform[16]{};
-        for (int j = 0; j < 3; ++j)
+                    for (int b = 0; b < 2; ++b)
+                        gain[i * 2 + j] +=
+                            pm[i * 4 + a] * h[b * 4 + a] * aug[b][j + 2];
+        if (freeze_bias)
+            gain[6] = gain[7] = 0.0;
+        double residual[2]{}, transform[16]{};
+        for (int j = 0; j < 2; ++j)
         {
             residual[j] = z[j];
             for (int a = 0; a < 4; ++a)
@@ -138,13 +140,13 @@ struct ReferenceKF
         for (int i = 0; i < 4; ++i)
         {
             x[i] = xm[i];
-            for (int j = 0; j < 3; ++j)
-                x[i] += gain[i * 3 + j] * residual[j];
+            for (int j = 0; j < 2; ++j)
+                x[i] += gain[i * 2 + j] * residual[j];
             for (int j = 0; j < 4; ++j)
             {
                 transform[i * 4 + j] = i == j ? 1.0 : 0.0;
-                for (int a = 0; a < 3; ++a)
-                    transform[i * 4 + j] -= gain[i * 3 + a] * h[a * 4 + j];
+                for (int a = 0; a < 2; ++a)
+                    transform[i * 4 + j] -= gain[i * 2 + a] * h[a * 4 + j];
             }
         }
         for (int i = 0; i < 4; ++i)
@@ -155,10 +157,10 @@ struct ReferenceKF
                     for (int b = 0; b < 4; ++b)
                         value += transform[i * 4 + a] * pm[a * 4 + b] *
                                  transform[j * 4 + b];
-                for (int a = 0; a < 3; ++a)
-                    for (int b = 0; b < 3; ++b)
+                for (int a = 0; a < 2; ++a)
+                    for (int b = 0; b < 2; ++b)
                         value +=
-                            gain[i * 3 + a] * r[a * 3 + b] * gain[j * 3 + b];
+                            gain[i * 2 + a] * r[a * 2 + b] * gain[j * 2 + b];
                 p[i * 4 + j] = value;
             }
         for (int i = 0; i < 4; ++i)
@@ -173,7 +175,7 @@ int main()
     filter.init();
     const auto &kf = filter.get_filter();
     using filter_t = wl_forward_kf_t::filter_t;
-    static_assert(filter_t::state_t::rows == 4 && filter_t::measurement_t::rows == 3);
+    static_assert(filter_t::state_t::rows == 4 && filter_t::measurement_t::rows == 2);
     check(kf.get_options().covariance_update == filter_t::covariance_update_t::JOSEPH &&
           kf.get_options().solver == filter_t::solver_t::INVERSE, "KF modes");
     const auto state_before_init = kf.get_state();
@@ -184,7 +186,7 @@ int main()
 
     for (int i = 0; i < 20000; ++i)
     {
-        const auto state = filter.update(0.0f, 0.0f, 0.0f);
+        const auto state = filter.update(0.0f, 0.0f);
         check(state.x == 0.0f && state.v == 0.0f && state.a == 0.0f &&
                   state.imu_acc_bias == 0.0f && state.slip_score == 0.0f,
               "legitimate zero measurements are retained");
@@ -195,16 +197,35 @@ int main()
     filter.reset(0.0f, 0.0f, 0.4f);
     ForwardStateEstimate state{};
     for (int i = 0; i < 15000; ++i)
-        state = filter.update(0.4f, 0.0f, 0.0f);
+        state = filter.update(0.4f, 0.0f);
     check(std::abs(state.imu_acc_bias - 0.4f) < 0.003f &&
               std::abs(state.a) < 0.003f && std::abs(state.v) < 0.003f &&
               state.slip_score < 0.001f,
           "static bias separation");
     std::puts("PASS: IMU bias convergence");
 
+    // Match KF_ok: neither slip nor wheel loss can train bias from IMU alone.
+    const float learned_bias = state.imu_acc_bias;
+    const float learned_variance = kf.get_covariance()(3, 3);
+    state = filter.update(0.4f, 3.0f);
+    check(state.slip_score >= FORWARD_KF_BIAS_FREEZE_SCORE &&
+              state.imu_acc_bias == learned_bias && kf.get_gain()(3, 0) == 0.0f &&
+              kf.get_gain()(3, 1) == 0.0f && kf.get_covariance()(3, 3) >= learned_variance,
+          "slip preserves learned bias and Joseph bias uncertainty");
+    for (int i = 0; i < 200; ++i)
+    {
+        state = filter.update(1.2f, 3.0f, false);
+        check(state.imu_acc_bias == learned_bias && kf.get_gain()(3, 0) == 0.0f &&
+                  kf.get_gain()(3, 1) == 0.0f,
+              "offline wheel cannot train bias from IMU alone");
+        check_covariance(kf);
+    }
+    check(state.a > 0.7f, "IMU still corrects acceleration while bias is frozen");
+    std::puts("PASS: bias freeze during slip and encoder outage");
+
     filter.reset(0.0f, 0.0f, 0.35f);
     ReferenceKF reference(kf);
-    const float H[12] = {0,0,1,1, 0,0,1,0, 0,1,0,0};
+    const float H[8] = {0,0,1,1, 0,1,0,0};
     double true_x = 0.0, true_v = 0.0, max_difference = 0.0;
     for (int i = 1; i <= 30000; ++i)
     {
@@ -216,9 +237,10 @@ int main()
         true_v += acceleration * FORWARD_KF_TS;
         const float imu   = acceleration + 0.35f;
         const float wheel = float(true_v);
-        state             = filter.update(imu, acceleration, wheel);
-        const double z[3] = {imu, acceleration, wheel};
-        reference.update(z, H, filter.get_measurement_noise().data());
+        state             = filter.update(imu, wheel);
+        const double z[2] = {imu, wheel};
+        reference.update(z, H, filter.get_measurement_noise().data(),
+                         state.slip_score >= FORWARD_KF_BIAS_FREEZE_SCORE);
         for (int j = 0; j < 4; ++j)
             max_difference = std::max(
                 max_difference, std::abs(kf.get_state()[j] - reference.x[j]));
@@ -237,18 +259,20 @@ int main()
 
     filter.reset(0.0f, 0.0f, 0.0f);
     for (int i = 0; i < 2000; ++i)
-        filter.update(0.0f, 0.0f, 0.0f);
-    const float prior_gain = kf.get_gain()(1, 2);
-    state                  = filter.update(0.0f, 0.0f, 3.0f);
-    check(state.slip_score > 0.0f && filter.get_measurement_noise()(2, 2) > FORWARD_KF_R_WHEEL &&
-              kf.get_gain()(1, 2) < prior_gain,
+        filter.update(0.0f, 0.0f);
+    const float prior_gain = kf.get_gain()(1, 1);
+    state                  = filter.update(0.0f, 3.0f);
+    check(state.slip_score > 0.0f && filter.get_measurement_noise()(1, 1) > FORWARD_KF_R_WHEEL &&
+              kf.get_gain()(1, 1) < prior_gain,
           "wheel slip lowers current wheel gain");
     const float slip_step_v     = state.v;
     const float slip_step_score = state.slip_score;
-    check(std::abs(slip_step_score - 0.25f) < 1.0e-6f &&
-              std::abs(filter.get_measurement_noise()(2, 2) / FORWARD_KF_R_WHEEL - 125.75f) < 1.0e-4f &&
-              std::abs(slip_step_v) < 0.001f,
-          "one-tick slip receives fast current-cycle downweighting");
+    const float expected_score = FORWARD_KF_TS / (FORWARD_KF_SLIP_RISE_TAU + FORWARD_KF_TS);
+    const float expected_multiplier = 1.0f + expected_score * (FORWARD_KF_WHEEL_R_MULTIPLIER - 1.0f);
+    check(std::abs(slip_step_score - expected_score) < 1.0e-6f &&
+              std::abs(filter.get_measurement_noise()(1, 1) / FORWARD_KF_R_WHEEL - expected_multiplier) < 1.0e-4f &&
+              std::abs(slip_step_v) < 0.01f * 3.0f * prior_gain,
+          "one-tick slip correction below one percent of normal wheel correction");
 
     // Return to true zero wheel speed after the single-tick pulse. The wheel
     // differentiator retains some evidence, then score must recover slowly.
@@ -257,7 +281,7 @@ int main()
     for (int i = 0; i < 100; ++i)
     {
         previous_score = state.slip_score;
-        state          = filter.update(0.0f, 0.0f, 0.0f);
+        state          = filter.update(0.0f, 0.0f);
         peak_score     = std::max(peak_score, state.slip_score);
         check(state.slip_score >= 0.0f && state.slip_score <= 1.0f,
               "bounded asymmetric slip score");
@@ -266,29 +290,33 @@ int main()
     check(state.slip_score > 0.0f && state.slip_score < peak_score &&
               std::abs(state.slip_score - previous_score * (30.0f / 31.0f)) <
                   1.0e-6f &&
-              filter.get_measurement_noise()(2, 2) > FORWARD_KF_R_WHEEL,
+              filter.get_measurement_noise()(1, 1) > FORWARD_KF_R_WHEEL,
           "slip pulse retains a 30 ms recovery tail");
-    std::printf("PASS: one-tick slip, 3 ms rise and 30 ms recovery, first "
+    check(state.slip_score < FORWARD_KF_BIAS_FREEZE_SCORE &&
+              (kf.get_gain()(3, 0) != 0.0f || kf.get_gain()(3, 1) != 0.0f),
+          "bias learning resumes after wheel confidence recovers");
+    std::printf("PASS: one-tick slip, 2 ms rise and 30 ms recovery, first "
                 "score %.4f, tail %.4f\n",
                 slip_step_score, state.slip_score);
-    // An IMU/model conflict must suppress reference confidence, despite a bad wheel.
+    // KF_ok has no model confidence gate: wheel/IMU disagreement still adapts R.
     filter.reset(0.0f, 0.0f, 0.0f);
-    state = filter.update(8.0f, -8.0f, 3.0f);
-    check(state.slip_score == 0.0f && filter.get_measurement_noise()(2, 2) == FORWARD_KF_R_WHEEL,
-          "IMU-model disagreement gates slip confidence");
-    std::printf("PASS: slip adaptation and reference confidence, step v %.4f, "
+    state = filter.update(8.0f, 3.0f);
+    check(state.slip_score > 0.0f && filter.get_measurement_noise()(1, 1) > FORWARD_KF_R_WHEEL &&
+              state.imu_acc_bias == 0.0f && state.a > 0.0f,
+          "model-free slip weighting retains IMU fusion and freezes bias");
+    std::printf("PASS: model-free slip adaptation, step v %.4f, "
                 "score %.4f\n",
                 slip_step_v, slip_step_score);
 
     filter.reset(0.0f, 1.0f, 0.0f);
-    state = filter.update(0.0f, 0.0f, std::numeric_limits<float>::quiet_NaN());
+    state = filter.update(0.0f, std::numeric_limits<float>::quiet_NaN());
         check(matrix::is_finite(state.v) && state.v == 1.0f &&
-              kf.get_diagnostics().measurement_count == 2 && kf.get_gain()(1, 2) == 0.0f,
+              kf.get_diagnostics().measurement_count == 1 && kf.get_gain()(1, 1) == 0.0f,
           "invalid wheel disables only wheel measurement");
-    state = filter.update(0.0f, 0.0f, 1000.0f, false);
+    state = filter.update(0.0f, 1000.0f, false);
     check(state.v == 1.0f, "offline wheel value is ignored");
-    state = filter.update(0.0f, 0.0f, 1.0f, true);
-    check(kf.get_diagnostics().measurement_count == 3 && state.slip_score == 0.0f,
+    state = filter.update(0.0f, 1.0f, true);
+    check(kf.get_diagnostics().measurement_count == 2 && state.slip_score == 0.0f,
           "wheel recovery has no derivative impulse");
     filter.reset(0.0f, std::numeric_limits<float>::quiet_NaN(), 0.0f, false);
     check(kf.get_state()[1] == 0.0f, "invalid wheel at reset");

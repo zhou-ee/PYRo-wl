@@ -6,7 +6,7 @@
 #ifndef PYRO_INS_ATTITUDE_H
 #define PYRO_INS_ATTITUDE_H
 
-#include "pyro_algo_ekf.h"
+#include "../../Algorithm/KF/pyro_algo_ekf.h"
 
 namespace pyro
 {

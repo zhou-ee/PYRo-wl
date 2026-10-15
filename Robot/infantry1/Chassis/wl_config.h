@@ -37,7 +37,6 @@ constexpr float FORWARD_KF_TS                    = 0.001f;
 constexpr float FORWARD_KF_ACCEL_VARIANCE        = 0.04f;   // (m/s^2)^2 / step
 constexpr float FORWARD_KF_BIAS_VARIANCE         = 1.0e-7f; // (m/s^2)^2 / step
 constexpr float FORWARD_KF_R_IMU                 = 0.25f;   // (m/s^2)^2
-constexpr float FORWARD_KF_R_MODEL               = 1.0f;    // (m/s^2)^2
 constexpr float FORWARD_KF_R_WHEEL               = 0.0025f; // (m/s)^2
 constexpr float FORWARD_KF_P_INIT[4]             = {0.01f, 0.25f, 1.0f, 0.25f};
 constexpr float FORWARD_KF_MIN_VARIANCE[4]       = {1.0e-8f, 1.0e-6f, 1.0e-5f, 1.0e-8f};
@@ -50,11 +49,10 @@ constexpr float FORWARD_KF_WHEEL_DIFF_B          =
     2.0f * FORWARD_KF_WHEEL_WC / (2.0f + FORWARD_KF_WHEEL_WC * FORWARD_KF_TS);
 constexpr float FORWARD_KF_SLIP_NIS_LOW          = 4.0f;
 constexpr float FORWARD_KF_SLIP_NIS_HIGH         = 16.0f;
-constexpr float FORWARD_KF_SLIP_ACCEL_LOW        = 1.0f; // m/s^2
-constexpr float FORWARD_KF_SLIP_ACCEL_HIGH       = 4.0f; // m/s^2
-constexpr float FORWARD_KF_REFERENCE_ACCEL_LOW   = 1.0f; // m/s^2
-constexpr float FORWARD_KF_REFERENCE_ACCEL_HIGH  = 4.0f; // m/s^2
-constexpr float FORWARD_KF_SLIP_RISE_TAU         = 0.003f; // s，打滑评分上升
+constexpr float FORWARD_KF_SLIP_ACCEL_LOW        = 0.30f; // m/s^2，KF_ok 实测起评值 / Tested onset.
+constexpr float FORWARD_KF_SLIP_ACCEL_HIGH       = 0.60f; // m/s^2，KF_ok 实测满评分值 / Tested full score.
+constexpr float FORWARD_KF_BIAS_FREEZE_SCORE     = 0.2f; // 不可信轮速暂停零偏学习 / Freeze bias on untrusted wheels.
+constexpr float FORWARD_KF_SLIP_RISE_TAU         = 0.002f; // s，打滑评分上升 / Slip-score rise.
 constexpr float FORWARD_KF_SLIP_FALL_TAU         = 0.03f;  // s，轮速权重恢复
 constexpr float FORWARD_KF_WHEEL_R_MULTIPLIER    = 500.0f;
 

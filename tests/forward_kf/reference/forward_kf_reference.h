@@ -1,7 +1,8 @@
-// Frozen pre-migration forward filter; test-only, never linked into firmware.
+// Frozen KF_ok 19ea989 (tested forward filter); test-only, never linked into firmware.
 #ifndef FORWARD_KF_REFERENCE_H
 #define FORWARD_KF_REFERENCE_H
 
+#include "pyro_core_def.h"
 #include "kalman_filter.h"
 
 namespace pyro
@@ -26,12 +27,13 @@ class wl_forward_kf_reference_t
     void init(); // allocate once through the existing KF library
     ForwardStateReference reset(float x, float v_wheel, float a_imu,
                                bool wheel_valid = true);
-    ForwardStateReference update(float a_imu, float a_model, float v_wheel,
+    ForwardStateReference update(float a_imu, float v_wheel,
                                 bool wheel_valid = true);
     const KalmanFilter_t &get_filter() const { return _kf; }
 
   private:
     static void _adjust_wheel_r(KalmanFilter_t *kf);
+    static void _freeze_bias_update(KalmanFilter_t *kf);
     ForwardStateReference _get_estimate() const;
 
     KalmanFilter_t _kf{};
