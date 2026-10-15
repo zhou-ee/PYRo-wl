@@ -177,12 +177,13 @@ struct airborne_data_t
 {
     bool landing_recovery = false;
     bool attitude_recovery = false;
+    bool velocity_recovery = false;
     bool contact[2] = {false, false};
     float contact_confirm_time[2] = {0.0f, 0.0f};
     float contact_release_time[2] = {0.0f, 0.0f};
     float extension_speed_peak[2] = {0.0f, 0.0f};
     float flight_time = 0.0f;
-    float forward_velocity_ref = 0.0f;
+    float forward_velocity_ref = 0.0f; // AIR 触地轮速与 BALANCE 落地速度恢复共用参考 (m/s)
     float gain_tp[2][6] = {};
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
@@ -223,6 +224,7 @@ struct wl_chassis_data_ctx_t
     float balance_stable_time = 0.0f;
     float jump_heading_ref = 0.0f;
     float jump_forward_velocity_ref = 0.0f; // 进入跳跃时锁存的前进速度 (m/s)
+    float jump_precompress_exit_velocity = 0.0f; // 预压缩正常结束时的实测轮式里程计速度 (m/s)
     float jump_vertical_velocity_integral = 0.0f; // 跳跃期间竖直去重力加速度积分得到的速度观测值 (m/s)
     float jump_leg_extension_speed_peak[2] = {0.0f, 0.0f}; // 进入 AIR 后各腿伸展速度的逐拍最大值 (m/s)
     float jump_landing_confirm_time = 0.0f; // 落地判据连续成立的时间 (s)
@@ -288,6 +290,7 @@ class wl_chassis_t final
     void _execute_airborne_lqr();
     void _reset_air_contacts();
     void _execute_landing_recovery();
+    float _landing_velocity_reference(float commanded_velocity);
 
     using owner = wl_chassis_t;
 

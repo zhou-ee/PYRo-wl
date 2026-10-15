@@ -66,6 +66,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::_abort_jump(wl_ch
 {
     auto &data = owner->_ctx.data;
     data.airborne.landing_recovery = false;
+    data.airborne.velocity_recovery = false;
     for (uint8_t i = 0; i < 2; ++i)
     {
         data.leg[i].out_F_L = 0.0f;

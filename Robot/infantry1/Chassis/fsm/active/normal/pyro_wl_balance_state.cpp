@@ -16,10 +16,12 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
 
     owner->_ctx.data.balance_stable_time = 0.0f;
     owner->_ctx.data.airborne.attitude_recovery = owner->_ctx.data.airborne.landing_recovery;
+    owner->_ctx.data.airborne.velocity_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.odom.real_x            = 0;
 
     owner->_ctx.data.target_state.x         = 0;
-    owner->_ctx.data.target_state.dot_x     = 0.0f;
+    owner->_ctx.data.target_state.dot_x = owner->_ctx.data.airborne.velocity_recovery
+        ? owner->_ctx.data.airborne.forward_velocity_ref : 0.0f;
     #if Using_Gimbal_Cmd
     owner->_ctx.data.target_state.psi       = 0.0f;
     #else
@@ -177,7 +179,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     }
     
     
-    const float target_vx = owner->_current_cmd.v;
+    // One continuous reference drives both DOT_X and the X reference integral.
+    const float target_vx = owner->_landing_velocity_reference(owner->_current_cmd.v);
     owner->_ctx.data.target_state.x += target_vx * owner->_ctx.data._dt;
     owner->_ctx.data.target_state.dot_x = target_vx;
 
@@ -247,6 +250,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     }
     owner->_balance_control();
     const bool stable = !data.airborne.landing_recovery && !data.airborne.attitude_recovery &&
+        !data.airborne.velocity_recovery &&
         std::fabs(data.measured_state.theta) < JUMP_READY_ANGLE &&
         std::fabs(data.measured_state.phi) < JUMP_READY_ANGLE &&
         std::fabs(data.measured_state.dot_theta) < JUMP_READY_ANGULAR_SPEED &&
@@ -286,7 +290,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::exit(wl_chassis_t *owner)
 {
-    (void)owner;
+    owner->_ctx.data.airborne.velocity_recovery = false;
 }
 
 } // namespace pyro

@@ -36,6 +36,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_pre_compres
     data.target_state.dot_L = 0.0f;
     data.jump_recovery_hold_time = 0.0f;
     data.airborne.attitude_recovery = false;
+    data.airborne.velocity_recovery = false;
+    data.jump_precompress_exit_velocity = 0.0f;
     owner->_reset_air_contacts();
     data.airborne.forward_velocity_ref = data.jump_forward_velocity_ref;
     for (uint8_t i = 0; i < 2; ++i)
@@ -70,9 +72,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_pre_compres
     if ((std::fabs(data.leg[leg_def::L].current_leg_length - JUMP_PRECOMPRESS_LENGTH) < JUMP_LENGTH_TOLERANCE &&
          std::fabs(data.leg[leg_def::R].current_leg_length - JUMP_PRECOMPRESS_LENGTH) < JUMP_LENGTH_TOLERANCE &&
          std::fabs(data.leg[leg_def::L].current_leg_speed) < JUMP_SETTLED_LEG_SPEED &&
-         std::fabs(data.leg[leg_def::R].current_leg_speed) < JUMP_SETTLED_LEG_SPEED) ||
+         std::fabs(data.leg[leg_def::R].current_leg_speed) < JUMP_SETTLED_LEG_SPEED && std::fabs(data.leg[leg_def::L].current_leg_length -data.leg[leg_def::R].current_leg_length) < 0.02f) ||
         data.jump_phase_time >= JUMP_PRECOMPRESS_TIME)
     {
+        // Sample while the wheels are still grounded, at the actual handover
+        // to PUSH. Keep the existing ground/PUSH reference separate.
+        data.jump_precompress_exit_velocity = data.measured_state.dot_x;
+        data.airborne.forward_velocity_ref =
+            JUMP_LANDING_VELOCITY_SCALE * data.jump_precompress_exit_velocity;
         auto &jump = owner->_state_active._state_normal._state_jump;
         jump._transition_phase(owner, &jump._state_push);
     }

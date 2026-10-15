@@ -58,6 +58,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
         const auto &data = owner->_ctx.data;
         const bool ready = JUMP_ENABLED && _active_state == &_state_balance &&
             !data.airborne.landing_recovery && !data.airborne.attitude_recovery &&
+            !data.airborne.velocity_recovery &&
             data.balance_stable_time >= JUMP_STAND_CONFIRM_TIME &&
             data.jump_cooldown_remaining <= 0.0f;
         if (ready)

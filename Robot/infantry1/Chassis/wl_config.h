@@ -123,16 +123,16 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 
 // Active jump state machine. These values are separate from passive airborne
 // detection so a commanded jump never depends on a takeoff-force threshold.
-constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.19f; // 预压缩目标腿长 (m)
+constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.185f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.20f; // 收腿完成门限基准，与虚拟墙厚度独立
 // Positive magnitudes per motor. Call sites choose extension (+F_L) or
 // retraction (-F_L); equivalent F_L = 2 * signed_torque / abs(J_L).
-constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 3.0f;
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 25.0f;
-constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 5.0f;
-constexpr float JUMP_AIR_MOTOR_TORQUE                 = 5.0f;
+constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f;
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 15.0f;
+constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f;
+constexpr float JUMP_AIR_MOTOR_TORQUE                 = 2.0f;
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 文档式预压缩超时 (s)
-constexpr float JUMP_LENGTH_TOLERANCE                 = 0.01f;
+constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;
 constexpr float JUMP_SETTLED_LEG_SPEED                = 0.2f;
 constexpr float JUMP_PUSH_LENGTH_MARGIN               = 0.01f;
 constexpr float JUMP_PUSH_TIMEOUT                     = 0.5f;  // 蹬腿最长时间 (s)
@@ -143,7 +143,7 @@ constexpr float JUMP_LANDING_REVERSE_SPEED            = -0.05f; // 判据 A：�
 constexpr float JUMP_LANDING_LENGTH_MARGIN            = 0.03f; // 判据 B：腿长低于机械最大腿长的余量 (m)
 constexpr float JUMP_LANDING_EXTENSION_SPEED_MIN      = 0.10f; // 启用减速判定所需的最小伸展速度峰值 (m/s)
 constexpr float JUMP_LANDING_EXTENSION_SPEED_DROP     = 0.15f; // 伸展速度相对峰值的最小下降量 (m/s)
-constexpr float JUMP_LANDING_CONFIRM_TIME             = 0.010f; // A 或 B 连续成立的触地确认时间 (s)
+constexpr float JUMP_LANDING_CONFIRM_TIME             = 0.020f; // A 或 B 连续成立的触地确认时间 (s)
 constexpr float JUMP_T_P_LIMIT = 8.0f;
 constexpr bool JUMP_ENABLED                          = true;
 constexpr float JUMP_STAND_CONFIRM_TIME              = 0.3f;
@@ -151,12 +151,14 @@ constexpr float JUMP_READY_ANGLE                     = 5.0f * PI / 180.0f;
 constexpr float JUMP_READY_ANGULAR_SPEED             = 0.5f;
 constexpr float JUMP_COOLDOWN_TIME                   = 1.0f;
 constexpr float JUMP_POSITION_ERROR_LIMIT            = 0.8f;
+constexpr float JUMP_LANDING_VELOCITY_SCALE          = 0.9f; // 退出预压缩时实测速度到落地参考的比例
 constexpr float AIR_CONTACT_WALL_GUARD_MARGIN        = 0.03f; // 触地速度判据排除末端制动区
 constexpr float AIR_CONTACT_MIN_TIME                = 0.025f;
 constexpr float AIR_CONTACT_RELEASE_FORCE           = 20.0f;
 constexpr float AIR_CONTACT_RELEASE_TIME            = 0.02f;
 constexpr float LANDING_PITCH_REFERENCE_RATE         = 3.0f;
 constexpr float LANDING_BETA_REFERENCE_RATE          = 5.0f;
+constexpr float LANDING_VELOCITY_REFERENCE_RATE      = 2.0f; // m/s^2; 落地速度参考向当前遥控速度的变化率
 
 constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 

@@ -179,6 +179,28 @@ void wl_chassis_t::_execute_landing_recovery()
     }
 }
 
+float wl_chassis_t::_landing_velocity_reference(const float commanded_velocity)
+{
+    auto &air = _ctx.data.airborne;
+    if (!air.velocity_recovery)
+    {
+        return commanded_velocity;
+    }
+
+    const float error = commanded_velocity - air.forward_velocity_ref;
+    const float max_step = LANDING_VELOCITY_REFERENCE_RATE * _ctx.data._dt;
+    const bool reached = std::fabs(error) <= max_step;
+    air.forward_velocity_ref = reached ? commanded_velocity
+        : air.forward_velocity_ref + std::clamp(error, -max_step, max_step);
+    // Keep filtering command changes throughout the other landing recoveries,
+    // even if the velocity reference happens to match the command earlier.
+    if (reached && !air.landing_recovery && !air.attitude_recovery)
+    {
+        air.velocity_recovery = false;
+    }
+    return air.forward_velocity_ref;
+}
+
 void wl_chassis_t::_execute_air_control()
 {
     _execute_airborne_lqr();
@@ -209,6 +231,7 @@ void wl_chassis_t::_execute_air_control()
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::enter(wl_chassis_t *owner)
 {
+    owner->_ctx.data.airborne.velocity_recovery = false;
     owner->_ctx.data.airborne.landing_counter = 0;
     owner->_reset_air_contacts();
     owner->_ctx.data.airborne.forward_velocity_ref = owner->_ctx.data.measured_state.dot_x;
