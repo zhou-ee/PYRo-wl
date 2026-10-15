@@ -152,7 +152,7 @@ bool wl_chassis_t::_detect_landing()
     }
     data.jump_landing_confirm_time = std::min(
         air.contact_confirm_time[leg_def::L], air.contact_confirm_time[leg_def::R]);
-    return air.contact[leg_def::L] && air.contact[leg_def::R];
+    return air.contact[leg_def::L] || air.contact[leg_def::R];
 }
 
 void wl_chassis_t::_execute_landing_recovery()
