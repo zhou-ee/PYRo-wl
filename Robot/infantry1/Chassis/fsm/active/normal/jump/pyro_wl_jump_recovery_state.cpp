@@ -11,34 +11,42 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_recovery_t:
     auto &data = owner->_ctx.data;
     data.jump_phase = jump_phase_t::RECOVERY;
     data.jump_phase_time = 0.0f;
-    data.jump_push_accel_hold_ticks = 0;
+    data.jump_recovery_hold_time = 0.0f;
+    for (uint8_t i = 0; i < 2; ++i)
+    {
+        data.airborne.L_air_ref[i] = JUMP_AIR_LENGTH;
+    }
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_recovery_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = true;
-    data.target_state.psi = data.jump_heading_ref;
-    data.target_state.dot_psi = 0.0f;
+    owner->_execute_airborne_lqr();
+    bool settled = true;
     for (uint8_t i = 0; i < 2; ++i)
     {
         auto &leg = data.leg[i];
+        // The reference is for phase completion/telemetry, not a length loop.
         leg.target_leg_length = JUMP_AIR_LENGTH;
-        // 与 JUMP 的 2 * JUMP_TAU / J_L 一致，正号恢复力矩用于反向收腿。
-        const float recovery_force = 2.0f * JUMP_RECOVERY_TAU / leg.J_L;
-        leg.out_F_L = recovery_force;
-        data.leg[i].out_T_p = 0.0f;
+        leg.out_F_L = owner->_motor_torque_to_leg_force(leg, -JUMP_RECOVERY_MOTOR_TORQUE)
+            - (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION
+            - leg.gas_spring_force;
         data.wheel[i].out_T_w = 0.0f;
         data.wheel[i].out_current = 0.0f;
+        // Retraction effort continues until handover; the lower virtual wall
+        // provides the opposing force when the leg reaches its short end.
+        settled &= leg.current_leg_length < JUMP_AIR_LENGTH + JUMP_LENGTH_TOLERANCE &&
+                   std::fabs(leg.current_leg_speed) < JUMP_SETTLED_LEG_SPEED;
     }
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
-    const bool falling_fast_enough =
-        data.jump_vertical_velocity_integral <= -JUMP_RECOVERY_FALL_SPEED;
-    if (falling_fast_enough ||
+    data.jump_recovery_hold_time = settled ? data.jump_recovery_hold_time + data._dt : 0.0f;
+    if (data.jump_recovery_hold_time >= JUMP_RECOVERY_HOLD_TIME ||
         data.jump_phase_time >= JUMP_RECOVERY_TIMEOUT)
     {
+        // On timeout, keep attitude control and prepare landing rather than
+        // continuing to retract indefinitely.
         auto &jump = owner->_state_active._state_normal._state_jump;
         jump._transition_phase(owner, &jump._state_air);
     }

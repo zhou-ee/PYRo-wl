@@ -1,4 +1,5 @@
 #include "pyro_wl_chassis.h"
+#include "airborne_lqr_coef.h"
 
 #include "pyro_algo_common.h"
 #include "pyro_dwt_drv.h"
@@ -46,6 +47,9 @@ void wl_chassis_t::_update_feedback()
     const float measured_dt = dwt_drv_t::get_delta_t(&dwt_cnt);
     _ctx.data._dt =
         (measured_dt > 1.0e-5f && measured_dt < 0.1f) ? measured_dt : 0.001f;
+
+    _ctx.data.jump_cooldown_remaining = std::max(
+        0.0f, _ctx.data.jump_cooldown_remaining - _ctx.data._dt);
 
     // 2. Update all motor feedback before reading cached values.
     for (uint8_t leg = 0; leg < 2; ++leg)
@@ -292,23 +296,39 @@ void wl_chassis_t::_manual_control()
 
 float wl_chassis_t::_calc_leg_length_wall_force(const leg_ctx_t &leg) const
 {
-    if (leg.current_leg_length > LEG_LENGTH_WALL_MAX)
+    // Damping opposes motion toward the stop over the wider region; the
+    // narrower stiffness region supplies a static restoring force.
+    if (leg.current_leg_length > LEG_LENGTH_WALL_DAMPING_MAX)
     {
-        const float penetration = leg.current_leg_length - LEG_LENGTH_WALL_MAX;
+        const float penetration = std::max(
+            leg.current_leg_length - LEG_LENGTH_WALL_MAX, 0.0f);
         const float damping_force =
             LEG_LENGTH_WALL_D * std::max(leg.current_leg_speed, 0.0f);
         return -LEG_LENGTH_WALL_K * penetration - damping_force;
     }
 
-    if (leg.current_leg_length < LEG_LENGTH_WALL_MIN)
+    if (leg.current_leg_length < LEG_LENGTH_WALL_DAMPING_MIN)
     {
-        const float penetration = LEG_LENGTH_WALL_MIN - leg.current_leg_length;
+        const float penetration = std::max(
+            LEG_LENGTH_WALL_MIN - leg.current_leg_length, 0.0f);
         const float damping_force =
             LEG_LENGTH_WALL_D * std::max(-leg.current_leg_speed, 0.0f);
         return LEG_LENGTH_WALL_K * penetration + damping_force;
     }
 
     return 0.0f;
+}
+
+float wl_chassis_t::_motor_torque_to_leg_force(const leg_ctx_t &leg, const float signed_torque) const
+{
+    const float jacobian = std::fabs(leg.J_L);
+    if (!std::isfinite(jacobian) || jacobian < 1.0e-4f)
+    {
+        return 0.0f;
+    }
+    // Positive signed_torque always means extension (+F_L), independent of
+    // the kinematic branch. Each joint receives +/- its magnitude in VMC.
+    return 2.0f * signed_torque / jacobian;
 }
 
 float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
@@ -322,6 +342,64 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
         GAS_SPRING_FORCE_POLY_DEGREE);
 }
 __attribute__((optimize("O3")))
+void wl_chassis_t::_airborne_gain_calculate()
+{
+    const float lambda1 = std::clamp(
+        (_ctx.data.leg[leg_def::L].current_leg_length - airborne_lqr::LENGTH_CENTER_M) /
+            airborne_lqr::LENGTH_HALF_RANGE_M, -1.0f, 1.0f);
+    const float lambda2 = std::clamp(
+        (_ctx.data.leg[leg_def::R].current_leg_length - airborne_lqr::LENGTH_CENTER_M) /
+            airborne_lqr::LENGTH_HALF_RANGE_M, -1.0f, 1.0f);
+    for (uint8_t input = 0; input < airborne_lqr::INPUT_DIM; ++input)
+    {
+        for (uint8_t state = 0; state < airborne_lqr::STATE_DIM; ++state)
+        {
+            float rows[airborne_lqr::K_POLY_DEGREE + 1];
+            for (uint8_t p = 0; p <= airborne_lqr::K_POLY_DEGREE; ++p)
+            {
+                rows[p] = evaluate_polynomial_ascending(
+                    lambda2, airborne_lqr::K_COEF[input][state][p],
+                    airborne_lqr::K_POLY_DEGREE);
+            }
+            _ctx.data.airborne.gain_tp[input][state] = evaluate_polynomial_ascending(
+                lambda1, rows, airborne_lqr::K_POLY_DEGREE);
+        }
+    }
+}
+
+void wl_chassis_t::_execute_airborne_lqr()
+{
+    _airborne_gain_calculate();
+    const auto &state = _ctx.data.measured_state;
+    // Our beta=0 denotes a world-vertical leg; do not copy the document's
+    // mechanism angle formula, which uses a different body-pitch convention.
+    const float error[airborne_lqr::STATE_DIM] = {
+        state.beta1, state.dot_beta1, state.beta2, state.dot_beta2,
+        state.theta, state.dot_theta};
+    for (uint8_t input = 0; input < airborne_lqr::INPUT_DIM; ++input)
+    {
+        float torque = 0.0f;
+        for (uint8_t index = 0; index < airborne_lqr::STATE_DIM; ++index)
+        {
+            torque -= _ctx.data.airborne.gain_tp[input][index] * error[index];
+        }
+        _ctx.data.leg[input].out_T_p = std::clamp(torque, -MAX_T_P, MAX_T_P);
+    }
+}
+
+void wl_chassis_t::_reset_air_contacts()
+{
+    auto &air = _ctx.data.airborne;
+    air.flight_time = 0.0f;
+    for (uint8_t i = 0; i < 2; ++i)
+    {
+        air.contact[i] = false;
+        air.contact_confirm_time[i] = 0.0f;
+        air.contact_release_time[i] = 0.0f;
+        air.extension_speed_peak[i] = 0.0f;
+    }
+}
+
 void wl_chassis_t::_gain_calculate()
 {
     // const float norm_delta_L =
@@ -421,24 +499,13 @@ void wl_chassis_t::_vmc_trans_v2j()
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
 
-    // Every active mode eventually reaches this VMC-to-joint conversion.
-    // Apply the passive gas-spring contribution here so ALIGN, MANUAL, AIR,
-    // STEP and BALANCE all use the same motor-side compensation.
-
+    // All active modes use the same always-on wall. Inputs are already
+    // motor-side forces; each phase applies its own feedforward exactly once.
     for (auto &leg : _ctx.data.leg)
     {
         leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
-        // const float f_l_before_wall = leg.out_F_L -
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
-        const float f_l_before_wall = leg.out_F_L ;
-        //                               GAS_SPRING_COMPENSATION_SCALE *
-        //                                   leg.gas_spring_force;
         const float t_p_motor = leg.out_T_p;
-        const float wall_force = _ctx.data.jump_virtual_wall_bypass
-                                     ? 0.0f
-                                     : leg.virtual_wall_force;
-        leg.motor_f_l = std::clamp(f_l_before_wall + wall_force,
+        leg.motor_f_l = std::clamp(leg.out_F_L + leg.virtual_wall_force,
                                    -MAX_F_L, MAX_F_L);
         leg.motor_t_p = t_p_motor;
 

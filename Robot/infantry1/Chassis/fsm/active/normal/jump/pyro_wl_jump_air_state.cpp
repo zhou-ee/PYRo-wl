@@ -16,53 +16,31 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_air_t::ente
     data.jump_leg_extension_speed_peak[leg_def::L] = 0.0f;
     data.jump_leg_extension_speed_peak[leg_def::R] = 0.0f;
     data.jump_landing_confirm_time = 0.0f;
+    owner->_reset_air_contacts();
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::state_air_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
-    data.jump_virtual_wall_bypass = true;
-    data.target_state.psi = data.jump_heading_ref;
-    data.target_state.dot_psi = 0.0f;
-    bool leg_speed_reversed = false;
-    bool leg_extension_slowed = false;
-    for (uint8_t i = 0; i < 2; ++i)
-    {
-        auto &leg = data.leg[i];
-        data.jump_leg_extension_speed_peak[i] = std::max(
-            data.jump_leg_extension_speed_peak[i],
-            leg.current_leg_speed);
-        const float extension_speed_peak =
-            data.jump_leg_extension_speed_peak[i];
-
-        // 正速度表示伸腿，负速度表示收腿。
-        leg_speed_reversed |=
-            leg.current_leg_speed < JUMP_LANDING_REVERSE_SPEED;
-        leg_extension_slowed |=
-            leg.current_leg_length <
-                MAX_LEG_LENGTH - JUMP_LANDING_LENGTH_MARGIN &&
-            extension_speed_peak > JUMP_LANDING_EXTENSION_SPEED_MIN &&
-            extension_speed_peak - leg.current_leg_speed >
-                JUMP_LANDING_EXTENSION_SPEED_DROP;
-
-        const float air_force = 2.0f * JUMP_AIR_TAU / leg.J_L;
-        leg.out_F_L = std::clamp(air_force, -500.0f, 500.0f);
-        data.leg[i].out_T_p = 0.0f;
-        data.wheel[i].out_T_w = 0.0f;
-        data.wheel[i].out_current = 0.0f;
-    }
+    const bool landed = owner->_detect_landing();
+    owner->_execute_air_control();
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
-    const bool landing_candidate = leg_speed_reversed ||
-                                   leg_extension_slowed;
-    data.jump_landing_confirm_time = landing_candidate
-                                         ? data.jump_landing_confirm_time + data._dt
-                                         : 0.0f;
-    if (data.jump_landing_confirm_time >= JUMP_LANDING_CONFIRM_TIME)
+    if (landed)
     {
-        auto &jump = owner->_state_active._state_normal._state_jump;
-        jump._transition_phase(owner, &jump._state_return);
+        // Handover directly after this tick's contact-aware outputs. Balance
+        // retains the existing length and attitude recovery on its next entry.
+        data.airborne.L_ref = 0.5f * (data.leg[leg_def::L].current_leg_length +
+                                     data.leg[leg_def::R].current_leg_length);
+        data.target_state.L = data.airborne.L_ref;
+        data.target_state.dot_L = 0.0f;
+        data.target_state.psi = data.jump_heading_ref;
+        data.target_state.dot_psi = 0.0f;
+        data.airborne.landing_recovery = true;
+        data.jump_phase = jump_phase_t::COMPLETE;
+        data.jump_phase_time = 0.0f;
+        owner->_state_active._state_normal._state_jump._request_balance(owner);
     }
     else if (data.jump_phase_time >= JUMP_TOTAL_TIMEOUT)
     {
