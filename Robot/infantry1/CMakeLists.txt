@@ -1,5 +1,5 @@
-set(BOARD "CHASSIS_BOARD")
-# set(BOARD "GIMBAL_BOARD")
+#set(BOARD "CHASSIS_BOARD")
+set(BOARD "GIMBAL_BOARD")
 
 add_library(Infantry1 OBJECT)
 
@@ -60,6 +60,7 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
                 Gimbal/fsm/pyro_gimbal_align_state.cpp
 
                 Booster/pyro_wl_booster.cpp
+                Booster/BulletSpeedControl/bullet_speed_control.cpp
                 Booster/fsm/pyro_booster_passive_state.cpp
                 Booster/fsm/pyro_booster_active_state.cpp
                 Booster/fsm/pyro_booster_ready_state.cpp
@@ -85,6 +86,8 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
                 ${CMAKE_CURRENT_SOURCE_DIR}/Application/Booster_board
                 ${CMAKE_CURRENT_SOURCE_DIR}/Gimbal
                 ${CMAKE_CURRENT_SOURCE_DIR}/Booster
+                ${CMAKE_CURRENT_SOURCE_DIR}/Booster/HeatControl
+                ${CMAKE_CURRENT_SOURCE_DIR}/Booster/BulletSpeedControl
                 ${CMAKE_CURRENT_SOURCE_DIR}/Communication/General
                 ${CMAKE_CURRENT_SOURCE_DIR}/Communication/Gimbal
         )       

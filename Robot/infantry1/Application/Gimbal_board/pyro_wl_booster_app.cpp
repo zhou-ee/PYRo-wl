@@ -29,7 +29,7 @@ static pyro::autoaim_drv_t     *autoaim_ptr        = nullptr;
 
 static virtual_rc_t vrc_t;
 
-static void motor_deps_init();
+static void booster_deps_init();
 static void booster_cmd(virtual_rc_t vrc, uint32_t notify);
 
 
@@ -60,7 +60,7 @@ extern "C"
         wl_booster_cmd_ptr = new pyro::wl_booster_cmd_t();
         wl_booster_ptr     = pyro::wl_booster_t::instance();
 
-        motor_deps_init();
+        booster_deps_init();
         wl_booster_ptr->configure(*wl_booster_deps);
         wl_booster_ptr->start();
 
@@ -171,7 +171,7 @@ void booster_cmd(virtual_rc_t vrc, uint32_t notify)
 
 
 
-void motor_deps_init()
+void booster_deps_init()
 {
     wl_booster_deps = new pyro::wl_booster_deps_t();
 
@@ -194,4 +194,7 @@ void motor_deps_init()
         new pyro::pid_t(TRIGGER_POS_PID_KP, 0.0f, TRIGGER_POS_PID_KD, 100.0f, 1000.0f);
     wl_booster_deps->pid_deps.trigger_spd =
         new pyro::pid_t(TRIGGER_SPEED_PID_KP, 0.0f,TRIGGER_SPEED_PID_KD, 5.0f, 10.0f);
+    wl_booster_deps->speed_control_deps = 
+        new pyro::BulletSpeedControl(BULLET_SPEED_CONTROL_KP, BULLET_SPEED_CONTROL_KI, BULLET_SPEED_CONTROL_KD);
 }
+

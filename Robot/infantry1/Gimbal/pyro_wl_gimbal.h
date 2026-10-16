@@ -124,8 +124,6 @@ struct wl_gimbal_data_ctx_t final : public cmd_base_t
 
 struct wl_gimbal_ctx_t
 {
-    wl_gimbal_deps_t::motor_deps_t motor;
-    wl_gimbal_deps_t::pid_deps_t pid;
     wl_gimbal_data_ctx_t data;
 };
 

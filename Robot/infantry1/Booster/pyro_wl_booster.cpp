@@ -14,8 +14,6 @@ wl_booster_t::wl_booster_t() : module_base_t("wl_booster")
 status_t wl_booster_t::_init()
 {
     _ctx                                      = {};
-    _ctx.motor                                = _module_deps.motor_deps;
-    _ctx.pid                                  = _module_deps.pid_deps;
     _module_deps.motor_deps.fric1->enable();
     _module_deps.motor_deps.fric2->enable();
     _module_deps.motor_deps.trigger->enable();
@@ -95,8 +93,24 @@ void wl_booster_t::_update_feedback()
     _ctx.data.motor_state.trigger_rad = 
                 _ctx.data.motor_state.trigger.pos + _ctx.data.motor_state.triggerRound * 2 * PI;
 
-    //弹速补偿与热量控制更新
+    //热量控制与弹速补偿更新
+    if(pyro::board_drv_t::get_instance().check_online())
+    {
+        const auto& c2g_data = pyro::board_drv_t::get_instance().get_c2g_rx_data();
+        #if HEAT_CONTROL
+    
+        #endif
 
+        #if BULLET_SPEED_CONTROL
+            //TODO：获取热量控制那里的当前发弹数，与本地作比较，看看是否是最新发
+            if(0)
+            {
+                _module_deps.speed_control_deps->UpdateNewShootSpeed(c2g_data.bullet_speed);
+                _module_deps.speed_control_deps->CalculateSpeedCompensation();
+            }
+        #endif
+    }
+    
 
     static uint32_t dwtCnt;
     _ctx.data.dt = pyro::dwt_drv_t::get_delta_t(&dwtCnt);
@@ -126,8 +140,10 @@ void wl_booster_t::_fsm_execute()
 
 void wl_booster_t::calculateFricCurrents()
 {
-    //这里后期加上弹速闭环补偿
-    float finalFricTargetSpeed = _ctx.data.target_state.targetFricSpeed;
+
+    //加上弹速闭环补偿
+    float finalFricTargetSpeed = _ctx.data.target_state.targetFricSpeed + 
+                    _module_deps.speed_control_deps->GetSpeedCompensation();
 
     float bullet_L_speed = _ctx.data.motor_state.fric[0].vel;
     float bullet_R_speed = _ctx.data.motor_state.fric[1].vel;

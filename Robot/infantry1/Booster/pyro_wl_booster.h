@@ -4,7 +4,9 @@
 #include "pyro_algo_pid.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_module_base.h"
+#include "bullet_speed_control.h"
 #include "booster_config.h"
+#include "pyro_board_drv.h"
 
 
 namespace pyro
@@ -64,6 +66,7 @@ struct wl_booster_deps_t
 
     motor_deps_t motor_deps{};
     pid_deps_t pid_deps{};
+    BulletSpeedControl* speed_control_deps;
 };
 
 
@@ -118,8 +121,6 @@ struct booster_data_ctx_t final : public cmd_base_t
 
 struct wl_booster_ctx_t
 {
-    wl_booster_deps_t::motor_deps_t motor;
-    wl_booster_deps_t::pid_deps_t pid;
     booster_data_ctx_t data;
 };
 
@@ -157,14 +158,6 @@ class wl_booster_t final
     void calculateFricCurrents();
     void calculateTriggerCurrents(bool useTriggerSpeedLoopOnly);
     void sendCurrents();
-
-    //弹速补偿器
-
-
-
-    //热量控制器
-    
-
 
     using owner = wl_booster_t;
 

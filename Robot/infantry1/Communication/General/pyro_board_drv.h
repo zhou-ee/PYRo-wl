@@ -48,7 +48,8 @@ public:
 
         uint32_t chassis_is_align_ready : 1; //机体姿态对齐的标志位,只供给云盘读取、
         uint32_t chassis_is_rescuing    : 1; //机体姿态自救的标志位,只供给云盘读取、
-        uint32_t count;
+        uint32_t bullet_speed           : 13;
+        uint32_t current_heat           : 9;
         
     };
 
