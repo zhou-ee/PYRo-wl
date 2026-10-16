@@ -12,18 +12,30 @@ using namespace pyro;
 class warning_drv_t
 {
   public:
-    enum class warning_type_t
+    enum class RGB_waring_type_t
+    {
+        GREEN,
+        RED,
+        BLUE,
+        PURPLE,
+        YELLOW,
+        CYAN,  //青色
+        NONE,
+        COUNT,
+        
+    };
+    enum class buzzer_warning_level_t
     {
         NONE,//无报警
         PLAYING,//供自定义娱乐
-        WARNING_TYPE_1,
-        WARNING_TYPE_2,
-        WARNING_TYPE_3,
-        WARNING_TYPE_4,
-        WARNING_TYPE_5,
-        WARNING_TYPE_6,
-        WARNING_TYPE_7,
-        WARNING_TYPE_8,
+        WARNING_LEVEL_1,
+        WARNING_LEVEL_2,
+        WARNING_LEVEL_3,
+        WARNING_LEVEL_4,
+        WARNING_LEVEL_5,
+        WARNING_LEVEL_6,
+        WARNING_LEVEL_7,
+        WARNING_LEVEL_8,
         
     };
     static warning_drv_t& instance()
@@ -37,10 +49,9 @@ class warning_drv_t
     void stop();
 
 
-    void set_warning_level(warning_type_t level)
-    {
-        _current_warning_level = level;
-    }
+    void set_buzzer_warning_level(buzzer_warning_level_t level);
+    void add_rgb_warning_type(RGB_waring_type_t type);
+    void clear_rgb_warning_type(RGB_waring_type_t type);
 
   protected:
 
@@ -49,15 +60,10 @@ class warning_drv_t
 
 
   private:
-    // ---------------------------------------------------------
-    // 【架构精髓】通过私有内部类实现组合，代理任务的运行逻辑
-    // ---------------------------------------------------------
     class warning_task_t : public task_base_t
     {
       public:
       
-
-
         warning_task_t(warning_drv_t *parent, const char *name);
 
       protected:
@@ -73,18 +79,32 @@ class warning_drv_t
     void task_run_loop();
 
     warning_task_t _task;
-    warning_type_t _current_warning_level = warning_type_t::NONE;
+    
     //蜂鸣器模块所需内容
-    BuzzerTask* _buzzer_task;  
+    bool should_play_warning_tone(int tick, int level) const;
+    void handle_buzzer(int tick, BuzzerPlayer &buzzer);
+    BuzzerTask* _buzzer_task = nullptr;  
+    buzzer_warning_level_t _current_buzzer_warning_level = buzzer_warning_level_t::NONE;
+    bool melody_loaded = false;
 
     //ws2812模块所需内容
-    const uint16_t RGB_NUM = 1;
-    const ws2812_hw_t RGB_HW = WS2812_HW_TIM3_CH2;
-    ws2812_t* _rgb;
+    static constexpr uint16_t RGB_NUM = 1;
+    static constexpr ws2812_hw_t RGB_HW = WS2812_HW_TIM3_CH2;
+    ws2812_t* _rgb = nullptr;
+
+    uint16_t rgb_waring_count[(int)RGB_waring_type_t::COUNT] = {0}; //每种颜色都持有一个倒计时
+    RGB_waring_type_t color_lists[(int)RGB_waring_type_t::COUNT];
+    uint8_t available_color_count = 0;
+
+    static constexpr int TICK_PERIOD         = 1000; // 一个完整周期 tick 数 (5s)
+    static constexpr int TICK_STEP           = 8;    // 每次循环 tick 增量
+    static constexpr int WARN_TONE_FREQ_HZ   = 1000;
+    static constexpr int WARN_TONE_VOLUME    = 100;
+    static constexpr int WARN_PULSE_ON_TICK  = 50;   // 每段蜂鸣持续 tick 数
+    static constexpr int WARN_PULSE_GAP_TICK = 100;  // 相邻蜂鸣起始间隔 tick 数
+    static constexpr int RGB_DECAY_STEP      = 250;  // 每周期扣减的倒计时量
 
 };
-
-
 
 
 
