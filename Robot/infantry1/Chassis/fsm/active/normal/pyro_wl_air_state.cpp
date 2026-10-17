@@ -131,7 +131,7 @@ bool wl_chassis_t::_detect_landing()
         {
             air.contact_confirm_time[i] = candidate
                 ? air.contact_confirm_time[i] + data._dt : 0.0f;
-            if (air.contact_confirm_time[i] >= JUMP_LANDING_CONFIRM_TIME)
+            if (air.contact_confirm_time[i] >= AIR_CONTACT_CONFIRM_TIME)
             {
                 air.contact[i] = true;
                 air.L_air_ref[i] = leg.current_leg_length;
@@ -212,7 +212,7 @@ void wl_chassis_t::_execute_air_control()
         // Fixed extension effort on both airborne and confirmed-contact legs.
         // No gas-spring cancellation or length PD; boundary feedback is in VMC.
         leg.target_leg_length = LEG_LENGTH_WALL_MAX;
-        leg.out_F_L = _motor_torque_to_leg_force(leg, JUMP_AIR_MOTOR_TORQUE);
+        leg.out_F_L = _motor_torque_to_leg_force(leg, AIR_EXTENSION_MOTOR_TORQUE);
         if (air.contact[i])
         {
             const float wheel_target = air.forward_velocity_ref / WHEEL_RADIUS;

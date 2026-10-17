@@ -115,7 +115,6 @@ bool advance_landing_angle_reference(const float goal, const float max_velocity,
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
 
-    owner->_ctx.data.balance_stable_time = 0.0f;
     owner->_ctx.data.airborne.attitude_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.velocity_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.pitch_reference_acceleration = 0.0f;
@@ -358,17 +357,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         }
     }
     owner->_balance_control();
-    const bool stable = !data.airborne.landing_recovery && !data.airborne.attitude_recovery &&
-        !data.airborne.velocity_recovery &&
-        std::fabs(data.measured_state.theta) < JUMP_READY_ANGLE &&
-        std::fabs(data.measured_state.phi) < JUMP_READY_ANGLE &&
-        std::fabs(data.measured_state.dot_theta) < JUMP_READY_ANGULAR_SPEED &&
-        std::fabs(data.measured_state.dot_phi) < JUMP_READY_ANGULAR_SPEED &&
-        data.airborne.support_force[leg_def::L] > AIR_CONTACT_FORCE_OFF &&
-        data.airborne.support_force[leg_def::R] > AIR_CONTACT_FORCE_OFF;
-    data.balance_stable_time = stable ? std::min(
-        data.balance_stable_time + data._dt, JUMP_STAND_CONFIRM_TIME) : 0.0f;
-
     // const float roll_error = owner->_ctx.data.target_state.phi -
     //                          owner->_ctx.data.measured_state.phi;
     // if (std::fabs(roll_error) > NORMAL_ROLL_INTEGRAL_DEADBAND)

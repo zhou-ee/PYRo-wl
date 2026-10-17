@@ -48,9 +48,6 @@ void wl_chassis_t::_update_feedback()
     _ctx.data._dt =
         (measured_dt > 1.0e-5f && measured_dt < 0.1f) ? measured_dt : 0.001f;
 
-    _ctx.data.jump_cooldown_remaining = std::max(
-        0.0f, _ctx.data.jump_cooldown_remaining - _ctx.data._dt);
-
     // 2. Update all motor feedback before reading cached values.
     for (uint8_t leg = 0; leg < 2; ++leg)
     {
