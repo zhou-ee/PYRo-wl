@@ -186,7 +186,6 @@ struct airborne_data_t
     float extension_speed_peak[2] = {0.0f, 0.0f};
     float flight_time = 0.0f;
     float forward_velocity_ref = 0.0f; // AIR 触地轮速与 BALANCE 落地速度恢复共用参考 (m/s)
-    float gain_tp[2][6] = {};
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
     float L_ref = NORMAL_LENGTH_TARGET;
@@ -285,8 +284,6 @@ class wl_chassis_t final
     bool _detect_takeoff();
     bool _detect_landing();
     void _execute_air_control();
-    void _airborne_gain_calculate();
-    void _execute_airborne_lqr();
     void _reset_air_contacts();
     void _execute_landing_recovery();
     float _landing_velocity_reference(float commanded_velocity);

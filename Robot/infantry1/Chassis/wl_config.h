@@ -126,7 +126,7 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 // detection so a commanded jump never depends on a takeoff-force threshold.
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.19f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.19f; // 收腿/空中腿长目标 (m)
-constexpr float JUMP_TAU                              = -20.0f; // 单腿起跳关节力矩基准 (N m)
+constexpr float JUMP_TAU                              = -25.0f; // 单腿起跳关节力矩基准 (N m)
 constexpr float JUMP_RECOVERY_TAU                     = 20.0f; // 收腿关节力矩基准 (N m)
 constexpr float JUMP_AIR_TAU                          = -5.0f; // AIR 阶段关节力矩基准 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.5f; // 预压缩最长时间 (s)

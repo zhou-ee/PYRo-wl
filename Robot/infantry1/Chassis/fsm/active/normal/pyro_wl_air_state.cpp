@@ -203,12 +203,29 @@ float wl_chassis_t::_landing_velocity_reference(const float commanded_velocity)
 
 void wl_chassis_t::_execute_air_control()
 {
-    _execute_airborne_lqr();
     auto &data = _ctx.data;
     auto &air = data.airborne;
+    _gain_calculate();
     for (uint8_t i = 0; i < 2; ++i)
     {
         auto &leg = data.leg[i];
+        const uint8_t beta_index = i == leg_def::L
+                                       ? lqr_state_def::BETA_1
+                                       : lqr_state_def::BETA_2;
+        const uint8_t dot_beta_index = i == leg_def::L
+                                           ? lqr_state_def::DOT_BETA_1
+                                           : lqr_state_def::DOT_BETA_2;
+        const uint8_t input_index = i == leg_def::L
+                                        ? lqr_input_def::T_P1
+                                        : lqr_input_def::T_P2;
+        // 普通 AIR 的腿摆力矩只反馈本腿摆角 beta 和摆角速度 dot_beta，
+        // 两者目标均为零，不引入 Pitch、另一条腿或其他状态。
+        leg.out_T_p = std::clamp(
+            -data.K[input_index][beta_index] *
+                data.measured_state.data[beta_index] -
+                data.K[input_index][dot_beta_index] *
+                    data.measured_state.data[dot_beta_index],
+            -MAX_T_P, MAX_T_P);
         // Fixed extension effort on both airborne and confirmed-contact legs.
         // No gas-spring cancellation or length PD; boundary feedback is in VMC.
         leg.target_leg_length = LEG_LENGTH_WALL_MAX;
