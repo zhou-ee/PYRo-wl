@@ -102,6 +102,11 @@ class pd_ctrl_t
     void set_deadband(float deadband);
     void set_improve(uint8_t improve);
 
+    [[nodiscard]] uint8_t get_improve() const
+    {
+        return _improve;
+    }
+
     [[nodiscard]] float get_output() const
     {
         return _output;

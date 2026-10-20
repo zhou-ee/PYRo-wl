@@ -18,8 +18,8 @@ constexpr float loop_fp32_PI(float val)
     }
     return val;
 }
-constexpr float OJ5                     = 0.0945f;
-constexpr float J4J5                    = 0.1125f;
+constexpr float OJ5                     = 0.0945f;//0.1134
+constexpr float J4J5                    = 0.1125f;//0.1350
 constexpr float OJ8                     = 0.2100f;
 // constexpr float MIN_LEG_LENGTH = 0.18f;
 // constexpr float MAX_LEG_LENGTH = 2.5f;
@@ -41,12 +41,17 @@ constexpr float RIGHT_KNEE_OFFSET =
 // constexpr float RIGHT_KNEE_OFFSET =0;
 
 constexpr float MAX_LEG_LENGTH        = 0.38f;
-constexpr float MIN_LEG_LENGTH        = 0.17f;
-constexpr float LEG_LENGTH_WALL_MARGIN = 0.01f;
+constexpr float MIN_LEG_LENGTH        = 0.18f;
+// Both margins are measured inward from the mechanical limit. Damping starts
+// first; stiffness joins it only in the inner region nearest the stop.
+constexpr float LEG_LENGTH_WALL_MARGIN = 0.005f; // stiffness + damping: 5 mm
+constexpr float LEG_LENGTH_WALL_DAMPING_MARGIN = 0.020f; // damping only starts at 20 mm
 constexpr float LEG_LENGTH_WALL_MAX    = MAX_LEG_LENGTH - LEG_LENGTH_WALL_MARGIN;
 constexpr float LEG_LENGTH_WALL_MIN    = MIN_LEG_LENGTH + LEG_LENGTH_WALL_MARGIN;
-constexpr float LEG_LENGTH_WALL_K      = 15000.0f; // N/m
-constexpr float LEG_LENGTH_WALL_D      = 250.0f;   // N*s/m
+constexpr float LEG_LENGTH_WALL_DAMPING_MAX = MAX_LEG_LENGTH - LEG_LENGTH_WALL_DAMPING_MARGIN;
+constexpr float LEG_LENGTH_WALL_DAMPING_MIN = MIN_LEG_LENGTH + LEG_LENGTH_WALL_DAMPING_MARGIN;
+constexpr float LEG_LENGTH_WALL_K      = 250000.0f; // N/m
+constexpr float LEG_LENGTH_WALL_D      = 750.0f;    // N*s/m; softer damping across the wider region
 
 constexpr float LEFT_LEG_DIRECTION    = -1.0f;
 constexpr float RIGHT_LEG_DIRECTION   = 1.0f;
@@ -54,9 +59,9 @@ constexpr float RIGHT_LEG_DIRECTION   = 1.0f;
 constexpr float LEFT_WHEEL_DIRECTION  = -1.0f;
 constexpr float RIGHT_WHEEL_DIRECTION = 1.0f;
 
-// Single-leg gravity compensation parameters.
-constexpr float SINGLE_LEG_BODY_MASS  = 6.0f;
+// Foot masses used by flight feedforward and contact inertia correction.
 constexpr float LEG_MASS              = 1.232f;
+constexpr float WHEEL_MASS            = 0.57f;
 constexpr float GRAVITY_ACCELERATION  = 9.81f;
 constexpr float K_t                                  = 0.21777611f;
 constexpr float reduction_ratio                      = 13.94f;
@@ -104,7 +109,7 @@ constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，
 constexpr float NORMAL_LENGTH_TARGET                 = 0.25f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
-constexpr float AIR_TAKEOFF_FORCE_ON                 = 50.0f;//单腿支持力阈值，越小越易离地
+constexpr float AIR_TAKEOFF_FORCE_ON                 = 40.0f;//单腿支持力阈值，越小越易离地
 constexpr float AIR_CONTACT_FORCE_OFF                = 50.0f;
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
@@ -112,35 +117,55 @@ constexpr float AIR_LENGTH_RECOVERY_RATE             = 0.20f;
 constexpr float AIR_LENGTH_RECOVERY_EPSILON          = 0.005f;//腿长误差
 constexpr float AIR_ACCEL_LPF_TAU                    = 0.02f;
 constexpr float SUPPORT_FORCE_LPF_TAU                = 0.01f;
-constexpr float SUPPORT_FORCE_EFFECTIVE_MASS         =
-    SINGLE_LEG_BODY_MASS + LEG_MASS;
 constexpr float SUPPORT_FORCE_BIAS[2]                = {0.0f, 0.0f};
 constexpr uint16_t AIR_TAKEOFF_DEBOUNCE_TICKS        = 75;
 constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 
 // Active jump state machine. These values are separate from passive airborne
 // detection so a commanded jump never depends on a takeoff-force threshold.
-constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.19f; // 预压缩目标腿长 (m)
-constexpr float JUMP_AIR_LENGTH                       = 0.19f; // 收腿/空中腿长目标 (m)
-constexpr float JUMP_TAU                              = -20.0f; // 单腿起跳关节力矩基准 (N m)
-constexpr float JUMP_RECOVERY_TAU                     = 20.0f; // 保留参数：收腿姿态力矩基准 (N m)
-constexpr float JUMP_AIR_TAU                          = -5.0f;//Air阶段收腿的力矩（伸腿为负，收腿为正）
-constexpr float JUMP_PRECOMPRESS_TIME                 = 1.0f; // 预压缩最长时间 (s)
+constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.185f; // 预压缩目标腿长 (m)
+constexpr float JUMP_AIR_LENGTH                       = 0.20f; // 收腿完成门限基准，与虚拟墙厚度独立
+// Positive magnitudes per motor. Call sites choose extension (+F_L) or
+// retraction (-F_L); equivalent F_L = 2 * signed_torque / abs(J_L).
+constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f;
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 18.0f;
+constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f;
+constexpr float JUMP_AIR_MOTOR_TORQUE                 = 2.0f;
+constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 文档式预压缩超时 (s)
+constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;
+constexpr float JUMP_SETTLED_LEG_SPEED                = 0.2f;
+constexpr float JUMP_PUSH_LENGTH_MARGIN               = 0.01f;
 constexpr float JUMP_PUSH_TIMEOUT                     = 0.5f;  // 蹬腿最长时间 (s)
-constexpr float JUMP_PUSH_MIN_TIME                    = 0.05f; // 最短蹬腿判定时间 (s)
-constexpr float JUMP_PUSH_ACCEL_EPSILON               = 1.5f;  // 去重力竖直加速度接近 -g 的容差 (m/s^2)
 constexpr float JUMP_RECOVERY_TIMEOUT                 = 0.4f;  // 收腿最长时间 (s)
-constexpr float JUMP_RECOVERY_FALL_SPEED              = 0.5f;  // RECOVERY 退出所需的最小下落速度 (m/s)
+constexpr float JUMP_RECOVERY_HOLD_TIME               = 0.1f;
 constexpr float JUMP_TOTAL_TIMEOUT                    = 3.0f;  // 空中阶段最长时间 (s)
 constexpr float JUMP_LANDING_REVERSE_SPEED            = -0.05f; // 判据 A：腿长收缩速度阈值 (m/s)
 constexpr float JUMP_LANDING_LENGTH_MARGIN            = 0.03f; // 判据 B：腿长低于机械最大腿长的余量 (m)
 constexpr float JUMP_LANDING_EXTENSION_SPEED_MIN      = 0.10f; // 启用减速判定所需的最小伸展速度峰值 (m/s)
 constexpr float JUMP_LANDING_EXTENSION_SPEED_DROP     = 0.15f; // 伸展速度相对峰值的最小下降量 (m/s)
-constexpr float JUMP_LANDING_CONFIRM_TIME             = 0.010f; // A 或 B 连续成立的触地确认时间 (s)
-constexpr float JUMP_RECOVERY_PD_SCALE                = 2.0f;  // 收腿 PD 输出倍率
-constexpr float JUMP_RECOVERY_FORCE_MAX               = 120.0f; // 收腿力限幅 (N)
-constexpr uint16_t JUMP_PUSH_ACCEL_HOLD_TICKS         = 3; // 蹬腿加速度连续确认周期
+constexpr float JUMP_LANDING_CONFIRM_TIME             = 0.020f; // A 或 B 连续成立的触地确认时间 (s)
 constexpr float JUMP_T_P_LIMIT = 8.0f;
+constexpr bool JUMP_ENABLED                          = true;
+constexpr float JUMP_STAND_CONFIRM_TIME              = 0.3f;
+constexpr float JUMP_READY_ANGLE                     = 5.0f * PI / 180.0f;
+constexpr float JUMP_READY_ANGULAR_SPEED             = 0.5f;
+constexpr float JUMP_COOLDOWN_TIME                   = 1.0f;
+constexpr float JUMP_POSITION_ERROR_LIMIT            = 0.8f;
+constexpr float JUMP_LANDING_VELOCITY_SCALE          = 0.8f; // 退出预压缩时实测速度到落地参考的比例
+constexpr float AIR_CONTACT_WALL_GUARD_MARGIN        = 0.03f; // 触地速度判据排除末端制动区
+constexpr float AIR_CONTACT_MIN_TIME                = 0.025f;
+constexpr float AIR_CONTACT_RELEASE_FORCE           = 20.0f;
+constexpr float AIR_CONTACT_RELEASE_TIME            = 0.02f;
+constexpr float LANDING_PITCH_REFERENCE_RATE         = 10.0f; // rad/s; pitch 参考角速度上限
+constexpr float LANDING_PITCH_REFERENCE_ACCELERATION = 10.0f; // rad/s^2; pitch 参考角加速度上限
+constexpr float LANDING_BETA_REFERENCE_RATE          = 10.0f; // rad/s; 两侧腿角参考角速度上限
+constexpr float LANDING_BETA_REFERENCE_ACCELERATION  = 15.0f; // rad/s^2; 两侧腿角参考角加速度上限
+constexpr float LANDING_VELOCITY_REFERENCE_RATE      = 5.0f; // m/s^2; 落地速度参考向当前遥控速度的变化率
+static_assert(LANDING_PITCH_REFERENCE_RATE > 0.0f &&
+              LANDING_PITCH_REFERENCE_ACCELERATION > 0.0f &&
+              LANDING_BETA_REFERENCE_RATE > 0.0f &&
+              LANDING_BETA_REFERENCE_ACCELERATION > 0.0f,
+              "Landing angular reference limits must be positive");
 
 constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 

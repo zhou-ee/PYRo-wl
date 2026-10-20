@@ -56,7 +56,7 @@ enum class jump_phase_t : uint8_t
     JUMP,
     RECOVERY,
     AIR,
-    RETURN,
+    COMPLETE, // Diagnostic marker; no independent FSM state.
 };
 
 struct wl_chassis_cmd_t final : public cmd_base_t
@@ -176,6 +176,17 @@ struct ins_data_t
 struct airborne_data_t
 {
     bool landing_recovery = false;
+    bool attitude_recovery = false;
+    bool velocity_recovery = false;
+    float pitch_reference_acceleration = 0.0f; // 本拍 pitch 参考角速度变化率 (rad/s^2)
+    float beta_reference_acceleration[2] = {0.0f, 0.0f}; // 本拍左右腿角参考角速度变化率 (rad/s^2)
+    bool contact[2] = {false, false};
+    float contact_confirm_time[2] = {0.0f, 0.0f};
+    float contact_release_time[2] = {0.0f, 0.0f};
+    float extension_speed_peak[2] = {0.0f, 0.0f};
+    float flight_time = 0.0f;
+    float forward_velocity_ref = 0.0f; // AIR 触地轮速与 BALANCE 落地速度恢复共用参考 (m/s)
+    float gain_tp[2][6] = {};
     uint16_t takeoff_counter = 0;
     uint16_t landing_counter = 0;
     float L_ref = NORMAL_LENGTH_TARGET;
@@ -210,13 +221,16 @@ struct wl_chassis_data_ctx_t
     airborne_data_t airborne;
     jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
     float jump_phase_time = 0.0f;
+    float jump_recovery_hold_time = 0.0f;
+    float jump_cooldown_remaining = 0.0f;
+    float balance_stable_time = 0.0f;
     float jump_heading_ref = 0.0f;
     float jump_forward_velocity_ref = 0.0f; // 进入跳跃时锁存的前进速度 (m/s)
+    float jump_precompress_exit_velocity = 0.0f; // 预压缩正常结束时的实测轮式里程计速度 (m/s)
     float jump_vertical_velocity_integral = 0.0f; // 跳跃期间竖直去重力加速度积分得到的速度观测值 (m/s)
     float jump_leg_extension_speed_peak[2] = {0.0f, 0.0f}; // 进入 AIR 后各腿伸展速度的逐拍最大值 (m/s)
     float jump_landing_confirm_time = 0.0f; // 落地判据连续成立的时间 (s)
     uint16_t jump_push_accel_hold_ticks = 0;
-    bool jump_virtual_wall_bypass = false;
     float _dt;
     float normal_roll_force_trim;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
@@ -262,6 +276,7 @@ class wl_chassis_t final
     void _vmc_trans_j2v();
     void _manual_control();
     float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
+    float _motor_torque_to_leg_force(const leg_ctx_t &leg, float signed_torque) const;
     float _calc_gas_spring_force(float leg_length) const;
     void _gain_calculate();
     void _balance_control();
@@ -273,7 +288,11 @@ class wl_chassis_t final
     bool _detect_takeoff();
     bool _detect_landing();
     void _execute_air_control();
+    void _airborne_gain_calculate();
+    void _execute_airborne_lqr();
+    void _reset_air_contacts();
     void _execute_landing_recovery();
+    float _landing_velocity_reference(float commanded_velocity);
 
     using owner = wl_chassis_t;
 
@@ -318,11 +337,48 @@ class wl_chassis_t final
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
             };
-            struct state_jump_t final : public state_t<owner>
+            struct state_jump_t final : public fsm_t<owner>
             {
-                void enter(owner *owner) override;
-                void execute(owner *owner) override;
-                void exit(owner *owner) override;
+                struct state_pre_compress_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+                struct state_push_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+                struct state_recovery_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+                struct state_air_t final : public state_t<owner>
+                {
+                    void enter(owner *owner) override;
+                    void execute(owner *owner) override;
+                    void exit(owner *owner) override;
+                };
+
+                void on_enter(owner *owner) override;
+                void on_execute(owner *owner) override;
+                void on_exit(owner *owner) override;
+
+              private:
+                // Switch after the current phase's output, without an extra
+                // transition-only control tick in the shared FSM framework.
+                void _transition_phase(owner *owner, state_t<wl_chassis_t> *next);
+                void _abort_jump(owner *owner);
+                void _request_balance(owner *owner);
+
+                state_pre_compress_t _state_pre_compress;
+                state_push_t _state_push;
+                state_recovery_t _state_recovery;
+                state_air_t _state_air;
             };
             struct state_spin_t final : public state_t<owner>
             {
