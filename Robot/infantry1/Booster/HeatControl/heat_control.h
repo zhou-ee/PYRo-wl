@@ -19,8 +19,6 @@ class HeatControl
     void UpdateRefereeHeat(int heat);
     // 是否可以打弹
     bool CanShootSingle();
-    // 获取当前总发弹量
-    int GetShootingNum();
     // 本地检测到发弹后调用此函数，热量自增
     void LocalShootAdd();
     
@@ -42,7 +40,6 @@ class HeatControl
     uint32_t dwtCnt; 
 
     float current_heat; // 本地保存的当前热量
-    int shoot_num;      // 本地保存的从上电到现在的总计发弹数
     int heat_limit;     // 当前热量上限
     int cooling_rate;   // 当前冷却速率
 

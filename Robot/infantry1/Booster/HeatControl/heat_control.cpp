@@ -8,7 +8,6 @@ HeatControl::HeatControl()
     dwtCnt = 0;
     dwt_drv_t::get_delta_t(&dwtCnt);
     current_heat = 0;
-    shoot_num = 0;
     heat_limit = 40;
     p = 0;
     cooling_rate = 0;
@@ -27,14 +26,8 @@ bool HeatControl::CanShootSingle()
     }
 }
 
-int HeatControl::GetShootingNum()
-{
-    return shoot_num;
-}
-
 void HeatControl::LocalShootAdd()
 {
-    shoot_num++;
     current_heat += 10;
     shoot_event_timestamp_buffer[p] = dwt_drv_t::get_timeline_ms();
     p++;
