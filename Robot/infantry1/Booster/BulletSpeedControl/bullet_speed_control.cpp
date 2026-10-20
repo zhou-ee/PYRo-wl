@@ -40,8 +40,15 @@ void BulletSpeedControl::CalculateSpeedCompensation()
             valid_num++;
         }
     }
-    average_speed /= valid_num;
-    final_compensation = compensation_pid.calculate(PROJECTILE_TARGET_MUZZLE_VELOCITY, average_speed);
+    if(valid_num == 0)
+    {
+        final_compensation  = 0.0f;
+    }
+    else 
+    {
+        average_speed /= valid_num;
+        final_compensation = compensation_pid.calculate(PROJECTILE_TARGET_MUZZLE_VELOCITY, average_speed);
+    }
 }
 
 
@@ -51,11 +58,12 @@ float BulletSpeedControl::GetSpeedCompensation()
 }
 
 
-float BulletSpeedControl::Reset()
+void BulletSpeedControl::Reset()
 {
     for(int i = 0; i < BUFFER_NUM; i++)
     {
         speed_buffer[i] = 0.0f;
     }
     compensation_pid.clear();
+    final_compensation = 0;
 }

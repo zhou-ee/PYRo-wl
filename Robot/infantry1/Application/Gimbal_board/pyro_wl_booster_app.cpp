@@ -196,5 +196,7 @@ void booster_deps_init()
         new pyro::pid_t(TRIGGER_SPEED_PID_KP, 0.0f,TRIGGER_SPEED_PID_KD, 5.0f, 10.0f);
     wl_booster_deps->speed_control_deps = 
         new pyro::BulletSpeedControl(BULLET_SPEED_CONTROL_KP, BULLET_SPEED_CONTROL_KI, BULLET_SPEED_CONTROL_KD);
+    wl_booster_deps->heat_control_deps = 
+        new HeatControl();
 }
 

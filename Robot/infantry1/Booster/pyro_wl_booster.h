@@ -5,6 +5,7 @@
 #include "pyro_dji_motor_drv.h"
 #include "pyro_module_base.h"
 #include "bullet_speed_control.h"
+#include "heat_control.h"
 #include "booster_config.h"
 #include "pyro_board_drv.h"
 
@@ -67,6 +68,7 @@ struct wl_booster_deps_t
     motor_deps_t motor_deps{};
     pid_deps_t pid_deps{};
     BulletSpeedControl* speed_control_deps;
+    HeatControl* heat_control_deps;
 };
 
 
@@ -85,7 +87,7 @@ struct BoosterState
     BoosterMotorState fric[2];
     BoosterMotorState trigger;
     bool enable;
-    float trigger_rad;        //拨弹盘的位置
+    float trigger_rad;        //拨弹盘的位置(范围为2PI * 电机减速比)
     int8_t triggerRound;     //拨弹盘“电机”转过的圈数，用于换算至拨弹盘实际角度
 };
 
@@ -96,8 +98,6 @@ struct TargetBoosterState
     //float triggerOffset;                ///< 拨弹盘零点偏移 (校准后确定)
     float targetTriggerSpeed;           ///< 拨弹盘目标转速 (用于速度环)
     bool useTriggerSpeedLoopOnly;       ///< true=绕过位置环, 仅速度环 (连发/校准)
-    // --- 校准 & 堵转 ---
-    FireState jamSourceState       ;         ///< 堵转来源状态 (校准后恢复)
     bool burst_state;
 };
 

@@ -21,7 +21,7 @@ class BulletSpeedControl
     // 返回弹速补偿
     float GetSpeedCompensation();
     // 重置
-    float Reset();
+    void Reset();
     
   private:
     static constexpr uint8_t BUFFER_NUM = 8;

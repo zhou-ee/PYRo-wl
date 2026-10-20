@@ -98,16 +98,25 @@ void wl_booster_t::_update_feedback()
     {
         const auto& c2g_data = pyro::board_drv_t::get_instance().get_c2g_rx_data();
         #if HEAT_CONTROL
-    
+            
+            static int last_heat = 0;
+            _module_deps.heat_control_deps->UpdateParameter(c2g_data.heat_limit, c2g_data.cooling_rate);
+            _module_deps.heat_control_deps->LocalHeatCompute();
+            if(c2g_data.current_heat != last_heat)
+            {
+                _module_deps.heat_control_deps->UpdateRefereeHeat(c2g_data.current_heat);
+            }
+            last_heat = c2g_data.current_heat;
         #endif
 
         #if BULLET_SPEED_CONTROL
-            //TODO：获取热量控制那里的当前发弹数，与本地作比较，看看是否是最新发
-            if(0)
+            static int last_bullet_speed100 = 0;
+            if(c2g_data.bullet_speed100 != last_bullet_speed100)
             {
-                _module_deps.speed_control_deps->UpdateNewShootSpeed(c2g_data.bullet_speed);
+                _module_deps.speed_control_deps->UpdateNewShootSpeed(c2g_data.bullet_speed100 * 0.01f);
                 _module_deps.speed_control_deps->CalculateSpeedCompensation();
             }
+            last_bullet_speed100 = c2g_data.bullet_speed100;
         #endif
     }
     
@@ -147,8 +156,9 @@ void wl_booster_t::calculateFricCurrents()
 
     float bullet_L_speed = _ctx.data.motor_state.fric[0].vel;
     float bullet_R_speed = _ctx.data.motor_state.fric[1].vel;
-    // 左摩擦轮
 
+
+    // 左摩擦轮
     _ctx.data.output.fric1Current = _module_deps.pid_deps.fric1_spd->calculate(
         finalFricTargetSpeed,
         bullet_L_speed);

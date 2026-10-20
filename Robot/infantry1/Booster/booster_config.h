@@ -2,6 +2,7 @@
 #define PYRO_ROBOT_BOOSTER_CONFIG_H
 
 #include "pyro_core_def.h"
+#include "stdint.h"
 
 namespace pyro
 {
@@ -59,8 +60,13 @@ constexpr float BULLET_SPEED_CONTROL_KD = 0.0f;
 //弹速补偿最小有效速度
 constexpr float VALID_MIN_SPEED = 17.0f;
 
+
+
+
 //热量控制
 #define HEAT_CONTROL 1                         // 开关
+//预留的安全弹药空间
+constexpr uint8_t SAFE_BULLET_NUM       = 3;
 
 
 

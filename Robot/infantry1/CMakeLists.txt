@@ -61,6 +61,7 @@ elseif (BOARD STREQUAL "GIMBAL_BOARD")
 
                 Booster/pyro_wl_booster.cpp
                 Booster/BulletSpeedControl/bullet_speed_control.cpp
+                Booster/HeatControl/heat_control.cpp
                 Booster/fsm/pyro_booster_passive_state.cpp
                 Booster/fsm/pyro_booster_active_state.cpp
                 Booster/fsm/pyro_booster_ready_state.cpp
