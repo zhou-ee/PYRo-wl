@@ -19,9 +19,10 @@ void pyro::wl_booster_t::fsm_active_t::state_cali_reverse_t::execute(owner* owne
     {
         if(blocked_count >= 800)
         {
-            blocked_count = 0;
+            
             owner->_ctx.data.target_state.targetTriggerRad = owner->_ctx.data.motor_state.trigger_rad;
             request_switch(&owner->_state_active._state_cali_forward);
+            blocked_count = 0;
         }
         blocked_count++;
     }

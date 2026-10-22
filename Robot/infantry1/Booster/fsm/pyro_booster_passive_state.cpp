@@ -7,7 +7,7 @@ void pyro::wl_booster_t::state_passive_t::enter(owner* owner)
     owner->_ctx.data.target_state.targetFricSpeed         = 0.0f;
     owner->_ctx.data.target_state.useTriggerSpeedLoopOnly = true;
     owner->_ctx.data.target_state.targetTriggerSpeed      =0.0f;
-
+    owner->_module_deps.speed_control_deps->Reset();
 }
 
 void pyro::wl_booster_t::state_passive_t::execute(owner* owner)

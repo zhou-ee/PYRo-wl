@@ -39,6 +39,7 @@ build/
 .idea
 .vscode
 TODO.txt
+Robot/Infantry2
 !*/CMakeLists.txt
 !CMakeLists.txt
 

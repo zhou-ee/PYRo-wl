@@ -25,8 +25,8 @@ void pyro::wl_booster_t::fsm_active_t::state_cali_forward_t::execute(owner* owne
     {
         if(blocked_count >= 800)
         {
-            owner->_ctx.data.target_state.jamSourceState = FireState::CaliForward;
             request_switch(&owner->_state_active._state_cali_reverse);
+            blocked_count = 0;
         }
         blocked_count++;
     }
@@ -41,21 +41,9 @@ void pyro::wl_booster_t::fsm_active_t::state_cali_forward_t::execute(owner* owne
     {
         if(steady_count >= 10)
         {
-            //决定向前校准后应当进入什么状态
             owner->_ctx.data.isCalibrated = true;
-            if(owner->_ctx.data.target_state.jamSourceState == FireState::BurstFire)
-            {
-                request_switch(&owner->_state_active._state_burstfire);
-            }
-            else if (owner->_ctx.data.target_state.jamSourceState == FireState::SingleFire) 
-            {
-                request_switch(&owner->_state_active._state_singlefire);
-            }
-            else 
-            {
-                request_switch(&owner->_state_active._state_ready);
-            }
-            
+            request_switch(&owner->_state_active._state_ready);
+            steady_count = 0;
         }
         steady_count++;
     }

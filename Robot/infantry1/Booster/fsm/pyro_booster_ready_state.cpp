@@ -16,17 +16,33 @@ void pyro::wl_booster_t::fsm_active_t::state_ready_t::execute(owner* owner)
     {
         if(owner->_ctx.data.isCalibrated)
         {
-            request_switch(&owner->_state_active._state_singlefire);
+            #if HEAT_CONTROL
+                // 此时有火控，判断热量是否充足
+                if(owner->_module_deps.heat_control_deps->CanShootSingle())
+                {
+                    request_switch(&owner->_state_active._state_singlefire);
+                }
+            #else
+                request_switch(&owner->_state_active._state_singlefire);
+            #endif
         }
         else 
         {
-            owner->_ctx.data.target_state.jamSourceState = FireState::SingleFire;
             request_switch(&owner->_state_active._state_cali_reverse);
         }
     }
     else if(owner->_ctx.data.cmd_event == ShootEvent::BURST_START)
     {
-        request_switch(&owner->_state_active._state_burstfire);
+        #if HEAT_CONTROL
+                // 此时有火控，判断热量是否充足
+                if(owner->_module_deps.heat_control_deps->CanShootSingle())
+                {
+                    request_switch(&owner->_state_active._state_burstfire);
+                }
+        #else
+            request_switch(&owner->_state_active._state_burstfire);
+        #endif
+        
     }
 
     owner->calculateFricCurrents();

@@ -27,8 +27,8 @@ void pyro::wl_booster_t::fsm_active_t::state_singlefire_t::execute(owner* owner)
     {
         if(blocked_count >= 800)
         {
-            owner->_ctx.data.target_state.jamSourceState = FireState::SingleFire;
             request_switch(&owner->_state_active._state_cali_reverse);
+            blocked_count = 0;
         }
         blocked_count++;
     }
@@ -43,7 +43,11 @@ void pyro::wl_booster_t::fsm_active_t::state_singlefire_t::execute(owner* owner)
     {
         if(steady_count >= 10)
         {
+            #if HEAT_CONTROL
+                owner->_module_deps.heat_control_deps->LocalShootAdd();
+            #endif
             request_switch(&owner->_state_active._state_ready);
+            steady_count = 0;
         }
         steady_count++;
     }

@@ -7,7 +7,6 @@ using namespace pyro;
 static TaskHandle_t board_com_task_handl    = nullptr;
 static board_drv_t *board_drv_ptr           = nullptr;
 
-int count = 0;
 
 static void chassis_feedback()
 {
@@ -28,8 +27,6 @@ static void chassis_feedback()
     {
         tx_data.chassis_is_rescuing = 0;
     }
-    count++;
-    tx_data.count = count;
 }
 
 extern "C"

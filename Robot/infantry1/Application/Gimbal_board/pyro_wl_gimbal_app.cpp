@@ -30,7 +30,7 @@ static pyro::autoaim_drv_t    *autoaim_ptr       = nullptr;
 static virtual_rc_t vrc_t;
 
 
-int count;
+
 
 
 
@@ -59,7 +59,6 @@ extern "C"
                 const auto& c2g_data = board_ptr->get_c2g_rx_data();
                 wl_gimbal_cmd_ptr->chassis_is_ready = c2g_data.chassis_is_align_ready;
                 wl_gimbal_cmd_ptr->chassis_is_rescuing = c2g_data.chassis_is_rescuing;
-                count = c2g_data.count;
             }
             else 
             {

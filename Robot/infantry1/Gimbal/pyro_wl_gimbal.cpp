@@ -14,9 +14,7 @@ wl_gimbal_t::wl_gimbal_t() : module_base_t("wl_gimbal")
 
 status_t wl_gimbal_t::_init()
 {
-    _ctx                                      = {};
-    _ctx.motor                                = _module_deps.motor_deps;
-    _ctx.pid                                  = _module_deps.pid_deps;
+    _ctx = {};
 
     return PYRO_OK;
 }

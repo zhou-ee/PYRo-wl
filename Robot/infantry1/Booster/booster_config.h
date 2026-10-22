@@ -2,6 +2,7 @@
 #define PYRO_ROBOT_BOOSTER_CONFIG_H
 
 #include "pyro_core_def.h"
+#include "stdint.h"
 
 namespace pyro
 {
@@ -44,6 +45,28 @@ constexpr float ONE_BULLET_RAD       = 2 * PI * TRIGGER_MOTOR_REDUCTION_RATIO / 
 //拨弹盘一圈对应的电机需要转过的弧度
 constexpr float ONE_CIRCLE_RAD       = 2 * PI * TRIGGER_MOTOR_REDUCTION_RATIO;
 
+
+
+
+
+
+//弹速控制
+
+#define BULLET_SPEED_CONTROL 1                 // 开关
+
+constexpr float BULLET_SPEED_CONTROL_KP = 1.0f;
+constexpr float BULLET_SPEED_CONTROL_KI = 0.0f;
+constexpr float BULLET_SPEED_CONTROL_KD = 0.0f;
+//弹速补偿最小有效速度
+constexpr float VALID_MIN_SPEED = 17.0f;
+
+
+
+
+//热量控制
+#define HEAT_CONTROL 1                         // 开关
+//预留的安全弹药空间
+constexpr uint8_t SAFE_BULLET_NUM       = 3;
 
 
 
