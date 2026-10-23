@@ -226,7 +226,11 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         {
             auto &leg = data.leg[i];
             leg.target_leg_length = JUMP_AIR_LENGTH;
-            leg.out_F_L = 2.0f * JUMP_RECOVERY_TAU / leg.J_L;
+            // 收腿力矩之外，补偿腿与轮的重力以及气弹簧支撑力，
+            // 避免这些被动项改变期望的净收腿力。
+            leg.out_F_L = owner->_motor_torque_to_leg_force(leg, -JUMP_RECOVERY_TAU) -
+                          (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION -
+                          leg.gas_spring_force;
             leg.out_T_p = leg_swing_lqr_output(i);
             data.wheel[i].out_T_w = 0.0f;
             data.wheel[i].out_current = 0.0f;
@@ -262,25 +266,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         data.target_state.psi = data.jump_heading_ref;
         data.target_state.dot_psi = 0.0f;
         owner->_gain_calculate();
-        bool leg_speed_reversed = false;
-        bool leg_extension_slowed = false;
+        const bool landed = owner->_detect_landing(true);
         for (uint8_t i = 0; i < 2; ++i)
         {
             auto &leg = data.leg[i];
-            data.jump_leg_extension_speed_peak[i] = std::max(
-                data.jump_leg_extension_speed_peak[i], leg.current_leg_speed);
-            const float extension_speed_peak =
-                data.jump_leg_extension_speed_peak[i];
-
-            leg_speed_reversed |=
-                leg.current_leg_speed < JUMP_LANDING_REVERSE_SPEED;
-            leg_extension_slowed |=
-                leg.current_leg_length <
-                    MAX_LEG_LENGTH - JUMP_LANDING_LENGTH_MARGIN &&
-                extension_speed_peak > JUMP_LANDING_EXTENSION_SPEED_MIN &&
-                extension_speed_peak - leg.current_leg_speed >
-                    JUMP_LANDING_EXTENSION_SPEED_DROP;
-
             const float air_force = 2.0f * JUMP_AIR_TAU / leg.J_L;
             leg.out_F_L = std::clamp(air_force, -500.0f, 500.0f);
             leg.out_T_p = leg_swing_lqr_output(i);
@@ -291,19 +280,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         owner->_send_joint_torque();
         owner->_send_wheel_torque();
 
-        // 落地候选采用三路“或”判据：
-        // A. 任一腿伸展速度反向；
-        // B. 腿曾达到足够伸展速度，随后在未到机械极限时明显减速；
-        // C. 双腿估算支持力之和超过 JUMP_LANDING_SUPPORT_FORCE（当前为 100 N）。
-        // 候选条件需连续保持 JUMP_LANDING_CONFIRM_TIME（当前为 10 ms），
-        const bool landing_candidate = leg_speed_reversed ||
-                                       leg_extension_slowed ||
-                                       data.airborne.support_force_sum >
-                                           JUMP_LANDING_SUPPORT_FORCE;
-        data.jump_landing_confirm_time = landing_candidate
-                                             ? data.jump_landing_confirm_time + data._dt
-                                             : 0.0f;
-        if (data.jump_landing_confirm_time >= JUMP_LANDING_CONFIRM_TIME)
+        if (landed)
         {
             data.jump_phase = jump_phase_t::RETURN;
             data.jump_phase_time = 0.0f;

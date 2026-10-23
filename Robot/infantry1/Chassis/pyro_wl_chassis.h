@@ -282,7 +282,7 @@ class wl_chassis_t final
     void _update_accel_heading_frame();
     void _calc_support_force();
     bool _detect_takeoff();
-    bool _detect_landing();
+    bool _detect_landing(bool jump_landing = false);
     void _execute_air_control();
     void _reset_air_contacts();
     void _execute_landing_recovery();
