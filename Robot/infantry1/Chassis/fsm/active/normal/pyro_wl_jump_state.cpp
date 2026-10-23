@@ -23,12 +23,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::enter(wl_chassis_
     data.jump_leg_extension_speed_peak[leg_def::R] = 0.0f;
     data.jump_landing_confirm_time = 0.0f;
     data.jump_push_accel_hold_ticks = 0;
+    data.jump_recovery_hold_time = 0.0f;
     data.airborne.takeoff_counter = 0;
     data.airborne.landing_counter = 0;
     data.airborne.landing_recovery = false;
     data.airborne.attitude_recovery = false;
     data.airborne.velocity_recovery = false;
     data.airborne.forward_velocity_ref = data.jump_forward_velocity_ref;
+    owner->_reset_air_contacts();
 
     // 初始化跳跃期间使用的目标状态
     data.target_state.psi = data.jump_heading_ref;
@@ -106,15 +108,26 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         data.target_state.dot_x = data.jump_forward_velocity_ref;
         owner->_gain_calculate();
         owner->_balance_control();
-
+        // 在完整 Balance 输出上叠加云端使用的固定预压缩收腿力矩。
+        for (auto &leg : data.leg)
+        {
+            leg.out_F_L += owner->_motor_torque_to_leg_force(
+                leg, -JUMP_PRECOMPRESS_MOTOR_TORQUE);
+        }
 
         owner->_vmc_trans_v2j();
         owner->_send_joint_torque();
         owner->_send_wheel_torque();
         if ((std::fabs(data.leg[leg_def::L].current_leg_length -
-                       JUMP_PRECOMPRESS_LENGTH) < 0.015f &&
+                       JUMP_PRECOMPRESS_LENGTH) < JUMP_LENGTH_TOLERANCE &&
              std::fabs(data.leg[leg_def::R].current_leg_length -
-                       JUMP_PRECOMPRESS_LENGTH) < 0.015f) ||
+                       JUMP_PRECOMPRESS_LENGTH) < JUMP_LENGTH_TOLERANCE &&
+             std::fabs(data.leg[leg_def::L].current_leg_speed) <
+                 JUMP_SETTLED_LEG_SPEED &&
+             std::fabs(data.leg[leg_def::R].current_leg_speed) <
+                 JUMP_SETTLED_LEG_SPEED &&
+             std::fabs(data.leg[leg_def::L].current_leg_length -
+                       data.leg[leg_def::R].current_leg_length) < 0.02f) ||
             data.jump_phase_time >= JUMP_PRECOMPRESS_TIME)
         {
             // 保留当前落地速度恢复流程所需的触地速度参考。
@@ -129,10 +142,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
 
     case jump_phase_t::JUMP:
     {
-        // 蹬腿：
-        // 在原有 LQR 输出上叠加 JUMP_TAU 对应的开环伸腿力。
-        // 至少蹬腿 JUMP_PUSH_MIN_TIME 后，竖直加速度连续满足接近 -g 的条件，
-        // 随后切换到 RECOVERY。
+        // 蹬腿：轮毂仍使用原有 LQR，腿长通道改为固定 18 N m 伸展力矩。
         data.target_state.psi = data.jump_heading_ref;
         data.target_state.dot_psi = 0.0f;
         data.target_state.x += data.jump_forward_velocity_ref * data._dt;
@@ -169,14 +179,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
             const uint8_t leg_swing_input = i == leg_def::L
                                                 ? lqr_input_def::T_P1
                                                 : lqr_input_def::T_P2;
-            const uint8_t force_input = i == leg_def::L
-                                            ? lqr_input_def::F_L1
-                                            : lqr_input_def::F_L2;
             leg.out_T_p = std::clamp(jump_lqr_output(leg_swing_input),
                                      -JUMP_T_P_LIMIT, JUMP_T_P_LIMIT);
-            const float open_loop_force = 2.0f * JUMP_TAU / leg.J_L;
-            leg.out_F_L = std::clamp(
-                open_loop_force + jump_lqr_output(force_input), -500.0f, 500.0f);
+            leg.out_F_L = owner->_motor_torque_to_leg_force(
+                leg, JUMP_PUSH_MOTOR_TORQUE);
             data.wheel[i].out_T_w = std::clamp(
                 jump_lqr_output(wheel_input), -MAX_T_W, MAX_T_W);
             data.wheel[i].out_current = std::clamp(
@@ -186,26 +192,22 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         owner->_send_joint_torque();
         owner->_send_wheel_torque();
 
-        const bool accel_near_gravity =
-            std::fabs(data.airborne.accel_z_y_lpf + GRAVITY_ACCELERATION) <=
-            JUMP_PUSH_ACCEL_EPSILON;
-        if (data.jump_phase_time >= JUMP_PUSH_MIN_TIME && accel_near_gravity)
+        const bool extended =
+            data.leg[leg_def::L].current_leg_length >=
+                MAX_LEG_LENGTH - JUMP_PUSH_LENGTH_MARGIN &&
+            data.leg[leg_def::R].current_leg_length >=
+                MAX_LEG_LENGTH - JUMP_PUSH_LENGTH_MARGIN;
+        if (extended)
         {
-            if (data.jump_push_accel_hold_ticks < JUMP_PUSH_ACCEL_HOLD_TICKS)
-            {
-                ++data.jump_push_accel_hold_ticks;
-            }
-        }
-        else
-        {
-            data.jump_push_accel_hold_ticks = 0;
-        }
-
-        if (data.jump_push_accel_hold_ticks >= JUMP_PUSH_ACCEL_HOLD_TICKS)
-        {
+            const float position_error = std::clamp(
+                data.target_state.x - data.measured_state.x,
+                -JUMP_POSITION_ERROR_LIMIT, JUMP_POSITION_ERROR_LIMIT);
+            data.odom.real_x = 0.0f;
+            data.measured_state.x = 0.0f;
+            data.target_state.x = position_error;
             data.jump_phase = jump_phase_t::RECOVERY;
             data.jump_phase_time = 0.0f;
-            data.jump_push_accel_hold_ticks = 0;
+            data.jump_recovery_hold_time = 0.0f;
         }
         else if (data.jump_phase_time >= JUMP_PUSH_TIMEOUT)
         {
@@ -216,9 +218,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
 
     case jump_phase_t::RECOVERY:
     {
-        // 收腿：
-        // 用固定开环力把腿收向空中长度；摆腿只使用 beta/dot_beta LQR，
-        // 轮毂保持零输出。累计下落速度达到阈值或恢复超时后进入 AIR。
+        // 收腿：固定 4 N m 收腿力矩，并等待两腿到位且腿速稳定。
         data.target_state.psi = data.jump_heading_ref;
         data.target_state.dot_psi = 0.0f;
         owner->_gain_calculate();
@@ -228,7 +228,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
             leg.target_leg_length = JUMP_AIR_LENGTH;
             // 收腿力矩之外，补偿腿与轮的重力以及气弹簧支撑力，
             // 避免这些被动项改变期望的净收腿力。
-            leg.out_F_L = owner->_motor_torque_to_leg_force(leg, -JUMP_RECOVERY_TAU) -
+            leg.out_F_L = owner->_motor_torque_to_leg_force(
+                              leg, -JUMP_RECOVERY_MOTOR_TORQUE) -
                           (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION -
                           leg.gas_spring_force;
             leg.out_T_p = leg_swing_lqr_output(i);
@@ -239,9 +240,17 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         owner->_send_joint_torque();
         owner->_send_wheel_torque();
 
-        const bool falling_fast_enough =
-            data.jump_vertical_velocity_integral <= -JUMP_RECOVERY_FALL_SPEED;
-        if (falling_fast_enough ||
+        bool settled = true;
+        for (const auto &leg : data.leg)
+        {
+            settled &= leg.current_leg_length <
+                           JUMP_AIR_LENGTH + JUMP_LENGTH_TOLERANCE &&
+                       std::fabs(leg.current_leg_speed) <
+                           JUMP_SETTLED_LEG_SPEED;
+        }
+        data.jump_recovery_hold_time = settled
+            ? data.jump_recovery_hold_time + data._dt : 0.0f;
+        if (data.jump_recovery_hold_time >= JUMP_RECOVERY_HOLD_TIME ||
             data.jump_phase_time >= JUMP_RECOVERY_TIMEOUT)
         {
             // 记录进入 AIR 时两腿长度，清空落地检测历史量，从该时刻重新观察
@@ -255,27 +264,19 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
             data.jump_leg_extension_speed_peak[leg_def::L] = 0.0f;
             data.jump_leg_extension_speed_peak[leg_def::R] = 0.0f;
             data.jump_landing_confirm_time = 0.0f;
+            data.jump_recovery_hold_time = 0.0f;
         }
         break;
     }
 
     case jump_phase_t::AIR:
     {
-        // 空中阶段：双腿施加 JUMP_AIR_TAU 对应的开环力，腿摆角继续仅由
-        // beta/dot_beta LQR 稳定，轮毂保持零输出，并持续进行落地检测。
+        // 空中阶段复用普通 Air：腿摆角使用本腿 beta/dot_beta LQR，
+        // 腿长施加 2 N m 伸展力矩，确认触地的一侧锁定轮速。
         data.target_state.psi = data.jump_heading_ref;
         data.target_state.dot_psi = 0.0f;
-        owner->_gain_calculate();
-        const bool landed = owner->_detect_landing(true);
-        for (uint8_t i = 0; i < 2; ++i)
-        {
-            auto &leg = data.leg[i];
-            const float air_force = 2.0f * JUMP_AIR_TAU / leg.J_L;
-            leg.out_F_L = std::clamp(air_force, -500.0f, 500.0f);
-            leg.out_T_p = leg_swing_lqr_output(i);
-            data.wheel[i].out_T_w = 0.0f;
-            data.wheel[i].out_current = 0.0f;
-        }
+        const bool landed = owner->_detect_landing();
+        owner->_execute_air_control();
         owner->_vmc_trans_v2j();
         owner->_send_joint_torque();
         owner->_send_wheel_torque();
@@ -312,7 +313,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::exit(wl_chassis_t *owner)
 {
-    (void)owner;
+    owner->_ctx.data.jump_cooldown_remaining = JUMP_COOLDOWN_TIME;
 }
 
 } // namespace pyro

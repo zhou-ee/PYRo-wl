@@ -106,45 +106,11 @@ bool wl_chassis_t::_detect_takeoff()
            AIR_TAKEOFF_DEBOUNCE_TICKS;
 }
 
-bool wl_chassis_t::_detect_landing(const bool jump_landing)
+bool wl_chassis_t::_detect_landing()
 {
     auto &data = _ctx.data;
     auto &air = data.airborne;
     air.flight_time += data._dt;
-
-    // Jump 的落地候选沿用 A/B 腿运动学判据，并增加双腿支持力和判据 C；
-    // 候选连续成立指定时间后，通知 Jump 状态切入 RETURN。
-    if (jump_landing)
-    {
-        bool leg_speed_reversed = false;
-        bool leg_extension_slowed = false;
-        for (uint8_t i = 0; i < 2; ++i)
-        {
-            const auto &leg = data.leg[i];
-            data.jump_leg_extension_speed_peak[i] = std::max(
-                data.jump_leg_extension_speed_peak[i], leg.current_leg_speed);
-            const float extension_speed_peak =
-                data.jump_leg_extension_speed_peak[i];
-
-            leg_speed_reversed |=
-                leg.current_leg_speed < JUMP_LANDING_REVERSE_SPEED;
-            leg_extension_slowed |=
-                leg.current_leg_length <
-                    MAX_LEG_LENGTH - JUMP_LANDING_LENGTH_MARGIN &&
-                extension_speed_peak > JUMP_LANDING_EXTENSION_SPEED_MIN &&
-                extension_speed_peak - leg.current_leg_speed >
-                    JUMP_LANDING_EXTENSION_SPEED_DROP;
-        }
-
-        const bool landing_candidate = leg_speed_reversed ||
-                                       leg_extension_slowed ||
-                                       air.support_force_sum >
-                                           JUMP_LANDING_SUPPORT_FORCE;
-        data.jump_landing_confirm_time = landing_candidate
-                                             ? data.jump_landing_confirm_time + data._dt
-                                             : 0.0f;
-        return data.jump_landing_confirm_time >= JUMP_LANDING_CONFIRM_TIME;
-    }
 
     for (uint8_t i = 0; i < 2; ++i)
     {

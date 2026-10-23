@@ -42,13 +42,29 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
         owner->_ctx.data.current_function = chassis_function_state_t::NONE;
     }
     last_function = owner->_current_cmd.cmd_function_state;
+    // Jump is atomic; do not let STEP/SPIN replace a jump phase.
+    if (_active_state == &_state_jump)
+    {
+        return;
+    }
+
     if(owner->_ctx.data.current_function == chassis_function_state_t::STEP)
     {
         change_state(&_state_step);
     }
     else if(owner->_ctx.data.current_function == chassis_function_state_t::JUMP)
     {
-        change_state(&_state_jump);
+        const auto &data = owner->_ctx.data;
+        const bool ready = JUMP_ENABLED && _active_state == &_state_balance &&
+            !data.airborne.landing_recovery &&
+            !data.airborne.attitude_recovery &&
+            !data.airborne.velocity_recovery &&
+            data.balance_stable_time >= JUMP_STAND_CONFIRM_TIME &&
+            data.jump_cooldown_remaining <= 0.0f;
+        if (ready)
+        {
+            change_state(&_state_jump);
+        }
     }
     else if(owner->_ctx.data.current_function == chassis_function_state_t::SPIN_TOGGLE)
     {

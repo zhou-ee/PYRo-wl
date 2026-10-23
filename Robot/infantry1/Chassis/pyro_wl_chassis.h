@@ -220,6 +220,9 @@ struct wl_chassis_data_ctx_t
     airborne_data_t airborne;
     jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
     float jump_phase_time = 0.0f;
+    float jump_recovery_hold_time = 0.0f;
+    float jump_cooldown_remaining = 0.0f;
+    float balance_stable_time = 0.0f;
     float jump_heading_ref = 0.0f;
     float jump_forward_velocity_ref = 0.0f; // 进入跳跃时锁存的前进速度 (m/s)
     float jump_precompress_exit_velocity = 0.0f; // 预压缩正常结束时的实测轮式里程计速度 (m/s)
@@ -282,7 +285,7 @@ class wl_chassis_t final
     void _update_accel_heading_frame();
     void _calc_support_force();
     bool _detect_takeoff();
-    bool _detect_landing(bool jump_landing = false);
+    bool _detect_landing();
     void _execute_air_control();
     void _reset_air_contacts();
     void _execute_landing_recovery();
