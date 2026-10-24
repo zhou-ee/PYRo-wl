@@ -448,15 +448,17 @@ void wl_chassis_t::_balance_control()
     }
 }
 
-void wl_chassis_t::_vmc_trans_v2j()
+void wl_chassis_t::_vmc_trans_v2j(const bool apply_leg_length_wall)
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
 
-    // All active modes use the same always-on wall. Inputs are already
-    // motor-side forces; each phase applies its own feedforward exactly once.
+    // Inputs are already motor-side forces; each phase applies its own
+    // feedforward exactly once. Airborne extension can explicitly bypass the
+    // leg-length wall so the fixed extension effort is not opposed at the stop.
     for (auto &leg : _ctx.data.leg)
     {
-        leg.virtual_wall_force = _calc_leg_length_wall_force(leg);
+        leg.virtual_wall_force = apply_leg_length_wall
+            ? _calc_leg_length_wall_force(leg) : 0.0f;
         const float t_p_motor = leg.out_T_p;
         leg.motor_f_l = std::clamp(leg.out_F_L + leg.virtual_wall_force,
                                    -MAX_F_L, MAX_F_L);

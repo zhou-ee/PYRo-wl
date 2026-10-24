@@ -392,7 +392,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     owner->_ctx.data.leg[leg_def::R].out_F_L =
         owner->_ctx.data.control.F_l2;
 
-    owner->_vmc_trans_v2j();
+    owner->_vmc_trans_v2j(false);
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
 }

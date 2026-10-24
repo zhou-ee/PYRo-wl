@@ -106,7 +106,7 @@ constexpr float GETOVER_TIMEOUT = 0.12f;
 constexpr float GETOVER_REARM_DELAY = 1.0f;
 // Airborne and landing detection defaults. Tune from logged support-force data.
 constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，低于上限虚拟墙
-constexpr float NORMAL_LENGTH_TARGET                 = 0.25f;
+constexpr float NORMAL_LENGTH_TARGET                 = 0.20f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
 constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 2.0f;
@@ -127,7 +127,7 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.185f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.20f; // 收腿完成门限基准 (m)
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 20.0f; // 蹬腿伸展力矩 (N m)
+constexpr float JUMP_PUSH_MOTOR_TORQUE                =25.0f; // 蹬腿伸展力矩 (N m)
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
 constexpr float JUMP_AIR_MOTOR_TORQUE                 = 2.0f; // AIR 伸腿力矩 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 预压缩最长时间 (s)

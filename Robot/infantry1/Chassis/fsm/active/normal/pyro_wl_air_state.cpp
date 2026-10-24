@@ -153,7 +153,7 @@ bool wl_chassis_t::_detect_landing()
     }
     data.jump_landing_confirm_time = std::min(
         air.contact_confirm_time[leg_def::L], air.contact_confirm_time[leg_def::R]);
-    return air.contact[leg_def::L] || air.contact[leg_def::R];
+    return air.contact[leg_def::L] && air.contact[leg_def::R];
 }
 
 void wl_chassis_t::_execute_landing_recovery()
@@ -272,7 +272,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::execute(wl_chassis
 {
     const bool landed = owner->_detect_landing();
     owner->_execute_air_control();
-    owner->_vmc_trans_v2j();
+    owner->_vmc_trans_v2j(false);
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
     if (landed)

@@ -279,7 +279,7 @@ class wl_chassis_t final
     float _calc_gas_spring_force(float leg_length) const;
     void _gain_calculate();
     void _balance_control();
-    void _vmc_trans_v2j();
+    void _vmc_trans_v2j(bool apply_leg_length_wall = true);
     void _send_joint_torque() const;
     void _send_wheel_torque() const;
     void _update_accel_heading_frame();
