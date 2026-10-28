@@ -279,19 +279,21 @@ void deps_init()
 {
     wl_chassis_deps = new pyro::wl_chassis_deps_t();
 
-    // 1. 初始化二维数组形式的 4 个关节达妙电机 (使用 CAN1)
+    // 1. 初始化二维数组形式的 4 个关节达妙电机。
+    // 电机与链轮已交叉安装：原 knee 电机驱动 hip 链轮，
+    // 原 hip 电机驱动 knee 链轮，因此此处按实际关节语义交换电机 ID。
     wl_chassis_deps->motor.joint[leg_def::L][joint_def::HIP] =
-        new pyro::dm_motor_drv_t(0x04, 0x14, pyro::bsp_can::can2);
-    wl_chassis_deps->motor.joint[leg_def::L][joint_def::KNEE] =
         new pyro::dm_motor_drv_t(0x03, 0x13, pyro::bsp_can::can2);
+    wl_chassis_deps->motor.joint[leg_def::L][joint_def::KNEE] =
+        new pyro::dm_motor_drv_t(0x04, 0x14, pyro::bsp_can::can2);
     wl_chassis_deps->motor.joint[leg_def::R][joint_def::HIP] =
-        new pyro::dm_motor_drv_t(0x02, 0x12, pyro::bsp_can::can1);
-    wl_chassis_deps->motor.joint[leg_def::R][joint_def::KNEE] =
         new pyro::dm_motor_drv_t(0x01, 0x11, pyro::bsp_can::can1);
+    wl_chassis_deps->motor.joint[leg_def::R][joint_def::KNEE] =
+        new pyro::dm_motor_drv_t(0x02, 0x12, pyro::bsp_can::can1);
     wl_chassis_deps->motor.wheel[leg_def::L] = new pyro::dji_m3508_motor_drv_t(
-        pyro::dji_motor_tx_frame_t::id_2, pyro::bsp_can::can2);
+        pyro::dji_motor_tx_frame_t::id_3, pyro::bsp_can::can2);
     wl_chassis_deps->motor.wheel[leg_def::R] = new pyro::dji_m3508_motor_drv_t(
-        pyro::dji_motor_tx_frame_t::id_3, pyro::bsp_can::can1);
+        pyro::dji_motor_tx_frame_t::id_2, pyro::bsp_can::can1);
         
     //登记yaw轴6020，获取反馈信息
     wl_chassis_deps->motor.yaw = 

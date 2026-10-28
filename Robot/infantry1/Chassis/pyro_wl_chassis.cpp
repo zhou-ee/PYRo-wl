@@ -223,7 +223,7 @@ void wl_chassis_t::_vmc_trans_j2v()
     {
         const float raw_2_theta = leg.current_joint_rad[joint_def::KNEE] -
                                   leg.current_joint_rad[joint_def::HIP];
-        const float theta     = loop_fp32_constrain(raw_2_theta, -PI, PI) / 2;
+        const float theta     = loop_fp32_constrain(raw_2_theta, 0, 2*PI ) / 2;
         const float dot_theta = (leg.current_joint_radps[joint_def::KNEE] -
                                  leg.current_joint_radps[joint_def::HIP]) /
                                 2;

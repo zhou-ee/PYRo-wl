@@ -18,30 +18,30 @@ constexpr float loop_fp32_PI(float val)
     }
     return val;
 }
-constexpr float OJ5                     = 0.0945f;//0.1134
-constexpr float J4J5                    = 0.1125f;//0.1350
-constexpr float OJ8                     = 0.2100f;
+constexpr float OJ5                     = 0.11340f;//0.1134
+constexpr float J4J5                    = 0.1350f;//0.1350
+constexpr float OJ8                     = 0.210f;
 // constexpr float MIN_LEG_LENGTH = 0.18f;
 // constexpr float MAX_LEG_LENGTH = 2.5f;
-constexpr float HIP_CALIBRATION_OFFSET  = -2.44899;
-constexpr float KNEE_CALIBRATION_OFFSET = 2.62047f;
+constexpr float HIP_CALIBRATION_OFFSET  = 0.50981f;
+constexpr float KNEE_CALIBRATION_OFFSET = -1.208815f  ;
 
 constexpr float LEFT_HIP_OFFSET =
-    -loop_fp32_PI(2.77094f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(-2.42818f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(3.02693f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.01453f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(1.69349f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(-2.82635f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(-0.35047f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(1.90125f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
 // constexpr float RIGHT_HIP_OFFSET  =0;
 // constexpr float RIGHT_KNEE_OFFSET =0;
 
-constexpr float MAX_LEG_LENGTH        = 0.38f;
-constexpr float MIN_LEG_LENGTH        = 0.18f;
+constexpr float MAX_LEG_LENGTH        = 0.33f;
+constexpr float MIN_LEG_LENGTH        = 0.13f;
 // Both margins are measured inward from the mechanical limit. Damping starts
 // first; stiffness joins it only in the inner region nearest the stop.
 constexpr float LEG_LENGTH_WALL_MARGIN = 0.005f; // stiffness + damping: 5 mm
@@ -81,19 +81,20 @@ constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 15.0f;  // N per leg
 constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
     0.2f * PI / 180.0f;
 
-// 300 N 气弹簧广义力拟合，适用腿长 L 范围为 [0.18, 0.38] m。
-// x = (L - 0.28) / 0.10，F_gas(L) = sum(c[k] * x^k)。
-constexpr float GAS_SPRING_LENGTH_CENTER             = 0.28f;
+// 450 N 气弹簧广义力拟合，适用当前腿长 L 范围为 [0.13, 0.33] m。
+// l1=0.210, l2=0.05562, L2=0.250, l4=0.052 m; theta1=72, beta=34.54 deg。
+// 由 l5(L) 四阶拟合后解析求导；x = (L - 0.23) / 0.10，升幂排列。
+constexpr float GAS_SPRING_LENGTH_CENTER             = 0.23f;
 constexpr float GAS_SPRING_LENGTH_SCALE              = 0.10f;
 // Hardware tuning factor applied only to the motor-side cancellation.
 constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 constexpr uint32_t GAS_SPRING_FORCE_POLY_DEGREE      = 3;
 constexpr float GAS_SPRING_FORCE_POLY_COEF[
     GAS_SPRING_FORCE_POLY_DEGREE + 1] = {
-    119.867552440332f,
-    37.1404981279233f,
-    -4.91246097241044f,
-    2.70356625079196f,
+    127.0182397787f,
+    10.6252356090f,
+    -7.6552481803f,
+    -0.4394633738f,
 };
 //过坎
 constexpr float LEG_ACCEL_THRESHOLD = 30.0f;
@@ -106,7 +107,7 @@ constexpr float GETOVER_TIMEOUT = 0.12f;
 constexpr float GETOVER_REARM_DELAY = 1.0f;
 // Airborne and landing detection defaults. Tune from logged support-force data.
 constexpr float AIR_LENGTH_TARGET                   = 0.35f;//腿长目标值，低于上限虚拟墙
-constexpr float NORMAL_LENGTH_TARGET                 = 0.20f;
+constexpr float NORMAL_LENGTH_TARGET                 = 0.14f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
 constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 2.0f;
