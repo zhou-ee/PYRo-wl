@@ -253,7 +253,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     {
         auto_step_count = 0;
     }
-    //
+
     // // //离地检测
     // if (!owner->_ctx.data.airborne.landing_recovery &&
     //     owner->_detect_takeoff())
@@ -280,6 +280,13 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         owner->_ctx.data.target_state.L =
         std::clamp(owner->_ctx.data.target_state.L,
                        MIN_LEG_LENGTH, MAX_LEG_LENGTH);
+        // Once the length reference reaches a stop, do not keep requesting
+        // velocity farther into that stop. Motion back into range stays enabled.
+        if ((owner->_ctx.data.target_state.L <= MIN_LEG_LENGTH && target_dot_L < 0.0f) ||
+            (owner->_ctx.data.target_state.L >= MAX_LEG_LENGTH && target_dot_L > 0.0f))
+        {
+            owner->_ctx.data.target_state.dot_L = 0.0f;
+        }
     }
     
     

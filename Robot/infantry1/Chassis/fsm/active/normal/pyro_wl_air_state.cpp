@@ -205,7 +205,6 @@ float wl_chassis_t::_landing_velocity_reference(const float commanded_velocity)
 void wl_chassis_t::_execute_air_control()
 {
     auto &data = _ctx.data;
-    auto &air = data.airborne;
     _gain_calculate();
     for (uint8_t i = 0; i < 2; ++i)
     {
@@ -231,19 +230,11 @@ void wl_chassis_t::_execute_air_control()
         // No gas-spring cancellation or length PD; boundary feedback is in VMC.
         leg.target_leg_length = LEG_LENGTH_WALL_MAX;
         leg.out_F_L = _motor_torque_to_leg_force(leg, AIR_EXTENSION_MOTOR_TORQUE);
-        if (air.contact[i])
-        {
-            const float wheel_target = air.forward_velocity_ref / WHEEL_RADIUS;
-            data.wheel[i].out_T_w = std::clamp(
-                AIR_WHEEL_LOCK_K * (wheel_target - data.wheel[i].current_radps), -MAX_T_W, MAX_T_W);
-            data.wheel[i].out_current = std::clamp(
-                data.wheel[i].out_T_w / K_t, -MAX_CURRENT, MAX_CURRENT);
-        }
-        else
-        {
-            data.wheel[i].out_T_w = 0.0f;
-            data.wheel[i].out_current = 0.0f;
-        }
+        // Hold zero wheel speed in Air, regardless of contact state.
+        data.wheel[i].out_T_w = std::clamp(
+            -AIR_WHEEL_LOCK_K * data.wheel[i].current_radps, -MAX_T_W, MAX_T_W);
+        data.wheel[i].out_current = std::clamp(
+            data.wheel[i].out_T_w / K_t, -MAX_CURRENT, MAX_CURRENT);
     }
 }
 
@@ -272,7 +263,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::execute(wl_chassis
 {
     const bool landed = owner->_detect_landing();
     owner->_execute_air_control();
-    owner->_vmc_trans_v2j(false);
+    owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
     if (landed)

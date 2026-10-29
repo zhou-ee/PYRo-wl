@@ -386,10 +386,21 @@ void wl_chassis_t::_gain_calculate()
         }
     }
 
+    // Fade the empirical short-leg correction out before the long-leg region.
+    // Smoothstep keeps the correction and its slope continuous at both ends.
+    const auto retraction_trim = [](const float length) {
+        const float weight = std::clamp(
+            (LQR_U0_TRIM_ZERO_LENGTH - length) /
+                (LQR_U0_TRIM_ZERO_LENGTH - LQR_U0_TRIM_FULL_LENGTH),
+            0.0f, 1.0f);
+        return LQR_U0_RETRACTION_TRIM * weight * weight * (3.0f - 2.0f * weight);
+    };
     _ctx.data.U0[lqr_input_def::F_L1] =
-        evaluate_polynomial_ascending(norm_L1, FL_U0_POLY_COEF, U0_POLY_DEGREE);
+        evaluate_polynomial_ascending(norm_L1, FL_U0_POLY_COEF, U0_POLY_DEGREE) -
+        retraction_trim(_ctx.data.leg[leg_def::L].current_leg_length);
     _ctx.data.U0[lqr_input_def::F_L2] =
-        evaluate_polynomial_ascending(norm_L2, FL_U0_POLY_COEF, U0_POLY_DEGREE);
+        evaluate_polynomial_ascending(norm_L2, FL_U0_POLY_COEF, U0_POLY_DEGREE) -
+        retraction_trim(_ctx.data.leg[leg_def::R].current_leg_length);
     _ctx.data.target_state.beta1 = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::L].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);
