@@ -75,13 +75,6 @@ constexpr float SPIN_YAW_DECEL                       = 10.0f; // rad/s^2 //最�
 constexpr float SPIN_EXIT_DECEL_TIME                 = 0.2f;  // s
 constexpr float SPIN_RECOVERY_YAW_KP                 = 2.0f;
 
-// Short-leg motor-side U0 calibration; positive values add retraction effort.
-constexpr float LQR_U0_RETRACTION_TRIM                = 50.0f; // N per leg
-constexpr float LQR_U0_TRIM_FULL_LENGTH               = 0.15f; // m
-constexpr float LQR_U0_TRIM_ZERO_LENGTH               = 0.23f; // m
-static_assert(LQR_U0_TRIM_ZERO_LENGTH > LQR_U0_TRIM_FULL_LENGTH,
-              "U0 trim fade interval must be positive");
-
 // Normal/Balance roll integral: positive trim adds to left and subtracts right.
 constexpr float NORMAL_ROLL_INTEGRAL_KI              = 120.0f; // N/(rad*s)
 constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 15.0f;  // N per leg
@@ -117,8 +110,8 @@ constexpr float AIR_LENGTH_TARGET                   = 0.33f;//腿长目标值，
 constexpr float NORMAL_LENGTH_TARGET                 = 0.15f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
-constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 2.0f;
-constexpr float AIR_TAKEOFF_FORCE_ON                 = 40.0f;//单腿支持力阈值，越小越易离地
+constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 0.0f;//空中伸腿力矩
+constexpr float AIR_TAKEOFF_FORCE_ON                 = 15.0f;//单腿支持力阈值，越小越易离地
 constexpr float AIR_CONTACT_FORCE_OFF                = 50.0f;
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
@@ -137,7 +130,6 @@ constexpr float JUMP_AIR_LENGTH                       = 0.13f; // 收腿完成�
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
 constexpr float JUMP_PUSH_MOTOR_TORQUE                = 25.0f; // 蹬腿伸展力矩 (N m)
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
-constexpr float JUMP_AIR_MOTOR_TORQUE                 = 0.0f; // AIR 伸腿力矩 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 预压缩最长时间 (s)
 constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;
 constexpr float JUMP_SETTLED_LEG_SPEED                = 0.2f;
