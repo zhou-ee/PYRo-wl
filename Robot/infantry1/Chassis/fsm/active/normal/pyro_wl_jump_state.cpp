@@ -39,13 +39,13 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::enter(wl_chassis_
     data.target_state.dot_x = data.jump_forward_velocity_ref;
     data.target_state.theta = 0.0f;
     data.target_state.dot_theta = 0.0f;
-    data.target_state.phi = 0.0f;
-    data.target_state.dot_phi = 0.0f;
+    data.target_aux.phi = 0.0f;
+    data.target_aux.dot_phi = 0.0f;
     data.target_state.beta1 = 0.0f;
     data.target_state.dot_beta1 = 0.0f;
     data.target_state.beta2 = 0.0f;
     data.target_state.dot_beta2 = 0.0f;
-    data.target_state.dot_L = 0.0f;
+    data.target_aux.dot_L = 0.0f;
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassis_t *owner)
@@ -98,17 +98,17 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
     {
     case jump_phase_t::PRE_COMPRESS:
         // 预压缩：
-        // 使用完整平衡控制把双腿压到指定长度，同时锁定起跳航向并保持
-        // 起跳前进速度。双腿均进入长度容差，或等待超时后，转入 JUMP 蹬腿。
-        data.target_state.L = JUMP_PRECOMPRESS_LENGTH;
-        data.target_state.dot_L = 0.0f;
+        // 十状态 LQR 保持姿态和起跳前进速度，固定收腿力矩负责预压缩。
+        // 目标腿长仅供阶段判据使用；当前没有腿长反馈控制。
+        data.target_aux.L = JUMP_PRECOMPRESS_LENGTH;
+        data.target_aux.dot_L = 0.0f;
         data.target_state.psi = data.jump_heading_ref;
         data.target_state.dot_psi = 0.0f;
         data.target_state.x += data.jump_forward_velocity_ref * data._dt;
         data.target_state.dot_x = data.jump_forward_velocity_ref;
         owner->_gain_calculate();
         owner->_balance_control();
-        // 在完整 Balance 输出上叠加云端使用的固定预压缩收腿力矩。
+        // 在固定支撑力/气弹簧前馈上叠加原有固定预压缩收腿力矩。
         for (auto &leg : data.leg)
         {
             leg.out_F_L += owner->_motor_torque_to_leg_force(
@@ -147,20 +147,18 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         data.target_state.dot_psi = 0.0f;
         data.target_state.x += data.jump_forward_velocity_ref * data._dt;
         data.target_state.dot_x = data.jump_forward_velocity_ref;
-        data.target_state.L = data.measured_state.L;
-        data.target_state.dot_L = data.measured_state.dot_L;
+        data.target_aux.L = data.measured_aux.L;
+        data.target_aux.dot_L = data.measured_aux.dot_L;
         owner->_gain_calculate();
         const auto jump_lqr_output = [&](const uint8_t input) {
             float output = data.U0[input];
             for (uint8_t state = 0; state < STATE_DIM; ++state)
             {
-                // 蹬腿时排除 位置/前进速度、航向/航向角速度 以及平均腿长/腿长速度，
+                // 蹬腿时排除位置/前进速度、航向/航向角速度。
                 if (state == lqr_state_def::X ||
                     state == lqr_state_def::DOT_X ||
                     state == lqr_state_def::PSI ||
-                    state == lqr_state_def::DOT_PSI ||
-                    state == lqr_state_def::L_BAR ||
-                    state == lqr_state_def::DOT_L_BAR)
+                    state == lqr_state_def::DOT_PSI)
                 {
                     continue;
                 }
@@ -301,8 +299,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         data.airborne.L_ref =
             0.5f * (data.leg[leg_def::L].current_leg_length +
                     data.leg[leg_def::R].current_leg_length);
-        data.target_state.L = data.airborne.L_ref;
-        data.target_state.dot_L = 0.0f;
+        data.target_aux.L = data.airborne.L_ref;
+        data.target_aux.dot_L = 0.0f;
         data.target_state.psi = data.jump_heading_ref;
         data.target_state.dot_psi = 0.0f;
         data.airborne.landing_recovery = true;

@@ -17,6 +17,8 @@ static bool is_add_speed = 0; // 是否是加速阶段
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_t *owner)
 {
+    owner->_ctx.data.roll_pid = {};
+    owner->_ctx.data.leg_length_pid = {};
     owner->_ctx.data.odom.real_x = 0.0f;
     auto &target = owner->_ctx.data.target_state;
     target.x = owner->_ctx.data.measured_state.x;
@@ -24,20 +26,19 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_
     target.psi = owner->_ctx.data.measured_state.psi;
     target.dot_psi = owner->_ctx.data.ins.gyro[0];
     spin_speed_ref = owner->_ctx.data.ins.gyro[0];
-    target.L = owner->_ctx.data.airborne.landing_recovery
+    owner->_ctx.data.target_aux.L = owner->_ctx.data.airborne.landing_recovery
                    ? owner->_ctx.data.airborne.L_ref
                    : NORMAL_LENGTH_TARGET;
-    target.dot_L = 0.0f;
+    owner->_ctx.data.target_aux.dot_L = 0.0f;
     target.theta = 0.0f;
     target.dot_theta = 0.0f;
-    target.phi = 0.0f;
-    target.dot_phi = 0.0f;
+    owner->_ctx.data.target_aux.phi = 0.0f;
+    owner->_ctx.data.target_aux.dot_phi = 0.0f;
     target.beta1 = 0.0f;
     target.dot_beta1 = 0.0f;
     target.beta2 = 0.0f;
     target.dot_beta2 = 0.0f;
 
-    owner->_ctx.data.normal_roll_force_trim = 0.0f;
     for(float &feedforward : owner->_ctx.data.U0)
     {
         feedforward = 0.0f;
@@ -131,9 +132,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
         else
         {
             const float target_dot_L = owner->_current_cmd.dot_L;
-            owner->_ctx.data.target_state.dot_L = target_dot_L;
-            owner->_ctx.data.target_state.L = std::clamp(
-                owner->_ctx.data.target_state.L +
+            owner->_ctx.data.target_aux.dot_L = target_dot_L;
+            owner->_ctx.data.target_aux.L = std::clamp(
+                owner->_ctx.data.target_aux.L +
                     target_dot_L * owner->_ctx.data._dt,
                 MIN_LEG_LENGTH, MAX_LEG_LENGTH);
         }
@@ -183,15 +184,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
     owner->_ctx.data.target_state.dot_x = 0.0f;
     owner->_ctx.data.target_state.psi = owner->_ctx.data.measured_state.psi;
     owner->_ctx.data.target_state.dot_psi = spin_speed_ref;
-    owner->_ctx.data.normal_roll_force_trim = 0.0f;
 
     owner->_gain_calculate();
-    owner->_balance_control();
-
-    owner->_ctx.data.leg[leg_def::L].out_F_L =
-        owner->_ctx.data.control.F_l1;
-    owner->_ctx.data.leg[leg_def::R].out_F_L =
-        owner->_ctx.data.control.F_l2;
+    for (auto &leg : owner->_ctx.data.leg)
+    {
+        leg.target_leg_length = owner->_ctx.data.target_aux.L;
+        leg.target_leg_speed = owner->_ctx.data.target_aux.dot_L;
+    }
+    owner->_balance_control(true, true);
 
     owner->_vmc_trans_v2j();
     owner->_send_joint_torque();
@@ -200,7 +200,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::exit(wl_chassis_t *owner)
 {
-    (void)owner;
+    owner->_ctx.data.roll_pid = {};
+    owner->_ctx.data.leg_length_pid = {};
 }
 
 } // namespace pyro

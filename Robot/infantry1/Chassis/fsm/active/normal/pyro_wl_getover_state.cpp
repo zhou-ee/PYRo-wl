@@ -38,8 +38,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_getover_t::execute(owner 
             owner->_getover_target_length[leg_def::R] ;
     if (legs_reached_target || owner->_getover_elapsed >= GETOVER_TIMEOUT)
     {
-        owner->_ctx.data.target_state.L = NORMAL_LENGTH_TARGET;
-        owner->_ctx.data.target_state.dot_L = 0.0f;
+        owner->_ctx.data.target_aux.L = NORMAL_LENGTH_TARGET;
+        owner->_ctx.data.target_aux.dot_L = 0.0f;
         owner->_ctx.data.target_state.theta = 0.0f;
         owner->_ctx.data.target_state.dot_theta = 0.0f;
         request_switch(&owner->_state_active._state_normal._state_balance);
@@ -48,10 +48,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_getover_t::execute(owner 
 
     owner->_ctx.data.target_state.theta = GETOVER_FORWARD_RAD;
     owner->_ctx.data.target_state.dot_theta = 0.0f;
-    owner->_ctx.data.target_state.L =
+    owner->_ctx.data.target_aux.L =
         0.5f * (owner->_getover_target_length[leg_def::L] +
                 owner->_getover_target_length[leg_def::R]);
-    owner->_ctx.data.target_state.dot_L = 0.0f;
+    owner->_ctx.data.target_aux.dot_L = 0.0f;
 
     owner->_gain_calculate();
     owner->_balance_control();
@@ -85,8 +85,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_getover_t::exit(owner *ow
     owner->_getover_elapsed = 0.0f;
     owner->_getover_target_length[leg_def::L] = NORMAL_LENGTH_TARGET;
     owner->_getover_target_length[leg_def::R] = NORMAL_LENGTH_TARGET;
-    owner->_ctx.data.target_state.L = NORMAL_LENGTH_TARGET;
-    owner->_ctx.data.target_state.dot_L = 0.0f;
+    owner->_ctx.data.target_aux.L = NORMAL_LENGTH_TARGET;
+    owner->_ctx.data.target_aux.dot_L = 0.0f;
     owner->_ctx.data.target_state.theta = 0.0f;
     owner->_ctx.data.target_state.dot_theta = 0.0f;
     owner->_ctx.data.current_function = chassis_function_state_t::NONE;

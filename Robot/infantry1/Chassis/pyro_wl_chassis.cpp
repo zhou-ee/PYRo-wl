@@ -140,8 +140,8 @@ void wl_chassis_t::_update_feedback()
 
     state.theta        = _ctx.data.ins.euler_rad[1];
     state.dot_theta    = _ctx.data.ins.gyro[1];
-    state.phi          = _ctx.data.ins.euler_rad[2];
-    state.dot_phi      = _ctx.data.ins.gyro[2];
+    _ctx.data.measured_aux.phi = _ctx.data.ins.euler_rad[2];
+    _ctx.data.measured_aux.dot_phi = _ctx.data.ins.gyro[2];
     state.beta1        = _ctx.data.leg[leg_def::L].current_leg_rad - PI / 2 -
                   _ctx.data.ins.euler_rad[1];
     state.dot_beta1 =
@@ -151,10 +151,10 @@ void wl_chassis_t::_update_feedback()
     state.dot_beta2 =
         _ctx.data.leg[leg_def::R].current_leg_radps - _ctx.data.ins.gyro[1];
 
-    state.L =
+    _ctx.data.measured_aux.L =
         0.5f * (_ctx.data.leg[leg_def::L].current_leg_length +
                 _ctx.data.leg[leg_def::R].current_leg_length);
-    state.dot_L =
+    _ctx.data.measured_aux.dot_L =
         0.5f * (_ctx.data.leg[leg_def::L].current_leg_speed  +
                 _ctx.data.leg[leg_def::R].current_leg_speed );
 
@@ -355,50 +355,100 @@ void wl_chassis_t::_reset_air_contacts()
 
 void wl_chassis_t::_gain_calculate()
 {
-    // const float norm_delta_L =
-    //     std::clamp((_ctx.data.leg[leg_def::L].current_leg_length -
-    //                 _ctx.data.leg[leg_def::R].current_leg_length) *
-    //                    (1.0f / 0.2f),
-    //                -1.0f, 1.0f);
-    const float norm_L1 =
-        std::clamp((_ctx.data.leg[leg_def::L].current_leg_length -
-                    0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH)) *
-                       (1.0f / (0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH))),
-                   -1.0f, 1.0f);
-    const float norm_L2 =
-        std::clamp((_ctx.data.leg[leg_def::R].current_leg_length -
-                    0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH)) *
-                       (1.0f / (0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH))),
-                   -1.0f, 1.0f);
-
-    for (uint32_t input = 0; input < INPUT_DIM; ++input)
-    {
-        for (uint32_t state = 0; state < STATE_DIM; ++state)
-        {
-            float p_terms[K_POLY_DEGREE + 1];
-            for (uint32_t p = 0; p <= K_POLY_DEGREE; ++p)
-            {
-                p_terms[p] = evaluate_polynomial_ascending(
-                    norm_L2, K_POLY_COEF[input][state][p], K_POLY_DEGREE);
-            }
-            _ctx.data.K[input][state] =
-                evaluate_polynomial_ascending(norm_L1, p_terms, K_POLY_DEGREE);
-        }
-    }
-
-    _ctx.data.U0[lqr_input_def::F_L1] =
-        evaluate_polynomial_ascending(norm_L1, FL_U0_POLY_COEF, U0_POLY_DEGREE);
-    _ctx.data.U0[lqr_input_def::F_L2] =
-        evaluate_polynomial_ascending(norm_L2, FL_U0_POLY_COEF, U0_POLY_DEGREE);
-    _ctx.data.target_state.beta1 = evaluate_polynomial_ascending(
-        _ctx.data.leg[leg_def::L].current_leg_length, BETA_TRIM_POLY_COEF,
-        BETA_TRIM_POLY_DEGREE);
-    _ctx.data.target_state.beta2 = evaluate_polynomial_ascending(
-        _ctx.data.leg[leg_def::R].current_leg_length, BETA_TRIM_POLY_COEF,
-        BETA_TRIM_POLY_DEGREE);
+    const float l1 = _ctx.data.leg[leg_def::L].current_leg_length;
+    const float l2 = _ctx.data.leg[leg_def::R].current_leg_length;
+    wheel_leg_ground10::evaluateGain(l1, l2, _ctx.data.K);
+    float trim_state[STATE_DIM];
+    wheel_leg_ground10::evaluateTrim(l1, l2, trim_state, _ctx.data.U0);
+    // Keep commanded x/yaw/pitch references; schedule only the equilibrium leg angles.
+    _ctx.data.target_state.beta1 = trim_state[lqr_state_def::BETA_1];
+    _ctx.data.target_state.beta2 = trim_state[lqr_state_def::BETA_2];
 }
 
-void wl_chassis_t::_balance_control()
+float wl_chassis_t::_calc_roll_force_trim(const float left_base_force,
+                                         const float right_base_force)
+{
+    auto &pid = _ctx.data.roll_pid;
+    const auto &target = _ctx.data.target_aux;
+    const auto &measured = _ctx.data.measured_aux;
+    const float dt = _ctx.data._dt;
+    if (!std::isfinite(target.phi) || !std::isfinite(target.dot_phi) ||
+        !std::isfinite(measured.phi) || !std::isfinite(measured.dot_phi) ||
+        !std::isfinite(dt) || dt <= 0.0f || dt > 0.1f)
+    {
+        pid = {};
+        return 0.0f;
+    }
+
+    pid.error = loop_fp32_constrain(target.phi - measured.phi, -PI, PI);
+    pid.p_force = NORMAL_ROLL_KP * pid.error;
+    // Use gyro roll rate directly; no numerical differentiation of Euler angles.
+    pid.d_force = NORMAL_ROLL_KD * (target.dot_phi - measured.dot_phi);
+
+    // Preserve equal-and-opposite correction within both legs' virtual-force limits.
+    const float lower = std::max(-NORMAL_ROLL_MAX_OUT,
+        std::max(-MAX_F_L - left_base_force, right_base_force - MAX_F_L));
+    const float upper = std::min(NORMAL_ROLL_MAX_OUT,
+        std::min(MAX_F_L - left_base_force, right_base_force + MAX_F_L));
+    const float integral_step = std::fabs(pid.error) > NORMAL_ROLL_INTEGRAL_DEADBAND
+        ? NORMAL_ROLL_INTEGRAL_KI * pid.error * dt : 0.0f;
+    const float candidate_i = std::clamp(pid.integral_force + integral_step,
+        -NORMAL_ROLL_INTEGRAL_LIMIT, NORMAL_ROLL_INTEGRAL_LIMIT);
+    const float candidate_out = pid.p_force + candidate_i + pid.d_force;
+    // Freeze only integration that would drive a saturated output farther outward.
+    if (!((candidate_out > upper && integral_step > 0.0f) ||
+          (candidate_out < lower && integral_step < 0.0f)))
+    {
+        pid.integral_force = candidate_i;
+    }
+    pid.force_trim = std::clamp(pid.p_force + pid.integral_force + pid.d_force,
+                                lower, upper);
+    return pid.force_trim;
+}
+
+float wl_chassis_t::_calc_leg_length_force_trim(const uint8_t side, const float base_force)
+{
+    auto &pid = _ctx.data.leg_length_pid[side];
+    const auto &leg = _ctx.data.leg[side];
+    const float dt = _ctx.data._dt;
+    if (!std::isfinite(leg.target_leg_length) || !std::isfinite(leg.target_leg_speed) ||
+        !std::isfinite(leg.current_leg_length) || !std::isfinite(leg.current_leg_speed) ||
+        !std::isfinite(dt) || dt <= 0.0f || dt > 0.1f)
+    {
+        pid = {};
+        return 0.0f;
+    }
+
+    const float target_length = std::clamp(leg.target_leg_length, MIN_LEG_LENGTH, MAX_LEG_LENGTH);
+    float target_speed = leg.target_leg_speed;
+    if ((target_length <= MIN_LEG_LENGTH && target_speed < 0.0f) ||
+        (target_length >= MAX_LEG_LENGTH && target_speed > 0.0f))
+    {
+        target_speed = 0.0f;
+    }
+    pid.error = target_length - leg.current_leg_length;
+    pid.p_force = LEG_LENGTH_PID_KP[side] * pid.error;
+    // Use this leg's VMC speed directly, not mean speed or reference differentiation.
+    pid.d_force = LEG_LENGTH_PID_KD[side] * (target_speed - leg.current_leg_speed);
+
+    const float lower = std::max(-LEG_LENGTH_PID_MAX_OUT[side], -MAX_F_L - base_force);
+    const float upper = std::min(LEG_LENGTH_PID_MAX_OUT[side], MAX_F_L - base_force);
+    const float integral_step = LEG_LENGTH_PID_KI[side] * pid.error * dt;
+    const float candidate_i = std::clamp(pid.integral_force + integral_step,
+        -LEG_LENGTH_PID_INTEGRAL_LIMIT[side], LEG_LENGTH_PID_INTEGRAL_LIMIT[side]);
+    const float candidate_out = pid.p_force + candidate_i + pid.d_force;
+    if (!((candidate_out > upper && integral_step > 0.0f) ||
+          (candidate_out < lower && integral_step < 0.0f)))
+    {
+        pid.integral_force = candidate_i;
+    }
+    pid.force_trim = std::clamp(pid.p_force + pid.integral_force + pid.d_force,
+                                lower, upper);
+    return pid.force_trim;
+}
+
+void wl_chassis_t::_balance_control(const bool apply_roll_control,
+                                   const bool apply_leg_length_control)
 {
     float error[STATE_DIM];
     for (uint8_t state = 0; state < STATE_DIM; ++state)
@@ -429,15 +479,42 @@ void wl_chassis_t::_balance_control()
         std::clamp(_ctx.data.control.T_p1, -MAX_T_P, MAX_T_P);
     _ctx.data.control.T_p2 =
         std::clamp(_ctx.data.control.T_p2, -MAX_T_P, MAX_T_P);
-    _ctx.data.control.F_l1 =
-        std::clamp(_ctx.data.control.F_l1, -MAX_F_L, MAX_F_L);
-    _ctx.data.control.F_l2 =
-        std::clamp(_ctx.data.control.F_l2, -MAX_F_L, MAX_F_L);
 
     _ctx.data.leg[leg_def::L].out_T_p   = _ctx.data.control.T_p1;
     _ctx.data.leg[leg_def::R].out_T_p   = _ctx.data.control.T_p2;
-    _ctx.data.leg[leg_def::L].out_F_L   = _ctx.data.control.F_l1;
-    _ctx.data.leg[leg_def::R].out_F_L   = _ctx.data.control.F_l2;
+    float base_force[2];
+    for (uint8_t i = 0; i < 2; ++i)
+    {
+        auto &leg = _ctx.data.leg[i];
+        // Fixed equal-load support using BALANCE_SUPPORT_MASS.
+        // VMC consumes motor-side force. Cancel the passive spring exactly once.
+        base_force[i] = std::clamp(
+            BALANCE_SUPPORT_FORCE_PER_LEG -
+                GAS_SPRING_COMPENSATION_SCALE * leg.gas_spring_force,
+            -MAX_F_L, MAX_F_L);
+    }
+    if (apply_leg_length_control)
+    {
+        for (uint8_t i = 0; i < 2; ++i)
+        {
+            base_force[i] += _calc_leg_length_force_trim(i, base_force[i]);
+        }
+    }
+    else
+    {
+        _ctx.data.leg_length_pid = {};
+    }
+    float roll_trim = 0.0f;
+    if (apply_roll_control)
+    {
+        roll_trim = _calc_roll_force_trim(base_force[leg_def::L], base_force[leg_def::R]);
+    }
+    else
+    {
+        _ctx.data.roll_pid = {};
+    }
+    _ctx.data.leg[leg_def::L].out_F_L = base_force[leg_def::L] + roll_trim;
+    _ctx.data.leg[leg_def::R].out_F_L = base_force[leg_def::R] - roll_trim;
 
     _ctx.data.wheel[leg_def::L].out_T_w = _ctx.data.control.T_w1;
     _ctx.data.wheel[leg_def::R].out_T_w = _ctx.data.control.T_w2;

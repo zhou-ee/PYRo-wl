@@ -63,6 +63,10 @@ constexpr float RIGHT_WHEEL_DIRECTION = 1.0f;
 constexpr float LEG_MASS              = 1.232f;
 constexpr float WHEEL_MASS            = 0.57f;
 constexpr float GRAVITY_ACCELERATION  = 9.81f;
+// Total robot mass for fixed equal-load support; independent of the LQR model.
+constexpr float BALANCE_SUPPORT_MASS  = 9.0f; // kg, including legs and wheels
+constexpr float BALANCE_SUPPORT_FORCE_PER_LEG =
+    0.5f * BALANCE_SUPPORT_MASS * GRAVITY_ACCELERATION; // N per leg
 constexpr float K_t                                  = 0.21777611f;
 constexpr float reduction_ratio                      = 13.94f;
 constexpr float rec_reduction_ratio                  = 1 / reduction_ratio;
@@ -75,11 +79,31 @@ constexpr float SPIN_YAW_DECEL                       = 10.0f; // rad/s^2 //最�
 constexpr float SPIN_EXIT_DECEL_TIME                 = 0.2f;  // s
 constexpr float SPIN_RECOVERY_YAW_KP                 = 2.0f;
 
-// Normal/Balance roll integral: positive trim adds to left and subtracts right.
-constexpr float NORMAL_ROLL_INTEGRAL_KI              = 120.0f; // N/(rad*s)
-constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 15.0f;  // N per leg
+// Independent leg-length PIDs, indexed [left, right]. Each uses its own L/dL.
+// Corrections are added to the corresponding leg's support force.
+// Softer position response and stronger velocity damping to reduce rebound.
+constexpr float LEG_LENGTH_PID_KP[2]                 = {800.0f, 800.0f};   // N/m
+constexpr float LEG_LENGTH_PID_KI[2]                 = {80.0f, 80.0f};     // N/(m*s)
+constexpr float LEG_LENGTH_PID_KD[2]                 = {100.0f, 100.0f};   // N*s/m
+// Keep steady retraction authority while retaining the softer P and stronger D.
+constexpr float LEG_LENGTH_PID_INTEGRAL_LIMIT[2]     = {80.0f, 80.0f};     // N
+constexpr float LEG_LENGTH_PID_MAX_OUT[2]            = {80.0f, 80.0f};     // N
+static_assert(LEG_LENGTH_PID_INTEGRAL_LIMIT[0] >= 0.0f &&
+              LEG_LENGTH_PID_INTEGRAL_LIMIT[1] >= 0.0f &&
+              LEG_LENGTH_PID_MAX_OUT[0] > 0.0f && LEG_LENGTH_PID_MAX_OUT[1] > 0.0f,
+              "Leg-length PID force limits must be valid");
+
+// Independent roll PID. Output is differential axial force per leg (N):
+// left += trim, right -= trim. Initial gains for hardware tuning.
+constexpr float NORMAL_ROLL_KP                       = 180.0f; // N/rad
+constexpr float NORMAL_ROLL_INTEGRAL_KI              = 60.0f;  // N/(rad*s)
+constexpr float NORMAL_ROLL_KD                       = 32.0f;  // N*s/rad
+constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 10.0f;  // N per leg
+constexpr float NORMAL_ROLL_MAX_OUT                  = 40.0f;  // N per leg
 constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
     0.2f * PI / 180.0f;
+static_assert(NORMAL_ROLL_INTEGRAL_LIMIT >= 0.0f && NORMAL_ROLL_MAX_OUT > 0.0f,
+              "Roll PID force limits must be valid");
 
 // 450 N 气弹簧广义力拟合，适用当前腿长 L 范围为 [0.10, 0.33] m。
 // l1=0.210, l2=0.05562, L2=0.250, l4=0.052 m; theta1=72, beta=34.54 deg。
@@ -170,10 +194,14 @@ static_assert(LANDING_PITCH_REFERENCE_RATE > 0.0f &&
 
 constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 
-// L_wp(L) = 0.0581 + 0.3760*L + 0.7972*L^2 - 0.7381*L^3.
+// Python DEFAULT_ROBOT COM curves, in metres; L is in metres.
 // Coefficients are in ascending-power order: c0, c1, c2, c3.
-constexpr float L_WP_POLY_COEF[L_WP_POLY_DEGREE + 1] = {0.0581f, 0.3760f,
-                                                        0.7972f, -0.7381f};
+constexpr float L_WP_POLY_COEF[L_WP_POLY_DEGREE + 1] = {
+    0.05806884f, 0.37602793f, 0.79724260f, -0.73809850f};
+
+static_assert(MIN_LEG_LENGTH == wheel_leg_ground10::kLowerLength &&
+              MAX_LEG_LENGTH == wheel_leg_ground10::kUpperLength,
+              "Regenerate ground10 coefficients after changing the leg-length domain");
 
 constexpr float WHEEL_RADIUS                         = 0.06f;
 
