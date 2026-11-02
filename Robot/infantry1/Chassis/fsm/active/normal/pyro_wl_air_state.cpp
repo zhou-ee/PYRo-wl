@@ -126,8 +126,9 @@ bool wl_chassis_t::_detect_landing()
             air.extension_speed_peak[i] - leg.current_leg_speed > JUMP_LANDING_EXTENSION_SPEED_DROP;
         // Eq.93 applies only in Air. Confirm support as well, so planned
         // braking/retraction of an unloaded leg cannot become a touchdown.
-        const bool candidate = air.flight_time >= AIR_CONTACT_MIN_TIME &&
-            air.support_force[i] > AIR_CONTACT_FORCE_OFF && (reverse || slowed);
+        // const bool candidate = air.flight_time >= AIR_CONTACT_MIN_TIME &&
+        //     air.support_force[i] > AIR_CONTACT_FORCE_OFF && (reverse || slowed);
+        const bool candidate = air.flight_time >= AIR_CONTACT_MIN_TIME && (reverse || slowed);
         if (!air.contact[i])
         {
             air.contact_confirm_time[i] = candidate

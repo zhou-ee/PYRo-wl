@@ -122,10 +122,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
                        JUMP_PRECOMPRESS_LENGTH) < JUMP_LENGTH_TOLERANCE &&
              std::fabs(data.leg[leg_def::R].current_leg_length -
                        JUMP_PRECOMPRESS_LENGTH) < JUMP_LENGTH_TOLERANCE &&
-             std::fabs(data.leg[leg_def::L].current_leg_speed) <
-                 JUMP_SETTLED_LEG_SPEED &&
-             std::fabs(data.leg[leg_def::R].current_leg_speed) <
-                 JUMP_SETTLED_LEG_SPEED &&
+             // std::fabs(data.leg[leg_def::L].current_leg_speed) <
+             //     JUMP_SETTLED_LEG_SPEED &&
+             // std::fabs(data.leg[leg_def::R].current_leg_speed) <
+             //     JUMP_SETTLED_LEG_SPEED &&
              std::fabs(data.leg[leg_def::L].current_leg_length -
                        data.leg[leg_def::R].current_leg_length) < 0.02f) ||
             data.jump_phase_time >= JUMP_PRECOMPRESS_TIME)
