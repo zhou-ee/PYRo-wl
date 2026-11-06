@@ -46,6 +46,13 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
         target_compile_definitions(PYRo PUBLIC
                 DR16_UART=PYRO_UART5
         )
+        set(VIO_UART "" CACHE STRING "MicoVIO UART binding, e.g. PYRO_UART10")
+        if (NOT VIO_UART STREQUAL "")
+                if (NOT VIO_UART MATCHES "^PYRO_UART(1|7|10)$")
+                        message(FATAL_ERROR "VIO_UART must be PYRO_UART1, PYRO_UART7 or PYRO_UART10. UART5 is assigned to DR16.")
+                endif ()
+                target_compile_definitions(PYRo PUBLIC VIO_UART=${VIO_UART})
+        endif ()
 elseif (BOARD STREQUAL "GIMBAL_BOARD")
         target_sources(Infantry1
                 PRIVATE

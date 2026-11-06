@@ -60,6 +60,8 @@ target_sources(PYRo PRIVATE
         Component/RC/pyro_vt03_rc_drv.cpp
         Component/Referee/fifo.c
         Component/Referee/pyro_referee.cpp
+        Component/VIO/Protocol/pyro_micovio_protocol.cpp
+        Component/VIO/pyro_micovio_drv.cpp
         Component/Image/pyro_image_drv.cpp
         Component/INS/pyro_ins.cpp
         Component/INS/pyro_ins_attitude.cpp
@@ -125,6 +127,7 @@ target_include_directories(PYRo PUBLIC
         Component/RC
         Component/Referee
         Component/Referee/UI
+        Component/VIO
         Component/Shoot
         Component/Supercap
         Component/SR

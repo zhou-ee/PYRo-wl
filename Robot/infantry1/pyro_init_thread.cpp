@@ -7,6 +7,7 @@
 #include "pyro_supercap_drv.h"
 #include "pyro_uart_drv.h"
 #include "pyro_vt03_rc_drv.h"
+#include "pyro_micovio_drv.h"
 
 namespace pyro
 {
@@ -15,6 +16,9 @@ can_drv_t *can2_drv = nullptr;
 can_drv_t *can3_drv = nullptr;
 ins_drv_t *ins_drv = nullptr;
 referee_drv_t *referee_drv = nullptr;
+#ifdef VIO_UART
+micovio_drv_t *vio_drv = nullptr;
+#endif
 
 extern "C"
 {
@@ -66,6 +70,14 @@ void pyro_init_thread(void *argument)
                         UART_PARITY_NONE);
     SUPERCAP_UART.enable_rx_dma();
     supercap_drv_t::get_instance()->start_rx();
+#endif
+
+#ifdef VIO_UART
+    VIO_UART.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                    UART_PARITY_NONE);
+    VIO_UART.enable_rx_dma();
+    vio_drv = micovio_drv_t::get_instance();
+    vio_drv->init();
 #endif
 
     vTaskDelete(nullptr);
