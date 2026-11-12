@@ -126,9 +126,9 @@ bool wl_chassis_t::_detect_landing()
             air.extension_speed_peak[i] - leg.current_leg_speed > JUMP_LANDING_EXTENSION_SPEED_DROP;
         // Eq.93 applies only in Air. Confirm support as well, so planned
         // braking/retraction of an unloaded leg cannot become a touchdown.
-        // const bool candidate = air.flight_time >= AIR_CONTACT_MIN_TIME &&
-        //     air.support_force[i] > AIR_CONTACT_FORCE_OFF && (reverse || slowed);
-        const bool candidate = air.flight_time >= AIR_CONTACT_MIN_TIME && (reverse || slowed);
+        const bool candidate = air.flight_time >= AIR_CONTACT_MIN_TIME &&
+            air.support_force[i] > AIR_CONTACT_FORCE_OFF && (reverse || slowed);
+        // const bool candidate = air.flight_time >= AIR_CONTACT_MIN_TIME && (reverse || slowed);
         if (!air.contact[i])
         {
             air.contact_confirm_time[i] = candidate
@@ -265,7 +265,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::execute(wl_chassis
 {
     const bool landed = owner->_detect_landing();
     owner->_execute_air_control();
-    owner->_vmc_trans_v2j();
+    owner->_vmc_trans_v2j(false);
     owner->_send_joint_torque();
     owner->_send_wheel_torque();
     if (landed)

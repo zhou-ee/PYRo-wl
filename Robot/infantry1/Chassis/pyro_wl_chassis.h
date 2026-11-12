@@ -241,7 +241,7 @@ struct wl_chassis_data_ctx_t
     control_vec_t control;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
-    float U0[INPUT_DIM];
+    float U0[FEEDFORWARD_DIM]; // Four LQR torques plus two motor-side axial forces.
     odom_t odom;
     ins_data_t ins;
     airborne_data_t airborne;

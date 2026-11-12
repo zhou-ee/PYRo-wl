@@ -27,13 +27,13 @@ constexpr float HIP_CALIBRATION_OFFSET  = 0.50981f;
 constexpr float KNEE_CALIBRATION_OFFSET = -1.208815f  ;
 
 constexpr float LEFT_HIP_OFFSET =
-    -loop_fp32_PI(-2.42818f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(3.12472f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(0.01453f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.01683f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(-2.82635f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(-2.96806f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(1.90125f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(1.89857f + KNEE_CALIBRATION_OFFSET);
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
@@ -64,9 +64,9 @@ constexpr float LEG_MASS              = 1.232f;
 constexpr float WHEEL_MASS            = 0.57f;
 constexpr float GRAVITY_ACCELERATION  = 9.81f;
 // Total robot mass for fixed equal-load support; independent of the LQR model.
-constexpr float BALANCE_SUPPORT_MASS  = 9.0f; // kg, including legs and wheels
+constexpr float BALANCE_SUPPORT_MASS = wheel_leg_ground10::kBalanceSupportMass;
 constexpr float BALANCE_SUPPORT_FORCE_PER_LEG =
-    0.5f * BALANCE_SUPPORT_MASS * GRAVITY_ACCELERATION; // N per leg
+    wheel_leg_ground10::kSupportForcePerLeg; // Exported motor-feedforward support, N per leg.
 constexpr float K_t                                  = 0.21777611f;
 constexpr float reduction_ratio                      = 13.94f;
 constexpr float rec_reduction_ratio                  = 1 / reduction_ratio;
@@ -105,21 +105,10 @@ constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
 static_assert(NORMAL_ROLL_INTEGRAL_LIMIT >= 0.0f && NORMAL_ROLL_MAX_OUT > 0.0f,
               "Roll PID force limits must be valid");
 
-// 450 N 气弹簧广义力拟合，适用当前腿长 L 范围为 [0.10, 0.33] m。
-// l1=0.210, l2=0.05562, L2=0.250, l4=0.052 m; theta1=72, beta=34.54 deg。
-// 由 l5(L) 四阶拟合后解析求导；x = (L - 0.215) / 0.115，升幂排列。
-constexpr float GAS_SPRING_LENGTH_CENTER             = 0.215f;
-constexpr float GAS_SPRING_LENGTH_SCALE              = 0.115f;
+// 气弹簧曲线及轴向 U0 由 Python 同源导出到 lqr_coef.h。
+// 反馈/下力等状态调用 evaluateGasSpringForce，平衡读取已补偿的 U0。
 // Hardware tuning factor applied only to the motor-side cancellation.
 constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
-constexpr uint32_t GAS_SPRING_FORCE_POLY_DEGREE      = 3;
-constexpr float GAS_SPRING_FORCE_POLY_COEF[
-    GAS_SPRING_FORCE_POLY_DEGREE + 1] = {
-    125.248189955f,
-    14.8584043415f,
-    -9.82086386538f,
-    -0.774974736922f,
-};
 //过坎
 constexpr float LEG_ACCEL_THRESHOLD = 30.0f;
 constexpr float GETOVER_BETA_THRESHOLD = 8.0f * PI / 180.0f;
@@ -135,8 +124,8 @@ constexpr float NORMAL_LENGTH_TARGET                 = 0.15f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
 constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 0.0f;//空中伸腿力矩
-constexpr float AIR_TAKEOFF_FORCE_ON                 = 15.0f;//单腿支持力阈值，越小越易离地
-constexpr float AIR_CONTACT_FORCE_OFF                = 50.0f;
+constexpr float AIR_TAKEOFF_FORCE_ON                 = 37.0f;//单腿支持力阈值，越小越易离地
+constexpr float AIR_CONTACT_FORCE_OFF                = 45.0f;//落地支持力判据
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
 constexpr float AIR_LENGTH_RECOVERY_RATE             = 0.20f;
@@ -152,7 +141,7 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.12f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.13f; // 收腿完成门限基准 (m)
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 40.0f; // 蹬腿伸展力矩 (N m)
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 28.0f; // 蹬腿伸展力矩 (N m)
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 预压缩最长时间 (s)
 constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;

@@ -332,13 +332,7 @@ float wl_chassis_t::_motor_torque_to_leg_force(const leg_ctx_t &leg, const float
 
 float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
 {
-    const float normalized_length = std::clamp(
-        (leg_length - GAS_SPRING_LENGTH_CENTER) /
-            GAS_SPRING_LENGTH_SCALE,
-        -1.0f, 1.0f);
-    return evaluate_polynomial_ascending(
-        normalized_length, GAS_SPRING_FORCE_POLY_COEF,
-        GAS_SPRING_FORCE_POLY_DEGREE);
+    return wheel_leg_ground10::evaluateGasSpringForce(leg_length);
 }
 void wl_chassis_t::_reset_air_contacts()
 {
@@ -359,7 +353,8 @@ void wl_chassis_t::_gain_calculate()
     const float l2 = _ctx.data.leg[leg_def::R].current_leg_length;
     wheel_leg_ground10::evaluateGain(l1, l2, _ctx.data.K);
     float trim_state[STATE_DIM];
-    wheel_leg_ground10::evaluateTrim(l1, l2, trim_state, _ctx.data.U0);
+    wheel_leg_ground10::evaluateFeedforward(
+        l1, l2, trim_state, _ctx.data.U0, GAS_SPRING_COMPENSATION_SCALE);
     // Keep commanded x/yaw/pitch references; schedule only the equilibrium leg angles.
     _ctx.data.target_state.beta1 = trim_state[lqr_state_def::BETA_1];
     _ctx.data.target_state.beta2 = trim_state[lqr_state_def::BETA_2];
@@ -485,12 +480,9 @@ void wl_chassis_t::_balance_control(const bool apply_roll_control,
     float base_force[2];
     for (uint8_t i = 0; i < 2; ++i)
     {
-        auto &leg = _ctx.data.leg[i];
-        // Fixed equal-load support using BALANCE_SUPPORT_MASS.
-        // VMC consumes motor-side force. Cancel the passive spring exactly once.
+        // Exported U0 already contains support minus the passive spring.
         base_force[i] = std::clamp(
-            BALANCE_SUPPORT_FORCE_PER_LEG -
-                GAS_SPRING_COMPENSATION_SCALE * leg.gas_spring_force,
+            _ctx.data.U0[lqr_feedforward_def::F_L1 + i],
             -MAX_F_L, MAX_F_L);
     }
     if (apply_leg_length_control)
