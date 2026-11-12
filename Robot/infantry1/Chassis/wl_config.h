@@ -126,6 +126,9 @@ constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
 constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 0.0f;//空中伸腿力矩
 constexpr float AIR_TAKEOFF_FORCE_ON                 = 10.0f;//单腿支持力阈值，越小越易离地
+//测距模块
+constexpr uint32_t AIR_TAKEOFF_DISTANCE_ON_MM        = 265U;
+
 constexpr float AIR_CONTACT_FORCE_OFF                = 45.0f;//落地支持力判据
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
@@ -134,7 +137,7 @@ constexpr float AIR_LENGTH_RECOVERY_EPSILON          = 0.005f;//腿长误差
 constexpr float AIR_ACCEL_LPF_TAU                    = 0.02f;
 constexpr float SUPPORT_FORCE_LPF_TAU                = 0.01f;
 constexpr float SUPPORT_FORCE_BIAS[2]                = {0.0f, 0.0f};
-constexpr uint16_t AIR_TAKEOFF_DEBOUNCE_TICKS        = 75;
+constexpr uint16_t AIR_TAKEOFF_DEBOUNCE_TICKS        = 30;
 constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 
 // Active jump state machine. These values are separate from passive airborne

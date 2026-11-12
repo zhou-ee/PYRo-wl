@@ -244,6 +244,7 @@ struct wl_chassis_data_ctx_t
     float U0[FEEDFORWARD_DIM]; // Four LQR torques plus two motor-side axial forces.
     odom_t odom;
     ins_data_t ins;
+    uint32_t stp23l_distance_mm = 0;
     airborne_data_t airborne;
     jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
     float jump_phase_time = 0.0f;

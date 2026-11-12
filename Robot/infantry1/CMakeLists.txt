@@ -46,7 +46,7 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
         )
         target_compile_definitions(PYRo PUBLIC
                 DR16_UART=PYRO_UART5
-                STP23L_UART=PYRO_UART1
+                STP23L_UART=PYRO_UART10
         )
 elseif (BOARD STREQUAL "GIMBAL_BOARD")
         target_sources(Infantry1

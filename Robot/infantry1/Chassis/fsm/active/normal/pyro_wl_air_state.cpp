@@ -90,7 +90,9 @@ bool wl_chassis_t::_detect_takeoff()
             AIR_TAKEOFF_FORCE_ON &&
         _ctx.data.airborne.support_force[leg_def::R] <
             AIR_TAKEOFF_FORCE_ON;
-    if (low_support)
+    const bool distance_clear =
+        _ctx.data.stp23l_distance_mm >= AIR_TAKEOFF_DISTANCE_ON_MM;
+    if (distance_clear)
     {
         if (_ctx.data.airborne.takeoff_counter <
             AIR_TAKEOFF_DEBOUNCE_TICKS)

@@ -2,6 +2,7 @@
 #include "pyro_algo_common.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
+#include "pyro_stp23l_drv.h"
 #include "dsp/fast_math_functions.h"
 #include "wl_config.h"
 #include "pyro_board_drv.h"
@@ -49,6 +50,11 @@ void wl_chassis_t::_update_feedback()
     // 跳跃冷却在反馈周期内递减，避免重复触发。
     _ctx.data.jump_cooldown_remaining = std::max(
         0.0f, _ctx.data.jump_cooldown_remaining - _ctx.data._dt);
+
+    // Snapshot the latest STP-23L distance into the chassis state so the FSM
+    // and application code can use one consistent feedback value.
+    auto &stp23l = stp23l_drv::get_instance();
+    _ctx.data.stp23l_distance_mm = stp23l.get_distance();
 
     // 2. Update all motor feedback before reading cached values.
     for (uint8_t leg = 0; leg < 2; ++leg)
