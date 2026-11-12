@@ -5,6 +5,7 @@
 #include "pyro_ins.h"
 #include "pyro_referee.h"
 #include "pyro_supercap_drv.h"
+#include "pyro_stp23l_drv.h"
 #include "pyro_uart_drv.h"
 #include "pyro_vt03_rc_drv.h"
 #include "pyro_warning_drv.h"
@@ -62,6 +63,16 @@ void pyro_init_thread(void *argument)
         VT03_UART.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
                 UART_PARITY_NONE);
         VT03_UART.enable_rx_dma();
+#endif
+
+#ifdef STP23L_UART
+    // STP-23L protocol: 230400 baud, 8 data bits, 1 stop bit, no parity.
+    // The module streams measurement packets automatically after power-up.
+    STP23L_UART.reset(230400, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                      UART_PARITY_NONE);
+    auto &stp23l = stp23l_drv::get_instance();
+    stp23l.init();
+    STP23L_UART.enable_rx_dma();
 #endif
 
 #ifdef REFEREE_UART

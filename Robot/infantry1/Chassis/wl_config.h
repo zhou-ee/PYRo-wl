@@ -27,13 +27,14 @@ constexpr float HIP_CALIBRATION_OFFSET  = 0.50981f;
 constexpr float KNEE_CALIBRATION_OFFSET = -1.208815f  ;
 
 constexpr float LEFT_HIP_OFFSET =
-    -loop_fp32_PI(3.12472f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(2.83009f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(0.01683f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.00312f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
     -loop_fp32_PI(-2.96806f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
     -loop_fp32_PI(1.89857f + KNEE_CALIBRATION_OFFSET);
+
 
 // constexpr float LEFT_HIP_OFFSET   =0;
 // constexpr float LEFT_KNEE_OFFSET  =0;
@@ -124,7 +125,7 @@ constexpr float NORMAL_LENGTH_TARGET                 = 0.15f;
 constexpr float AIR_LENGTH_RATE                      = 0.60f;
 constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
 constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 0.0f;//空中伸腿力矩
-constexpr float AIR_TAKEOFF_FORCE_ON                 = 37.0f;//单腿支持力阈值，越小越易离地
+constexpr float AIR_TAKEOFF_FORCE_ON                 = 10.0f;//单腿支持力阈值，越小越易离地
 constexpr float AIR_CONTACT_FORCE_OFF                = 45.0f;//落地支持力判据
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
 constexpr float AIR_LANDING_COMPRESSION              = 0.03f;
