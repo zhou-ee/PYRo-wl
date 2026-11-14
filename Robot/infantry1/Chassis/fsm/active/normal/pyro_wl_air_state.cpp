@@ -156,7 +156,9 @@ bool wl_chassis_t::_detect_landing()
     }
     data.jump_landing_confirm_time = std::min(
         air.contact_confirm_time[leg_def::L], air.contact_confirm_time[leg_def::R]);
-    return air.contact[leg_def::L] && air.contact[leg_def::R];
+    const bool distance_down =
+       _ctx.data.stp23l_distance_mm <= AIR_TAKEOFF_DISTANCE_DOWN_MM;
+    return distance_down;
 }
 
 void wl_chassis_t::_execute_landing_recovery()
@@ -236,7 +238,7 @@ void wl_chassis_t::_execute_air_control()
         // Hold zero wheel speed in Air, regardless of contact state.
         // data.wheel[i].out_T_w = std::clamp(
         //     -AIR_WHEEL_LOCK_K * data.wheel[i].current_radps, -MAX_T_W, MAX_T_W);
-        data.wheel[i].out_T_w = 0.0f;
+        // data.wheel[i].out_T_w = 0.0f;
         data.wheel[i].out_current = std::clamp(
             data.wheel[i].out_T_w / K_t, -MAX_CURRENT, MAX_CURRENT);
     }
