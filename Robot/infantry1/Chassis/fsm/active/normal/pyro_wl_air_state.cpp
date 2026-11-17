@@ -91,7 +91,7 @@ bool wl_chassis_t::_detect_takeoff()
         _ctx.data.airborne.support_force[leg_def::R] <
             AIR_TAKEOFF_FORCE_ON;
     const bool distance_clear =
-        _ctx.data.stp23l_distance_mm >= AIR_TAKEOFF_DISTANCE_ON_MM;
+        _ctx.data.distance_down >= AIR_TAKEOFF_DISTANCE_ON_MM;
     if (distance_clear)
     {
         if (_ctx.data.airborne.takeoff_counter <
@@ -157,7 +157,7 @@ bool wl_chassis_t::_detect_landing()
     data.jump_landing_confirm_time = std::min(
         air.contact_confirm_time[leg_def::L], air.contact_confirm_time[leg_def::R]);
     const bool distance_down =
-       _ctx.data.stp23l_distance_mm <= AIR_TAKEOFF_DISTANCE_DOWN_MM;
+       _ctx.data.distance_down <= AIR_TAKEOFF_DISTANCE_DOWN_MM;
     return distance_down;
 }
 

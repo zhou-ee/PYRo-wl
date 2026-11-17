@@ -65,14 +65,22 @@ void pyro_init_thread(void *argument)
         VT03_UART.enable_rx_dma();
 #endif
 
-#ifdef STP23L_UART
+#ifdef STP23L_DOWN_UART
     // STP-23L protocol: 230400 baud, 8 data bits, 1 stop bit, no parity.
     // The module streams measurement packets automatically after power-up.
-    STP23L_UART.reset(230400, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+    STP23L_DOWN_UART.reset(230400, UART_WORDLENGTH_8B, UART_STOPBITS_1,
                       UART_PARITY_NONE);
-    auto &stp23l = stp23l_drv::get_instance();
+    auto &stp23l = stp23l_drv::down_get_instance();
     stp23l.init();
-    STP23L_UART.enable_rx_dma();
+    STP23L_DOWN_UART.enable_rx_dma();
+#endif
+
+#ifdef STP23L_FRONT_UART
+    // Second STP-23L on UART7; register its own parser before enabling RX.
+    STP23L_FRONT_UART.reset(230400, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                         UART_PARITY_NONE);
+    stp23l_drv::front_get_instance().init();
+    STP23L_FRONT_UART.enable_rx_dma();
 #endif
 
 #ifdef REFEREE_UART

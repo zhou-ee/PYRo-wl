@@ -53,8 +53,9 @@ void wl_chassis_t::_update_feedback()
 
     // Snapshot the latest STP-23L distance into the chassis state so the FSM
     // and application code can use one consistent feedback value.
-    auto &stp23l = stp23l_drv::get_instance();
-    _ctx.data.stp23l_distance_mm = stp23l.get_distance();
+
+    _ctx.data.distance_down = stp23l_drv::down_get_instance().get_distance();
+    _ctx.data.distance_front  = stp23l_drv::front_get_instance().get_distance();
 
     // 2. Update all motor feedback before reading cached values.
     for (uint8_t leg = 0; leg < 2; ++leg)

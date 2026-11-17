@@ -6,10 +6,18 @@
 namespace pyro
 {
 
-#ifdef STP23L_UART
-stp23l_drv& stp23l_drv::get_instance()
+#ifdef STP23L_DOWN_UART
+stp23l_drv& stp23l_drv::down_get_instance()
 {
-    static stp23l_drv instance(&STP23L_UART);
+    static stp23l_drv instance(&STP23L_DOWN_UART);
+    return instance;
+}
+#endif
+
+#ifdef STP23L_FRONT_UART
+stp23l_drv& stp23l_drv::front_get_instance()
+{
+    static stp23l_drv instance(&STP23L_FRONT_UART);
     return instance;
 }
 #endif

@@ -16,8 +16,12 @@ namespace pyro
 class stp23l_drv final : public sonic_base_drv
 {
 public:
-#ifdef STP23L_UART
-    static stp23l_drv& get_instance();
+#ifdef STP23L_DOWN_UART
+    static stp23l_drv& down_get_instance();
+#endif
+#ifdef STP23L_FRONT_UART
+    // Second sensor: separate parser buffer and distance from down_get_instance().
+    static stp23l_drv& front_get_instance();
 #endif
 
     stp23l_drv(const stp23l_drv&) = delete;
