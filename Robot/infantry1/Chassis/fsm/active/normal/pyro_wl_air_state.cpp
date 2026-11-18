@@ -170,18 +170,18 @@ void wl_chassis_t::_execute_landing_recovery()
     }
 
     const float error =
-        NORMAL_LENGTH_TARGET - _ctx.data.target_aux.L;
+        NORMAL_LENGTH_TARGET - _ctx.data.target_state.L;
     const float max_step = AIR_LENGTH_RECOVERY_RATE * _ctx.data._dt;
     const float step = std::clamp(error, -max_step, max_step);
-    _ctx.data.target_aux.L += step;
-    _ctx.data.target_aux.dot_L =
+    _ctx.data.target_state.L += step;
+    _ctx.data.target_state.dot_L =
         (_ctx.data._dt > 1.0e-5f) ? step / _ctx.data._dt : 0.0f;
 
     if (std::fabs(error) <= AIR_LENGTH_RECOVERY_EPSILON &&
         _ctx.data.airborne.support_force_sum > AIR_CONTACT_FORCE_OFF)
     {
-        _ctx.data.target_aux.L = NORMAL_LENGTH_TARGET;
-        _ctx.data.target_aux.dot_L = 0.0f;
+        _ctx.data.target_state.L = NORMAL_LENGTH_TARGET;
+        _ctx.data.target_state.dot_L = 0.0f;
         _ctx.data.airborne.landing_recovery = false;
     }
 }
@@ -279,9 +279,9 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_air_t::execute(wl_chassis
         owner->_ctx.data.airborne.L_ref =
             0.5f * (owner->_ctx.data.leg[leg_def::L].current_leg_length +
                     owner->_ctx.data.leg[leg_def::R].current_leg_length);
-        owner->_ctx.data.target_aux.L =
+        owner->_ctx.data.target_state.L =
             owner->_ctx.data.airborne.L_ref;
-        owner->_ctx.data.target_aux.dot_L = 0.0f;
+        owner->_ctx.data.target_state.dot_L = 0.0f;
         owner->_ctx.data.airborne.takeoff_counter = 0;
         owner->_ctx.data.airborne.landing_counter = 0;
         request_switch(&owner->_state_active._state_normal._state_balance);

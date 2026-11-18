@@ -7,7 +7,6 @@
 #include "pyro_motor_base.h"
 #include "wl_config.h"
 #include "dsp/window_functions.h"
-#include <array>
 #include <cstdint>
 
 namespace pyro
@@ -138,6 +137,8 @@ struct state_vec_t
             float x, dot_x;
             float psi, dot_psi;
             float theta, dot_theta;
+            float phi, dot_phi;
+            float L, dot_L;
             float beta1, dot_beta1;
             float beta2, dot_beta2;
         };
@@ -152,35 +153,16 @@ struct control_vec_t
         {
             float T_w1,T_w2;
             float T_p1,T_p2;
+            float F_l1,F_l2;
         };
         float data[INPUT_DIM];
     };
 };
-static_assert(sizeof(state_vec_t) == 10 * sizeof(float), "Ground LQR requires ten states");
-static_assert(sizeof(control_vec_t) == 4 * sizeof(float), "Ground LQR requires four torques");
+static_assert(STATE_DIM == 14 && sizeof(state_vec_t) == STATE_DIM * sizeof(float),
+              "Ground LQR requires fourteen states");
+static_assert(INPUT_DIM == 6 && sizeof(control_vec_t) == INPUT_DIM * sizeof(float),
+              "Ground LQR requires six inputs");
 
-// State-machine references/feedback only; these never enter the LQR arrays.
-struct chassis_aux_state_t
-{
-    float phi, dot_phi;
-    float L, dot_L;
-};
-struct roll_pid_data_t
-{
-    float error;
-    float p_force;
-    float integral_force;
-    float d_force;
-    float force_trim; // Left adds this force; right subtracts it.
-};
-struct leg_length_pid_data_t
-{
-    float error; // This leg's target length minus measured length (m).
-    float p_force;
-    float integral_force;
-    float d_force;
-    float force_trim; // Added only to this leg's force (N).
-};
 struct odom_t
 {
     float real_x;
@@ -234,14 +216,10 @@ struct wl_chassis_data_ctx_t
     wheel_ctx_t wheel[2];
     state_vec_t target_state;
     state_vec_t measured_state;
-    chassis_aux_state_t target_aux;
-    chassis_aux_state_t measured_aux;
-    roll_pid_data_t roll_pid;
-    std::array<leg_length_pid_data_t, 2> leg_length_pid;
     control_vec_t control;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
-    float U0[FEEDFORWARD_DIM]; // Four LQR torques plus two motor-side axial forces.
+    float U0[INPUT_DIM]{};
     odom_t odom;
     ins_data_t ins;
     uint32_t distance_down = 0;// UART10 测距模块距离，单位 mm。
@@ -306,10 +284,7 @@ class wl_chassis_t final
     float _motor_torque_to_leg_force(const leg_ctx_t &leg, float signed_torque) const;
     float _calc_gas_spring_force(float leg_length) const;
     void _gain_calculate();
-    float _calc_roll_force_trim(float left_base_force, float right_base_force);
-    float _calc_leg_length_force_trim(uint8_t side, float base_force);
-    void _balance_control(bool apply_roll_control = false,
-                          bool apply_leg_length_control = false);
+    void _balance_control();
     void _vmc_trans_v2j(bool apply_leg_length_wall = true);
     void _send_joint_torque() const;
     void _send_wheel_torque() const;

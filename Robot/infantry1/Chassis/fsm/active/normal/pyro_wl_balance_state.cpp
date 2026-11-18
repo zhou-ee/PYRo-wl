@@ -114,8 +114,6 @@ bool advance_landing_angle_reference(const float goal, const float max_velocity,
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
-    owner->_ctx.data.roll_pid = {};
-    owner->_ctx.data.leg_length_pid = {};
     owner->_ctx.data.balance_stable_time = 0.0f;
     owner->_ctx.data.airborne.attitude_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.velocity_recovery = owner->_ctx.data.airborne.landing_recovery;
@@ -133,15 +131,15 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     owner->_ctx.data.target_state.psi       = owner->_ctx.data.ins.euler_rad[0];
     #endif
     owner->_ctx.data.target_state.dot_psi   = 0.0f;
-    owner->_ctx.data.target_aux.L =
+    owner->_ctx.data.target_state.L =
         owner->_ctx.data.airborne.landing_recovery
             ? owner->_ctx.data.airborne.L_ref
             : NORMAL_LENGTH_TARGET;
-    owner->_ctx.data.target_aux.dot_L     = 0.0f;
+    owner->_ctx.data.target_state.dot_L     = 0.0f;
     owner->_ctx.data.target_state.theta     = 0.0f;
     owner->_ctx.data.target_state.dot_theta = 0.0f;
-    owner->_ctx.data.target_aux.phi       = 0.0f;
-    owner->_ctx.data.target_aux.dot_phi   = 0.0f;
+    owner->_ctx.data.target_state.phi       = 0.0f;
+    owner->_ctx.data.target_state.dot_phi   = 0.0f;
     owner->_ctx.data.target_state.beta1     = 0.0f;
     owner->_ctx.data.target_state.beta2     = 0.0f;
     owner->_ctx.data.target_state.dot_beta1 = 0.0f;
@@ -238,7 +236,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     debug = owner->_ctx.data.measured_state.dot_beta1;
     debug2 = owner->_ctx.data.leg[leg_def::R].current_leg_rad;
 
-    if (owner->_ctx.data.measured_aux.L >= 0.30f &&
+    if (owner->_ctx.data.measured_state.L >= 0.30f &&
         (owner->_ctx.data.leg[leg_def::R].current_leg_rad - owner->_ctx.data.measured_state.theta)< 1.2f && 
         (owner->_ctx.data.leg[leg_def::L].current_leg_rad - owner->_ctx.data.measured_state.theta)< 1.2f &&
         press_forward_time >= 200)
@@ -273,19 +271,19 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     {
         //腿长加上遥控器的小量
         const float target_dot_L = owner->_current_cmd.dot_L;
-        owner->_ctx.data.target_aux.dot_L = target_dot_L;
-        owner->_ctx.data.target_aux.L +=
+        owner->_ctx.data.target_state.dot_L = target_dot_L;
+        owner->_ctx.data.target_state.L +=
         target_dot_L * owner->_ctx.data._dt;
         //腿长限幅
-        owner->_ctx.data.target_aux.L =
-        std::clamp(owner->_ctx.data.target_aux.L,
+        owner->_ctx.data.target_state.L =
+        std::clamp(owner->_ctx.data.target_state.L,
                        MIN_LEG_LENGTH, MAX_LEG_LENGTH);
         // Once the length reference reaches a stop, do not keep requesting
         // velocity farther into that stop. Motion back into range stays enabled.
-        if ((owner->_ctx.data.target_aux.L <= MIN_LEG_LENGTH && target_dot_L < 0.0f) ||
-            (owner->_ctx.data.target_aux.L >= MAX_LEG_LENGTH && target_dot_L > 0.0f))
+        if ((owner->_ctx.data.target_state.L <= MIN_LEG_LENGTH && target_dot_L < 0.0f) ||
+            (owner->_ctx.data.target_state.L >= MAX_LEG_LENGTH && target_dot_L > 0.0f))
         {
-            owner->_ctx.data.target_aux.dot_L = 0.0f;
+            owner->_ctx.data.target_state.dot_L = 0.0f;
         }
     }
     
@@ -364,20 +362,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
             data.target_state.dot_beta1 = data.target_state.dot_beta2 = 0.0f;
         }
     }
-    // The remote reference is shared; the two PIDs use independent feedback/state.
-    for (auto &leg : data.leg)
-    {
-        leg.target_leg_length = data.target_aux.L;
-        leg.target_leg_speed = data.target_aux.dot_L;
-    }
-    owner->_balance_control(true, true);
+    owner->_balance_control();
     // 站稳后累计确认时间，作为 Jump 触发的安全门控。
     const bool stable = !data.airborne.landing_recovery &&
         !data.airborne.attitude_recovery && !data.airborne.velocity_recovery &&
         std::fabs(data.measured_state.theta) < JUMP_READY_ANGLE &&
-        std::fabs(data.measured_aux.phi) < JUMP_READY_ANGLE &&
+        std::fabs(data.measured_state.phi) < JUMP_READY_ANGLE &&
         std::fabs(data.measured_state.dot_theta) < JUMP_READY_ANGULAR_SPEED &&
-        std::fabs(data.measured_aux.dot_phi) < JUMP_READY_ANGULAR_SPEED;
+        std::fabs(data.measured_state.dot_phi) < JUMP_READY_ANGULAR_SPEED;
     data.balance_stable_time = stable ? std::min(
         data.balance_stable_time + data._dt, JUMP_STAND_CONFIRM_TIME) : 0.0f;
     owner->_vmc_trans_v2j(false);
@@ -387,8 +379,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::exit(wl_chassis_t *owner)
 {
-    owner->_ctx.data.roll_pid = {};
-    owner->_ctx.data.leg_length_pid = {};
     owner->_ctx.data.airborne.velocity_recovery = false;
     owner->_ctx.data.airborne.pitch_reference_acceleration = 0.0f;
     owner->_ctx.data.airborne.beta_reference_acceleration[0] = 0.0f;

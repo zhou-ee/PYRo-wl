@@ -64,10 +64,6 @@ constexpr float RIGHT_WHEEL_DIRECTION = 1.0f;
 constexpr float LEG_MASS              = 1.232f;
 constexpr float WHEEL_MASS            = 0.57f;
 constexpr float GRAVITY_ACCELERATION  = 9.81f;
-// Total robot mass for fixed equal-load support; independent of the LQR model.
-constexpr float BALANCE_SUPPORT_MASS = wheel_leg_ground10::kBalanceSupportMass;
-constexpr float BALANCE_SUPPORT_FORCE_PER_LEG =
-    wheel_leg_ground10::kSupportForcePerLeg; // Exported motor-feedforward support, N per leg.
 constexpr float K_t                                  = 0.21777611f;
 constexpr float reduction_ratio                      = 13.94f;
 constexpr float rec_reduction_ratio                  = 1 / reduction_ratio;
@@ -80,36 +76,15 @@ constexpr float SPIN_YAW_DECEL                       = 10.0f; // rad/s^2 //最�
 constexpr float SPIN_EXIT_DECEL_TIME                 = 0.2f;  // s
 constexpr float SPIN_RECOVERY_YAW_KP                 = 2.0f;
 
-// Independent leg-length PIDs, indexed [left, right]. Each uses its own L/dL.
-// Corrections are added to the corresponding leg's support force.
-// Softer position response and stronger velocity damping to reduce rebound.
-constexpr float LEG_LENGTH_PID_KP[2]                 = {800.0f, 800.0f};   // N/m
-constexpr float LEG_LENGTH_PID_KI[2]                 = {80.0f, 80.0f};     // N/(m*s)
-constexpr float LEG_LENGTH_PID_KD[2]                 = {100.0f, 100.0f};   // N*s/m
-// Keep steady retraction authority while retaining the softer P and stronger D.
-constexpr float LEG_LENGTH_PID_INTEGRAL_LIMIT[2]     = {80.0f, 80.0f};     // N
-constexpr float LEG_LENGTH_PID_MAX_OUT[2]            = {80.0f, 80.0f};     // N
-static_assert(LEG_LENGTH_PID_INTEGRAL_LIMIT[0] >= 0.0f &&
-              LEG_LENGTH_PID_INTEGRAL_LIMIT[1] >= 0.0f &&
-              LEG_LENGTH_PID_MAX_OUT[0] > 0.0f && LEG_LENGTH_PID_MAX_OUT[1] > 0.0f,
-              "Leg-length PID force limits must be valid");
+// 400 N 恒轴向力按 dl5/dL 换算成等效腿力，与 Python core/config.py 一致。
+// FL_U0_POLY_COEF 已含补偿，此处的曲线用于力反馈与各模式单独补偿。
+constexpr float GAS_SPRING_LENGTH_CENTER = 0.215f;
+constexpr float GAS_SPRING_LENGTH_SCALE = 0.115f;
+constexpr uint32_t GAS_SPRING_FORCE_POLY_DEGREE = 3;
+constexpr float GAS_SPRING_FORCE_POLY_COEF[GAS_SPRING_FORCE_POLY_DEGREE + 1] = {
+    1.1133172440e+02f, 1.3207470526e+01f, -8.7296567692e+00f, -6.8886643282e-01f,
+};
 
-// Independent roll PID. Output is differential axial force per leg (N):
-// left += trim, right -= trim. Initial gains for hardware tuning.
-constexpr float NORMAL_ROLL_KP                       = 180.0f; // N/rad
-constexpr float NORMAL_ROLL_INTEGRAL_KI              = 60.0f;  // N/(rad*s)
-constexpr float NORMAL_ROLL_KD                       = 32.0f;  // N*s/rad
-constexpr float NORMAL_ROLL_INTEGRAL_LIMIT           = 10.0f;  // N per leg
-constexpr float NORMAL_ROLL_MAX_OUT                  = 40.0f;  // N per leg
-constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
-    0.2f * PI / 180.0f;
-static_assert(NORMAL_ROLL_INTEGRAL_LIMIT >= 0.0f && NORMAL_ROLL_MAX_OUT > 0.0f,
-              "Roll PID force limits must be valid");
-
-// 气弹簧曲线及轴向 U0 由 Python 同源导出到 lqr_coef.h。
-// 反馈/下力等状态调用 evaluateGasSpringForce，平衡读取已补偿的 U0。
-// Hardware tuning factor applied only to the motor-side cancellation.
-constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 //过坎
 constexpr float LEG_ACCEL_THRESHOLD = 30.0f;
 constexpr float GETOVER_BETA_THRESHOLD = 8.0f * PI / 180.0f;
@@ -145,6 +120,7 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 // detection so a commanded jump never depends on a takeoff-force threshold.
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.12f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.13f; // 收腿完成门限基准 (m)
+constexpr float JUMP_PRECOMPRESS_SUPPORT_FORCE = 0.5f * 9.0f * GRAVITY_ACCELERATION; // 单腿支撑力 (N)
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
 constexpr float JUMP_PUSH_MOTOR_TORQUE                = 15.0f; // 蹬腿伸展力矩 (N m)28
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
@@ -192,10 +168,6 @@ constexpr uint32_t L_WP_POLY_DEGREE                  = 3;
 // Coefficients are in ascending-power order: c0, c1, c2, c3.
 constexpr float L_WP_POLY_COEF[L_WP_POLY_DEGREE + 1] = {
     0.05806884f, 0.37602793f, 0.79724260f, -0.73809850f};
-
-static_assert(MIN_LEG_LENGTH == wheel_leg_ground10::kLowerLength &&
-              MAX_LEG_LENGTH == wheel_leg_ground10::kUpperLength,
-              "Regenerate ground10 coefficients after changing the leg-length domain");
 
 constexpr float WHEEL_RADIUS                         = 0.06f;
 
