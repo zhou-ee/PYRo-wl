@@ -287,9 +287,9 @@ void deps_init()
     wl_chassis_deps->motor.joint[leg_def::L][joint_def::KNEE] =
         new pyro::dm_motor_drv_t(0x04, 0x14, pyro::bsp_can::can2);
     wl_chassis_deps->motor.joint[leg_def::R][joint_def::HIP] =
-        new pyro::dm_motor_drv_t(0x01, 0x11, pyro::bsp_can::can1);
-    wl_chassis_deps->motor.joint[leg_def::R][joint_def::KNEE] =
         new pyro::dm_motor_drv_t(0x02, 0x12, pyro::bsp_can::can1);
+    wl_chassis_deps->motor.joint[leg_def::R][joint_def::KNEE] =
+        new pyro::dm_motor_drv_t(0x01, 0x11, pyro::bsp_can::can1);
     wl_chassis_deps->motor.wheel[leg_def::L] = new pyro::dji_m3508_motor_drv_t(
         pyro::dji_motor_tx_frame_t::id_3, pyro::bsp_can::can2);
     wl_chassis_deps->motor.wheel[leg_def::R] = new pyro::dji_m3508_motor_drv_t(

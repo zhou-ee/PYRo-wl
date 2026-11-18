@@ -27,13 +27,13 @@ constexpr float HIP_CALIBRATION_OFFSET  = 0.50981f;
 constexpr float KNEE_CALIBRATION_OFFSET = -1.208815f  ;
 
 constexpr float LEFT_HIP_OFFSET =
-    -loop_fp32_PI(2.83009f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.27099f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(0.00312f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(2.31639f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(-2.96806f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.33916f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(1.89857f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.73752f + KNEE_CALIBRATION_OFFSET);
 
 
 // constexpr float LEFT_HIP_OFFSET   =0;
@@ -146,7 +146,7 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.12f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.13f; // 收腿完成门限基准 (m)
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 28.0f; // 蹬腿伸展力矩 (N m)
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 15.0f; // 蹬腿伸展力矩 (N m)28
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 预压缩最长时间 (s)
 constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;
