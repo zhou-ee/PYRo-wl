@@ -116,7 +116,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
 {
     owner->_ctx.data.roll_pid = {};
     owner->_ctx.data.leg_length_pid = {};
-    owner->_ctx.data.balance_stable_time = 0.0f;
     owner->_ctx.data.airborne.attitude_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.velocity_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.pitch_reference_acceleration = 0.0f;
@@ -371,15 +370,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         leg.target_leg_speed = data.target_aux.dot_L;
     }
     owner->_balance_control(true, true);
-    // 站稳后累计确认时间，作为 Jump 触发的安全门控。
-    const bool stable = !data.airborne.landing_recovery &&
-        !data.airborne.attitude_recovery && !data.airborne.velocity_recovery &&
-        std::fabs(data.measured_state.theta) < JUMP_READY_ANGLE &&
-        std::fabs(data.measured_aux.phi) < JUMP_READY_ANGLE &&
-        std::fabs(data.measured_state.dot_theta) < JUMP_READY_ANGULAR_SPEED &&
-        std::fabs(data.measured_aux.dot_phi) < JUMP_READY_ANGULAR_SPEED;
-    data.balance_stable_time = stable ? std::min(
-        data.balance_stable_time + data._dt, JUMP_STAND_CONFIRM_TIME) : 0.0f;
     owner->_vmc_trans_v2j(false);
     owner->_send_joint_torque();
     owner->_send_wheel_torque();

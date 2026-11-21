@@ -127,7 +127,7 @@ constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 0.0f;//空中伸腿力矩
 constexpr float AIR_TAKEOFF_FORCE_ON                 = 10.0f;//单腿支持力阈值，越小越易离地
 //测距模块
 constexpr uint32_t AIR_TAKEOFF_DISTANCE_ON_MM        = 265U;
-constexpr uint32_t AIR_TAKEOFF_DISTANCE_DOWN_MM        = 240U;
+constexpr uint32_t AIR_TAKEOFF_DISTANCE_DOWN_MM        = 310U;
 
 constexpr float AIR_CONTACT_FORCE_OFF                = 35.0f;//落地支持力判据
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
@@ -145,7 +145,7 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.12f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.13f; // 收腿完成门限基准 (m)
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 15.0f; // 蹬腿伸展力矩 (N m)28
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 5.0f; // 蹬腿伸展力矩 (N m)28
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 预压缩最长时间 (s)
 constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;
@@ -161,11 +161,6 @@ constexpr float JUMP_LANDING_EXTENSION_SPEED_MIN      = 0.10f; // 启用减速�
 constexpr float JUMP_LANDING_EXTENSION_SPEED_DROP     = 0.15f; // 伸展速度相对峰值的最小下降量 (m/s)
 constexpr float JUMP_LANDING_CONFIRM_TIME             = 0.020f; // A 或 B 连续成立的触地确认时间 (s)
 constexpr float JUMP_T_P_LIMIT = 8.0f;
-constexpr bool JUMP_ENABLED                          = true;
-constexpr float JUMP_STAND_CONFIRM_TIME              = 0.3f;
-constexpr float JUMP_READY_ANGLE                     = 5.0f * PI / 180.0f;
-constexpr float JUMP_READY_ANGULAR_SPEED             = 0.5f;
-constexpr float JUMP_COOLDOWN_TIME                   = 1.0f;
 constexpr float JUMP_POSITION_ERROR_LIMIT            = 0.8f;
 // 当前落地速度恢复流程保留此参考缩放。
 constexpr float JUMP_LANDING_VELOCITY_SCALE          = 0.8f; // 退出预压缩时实测速度到落地参考的比例

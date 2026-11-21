@@ -158,8 +158,8 @@ bool wl_chassis_t::_detect_landing()
         air.contact_confirm_time[leg_def::L], air.contact_confirm_time[leg_def::R]);
     const bool distance_down =
        _ctx.data.distance_down <= AIR_TAKEOFF_DISTANCE_DOWN_MM;
-    // return distance_down;
-    return air.contact[leg_def::L] && air.contact[leg_def::R];
+    return distance_down;
+    // return air.contact[leg_def::L] && air.contact[leg_def::R];
 }
 
 void wl_chassis_t::_execute_landing_recovery()

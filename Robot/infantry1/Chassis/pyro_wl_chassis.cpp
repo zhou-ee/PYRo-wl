@@ -47,10 +47,6 @@ void wl_chassis_t::_update_feedback()
     _ctx.data._dt =
         (measured_dt > 1.0e-5f && measured_dt < 0.1f) ? measured_dt : 0.001f;
 
-    // 跳跃冷却在反馈周期内递减，避免重复触发。
-    _ctx.data.jump_cooldown_remaining = std::max(
-        0.0f, _ctx.data.jump_cooldown_remaining - _ctx.data._dt);
-
     // Snapshot the latest STP-23L distance into the chassis state so the FSM
     // and application code can use one consistent feedback value.
 

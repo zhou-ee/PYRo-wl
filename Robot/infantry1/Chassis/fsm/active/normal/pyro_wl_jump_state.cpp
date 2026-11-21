@@ -309,9 +309,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
     }
 }
 
-void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::exit(wl_chassis_t *owner)
+void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::exit(wl_chassis_t *)
 {
-    owner->_ctx.data.jump_cooldown_remaining = JUMP_COOLDOWN_TIME;
 }
 
 } // namespace pyro
