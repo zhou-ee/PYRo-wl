@@ -305,6 +305,7 @@ class wl_chassis_t final
     float _calc_leg_length_wall_force(const leg_ctx_t &leg) const;
     float _motor_torque_to_leg_force(const leg_ctx_t &leg, float signed_torque) const;
     float _calc_gas_spring_force(float leg_length) const;
+    static float _motor_leg_force_from_total(const leg_ctx_t &leg, float total_force);
     void _gain_calculate();
     float _calc_roll_force_trim(float left_base_force, float right_base_force);
     float _calc_leg_length_force_trim(uint8_t side, float base_force);

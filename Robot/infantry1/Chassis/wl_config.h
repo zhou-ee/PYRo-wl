@@ -106,9 +106,8 @@ constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
 static_assert(NORMAL_ROLL_INTEGRAL_LIMIT >= 0.0f && NORMAL_ROLL_MAX_OUT > 0.0f,
               "Roll PID force limits must be valid");
 
-// 气弹簧曲线及轴向 U0 由 Python 同源导出到 lqr_coef.h。
-// 反馈/下力等状态调用 evaluateGasSpringForce，平衡读取已补偿的 U0。
-// Hardware tuning factor applied only to the motor-side cancellation.
+// 反馈使用 Python 导出的完整气弹簧力。此倍率用于电机侧轴向力补偿。
+// 平衡通过 evaluateFeedforward 应用。直接下力通过 _motor_leg_force_from_total 应用。
 constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 //过坎
 constexpr float LEG_ACCEL_THRESHOLD = 30.0f;

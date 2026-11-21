@@ -264,19 +264,13 @@ void wl_chassis_t::_vmc_trans_j2v()
 
 void wl_chassis_t::_manual_control()
 {
-    _ctx.data.leg[leg_def::L].out_F_L =
-        _ctx.pid.leg_length[leg_def::L]->calculate(
-            _ctx.data.leg[leg_def::L].target_leg_length,
-            _ctx.data.leg[leg_def::L].current_leg_length,
-            _ctx.data.leg[leg_def::L].current_leg_speed)
-    -_ctx.data.leg[leg_def::L].gas_spring_force;
-
-    _ctx.data.leg[leg_def::R].out_F_L =
-        _ctx.pid.leg_length[leg_def::R]->calculate(
-            _ctx.data.leg[leg_def::R].target_leg_length,
-            _ctx.data.leg[leg_def::R].current_leg_length,
-            _ctx.data.leg[leg_def::R].current_leg_speed)
-    -_ctx.data.leg[leg_def::R].gas_spring_force;
+    for (uint8_t i = 0; i < 2; ++i)
+    {
+        auto &leg = _ctx.data.leg[i];
+        const float total_force = _ctx.pid.leg_length[i]->calculate(
+            leg.target_leg_length, leg.current_leg_length, leg.current_leg_speed);
+        leg.out_F_L = _motor_leg_force_from_total(leg, total_force);
+    }
 
 
     float ll_target_radps;
@@ -341,6 +335,12 @@ float wl_chassis_t::_calc_gas_spring_force(const float leg_length) const
 {
     return wheel_leg_ground10::evaluateGasSpringForce(leg_length);
 }
+
+float wl_chassis_t::_motor_leg_force_from_total(const leg_ctx_t &leg, const float total_force)
+{
+    return total_force - GAS_SPRING_COMPENSATION_SCALE * leg.gas_spring_force;
+}
+
 void wl_chassis_t::_reset_air_contacts()
 {
     auto &air = _ctx.data.airborne;

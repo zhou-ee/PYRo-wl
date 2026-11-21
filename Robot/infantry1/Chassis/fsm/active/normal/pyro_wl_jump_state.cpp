@@ -226,10 +226,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
             leg.target_leg_length = JUMP_AIR_LENGTH;
             // 收腿力矩之外，补偿腿与轮的重力以及气弹簧支撑力，
             // 避免这些被动项改变期望的净收腿力。
-            leg.out_F_L = owner->_motor_torque_to_leg_force(
-                              leg, -JUMP_RECOVERY_MOTOR_TORQUE) -
-                          (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION -
-                          leg.gas_spring_force;
+            const float total_force = owner->_motor_torque_to_leg_force(
+                leg, -JUMP_RECOVERY_MOTOR_TORQUE) -
+                (LEG_MASS + WHEEL_MASS) * GRAVITY_ACCELERATION;
+            leg.out_F_L = owner->_motor_leg_force_from_total(leg, total_force);
             leg.out_T_p = leg_swing_lqr_output(i);
             data.wheel[i].out_T_w = 0.0f;
             data.wheel[i].out_current = 0.0f;

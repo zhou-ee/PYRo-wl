@@ -61,12 +61,10 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_getover_t::execute(owner 
     {
         auto &leg = owner->_ctx.data.leg[i];
         leg.target_leg_length = owner->_getover_target_length[i];
+        const float total_force = GETOVER_FORCE_SCALE * owner->_ctx.pid.leg_length[i]->calculate(
+            leg.target_leg_length, leg.current_leg_length, leg.current_leg_speed);
         leg.out_F_L = std::clamp(
-            GETOVER_FORCE_SCALE * owner->_ctx.pid.leg_length[i]->calculate(
-                leg.target_leg_length, leg.current_leg_length,
-                leg.current_leg_speed) -
-                leg.gas_spring_force,
-            -MAX_F_L, MAX_F_L);
+            owner->_motor_leg_force_from_total(leg, total_force), -MAX_F_L, MAX_F_L);
 
         auto &wheel = owner->_ctx.data.wheel[i];
         wheel.out_T_w = std::clamp(
