@@ -362,16 +362,13 @@ void wl_chassis_t::_reset_air_contacts()
 
 void wl_chassis_t::_gain_calculate()
 {
-    const float norm_L1 =
-        std::clamp((_ctx.data.leg[leg_def::L].current_leg_length -
-                    0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH)) *
-                       (1.0f / (0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH))),
-                   -1.0f, 1.0f);
-    const float norm_L2 =
-        std::clamp((_ctx.data.leg[leg_def::R].current_leg_length -
-                    0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH)) *
-                       (1.0f / (0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH))),
-                   -1.0f, 1.0f);
+    const auto normalize_length = [](const float length) {
+        constexpr float center = 0.5f * (MAX_LEG_LENGTH + MIN_LEG_LENGTH);
+        constexpr float half_range = 0.5f * (MAX_LEG_LENGTH - MIN_LEG_LENGTH);
+        return std::clamp((length - center) / half_range, -1.0f, 1.0f);
+    };
+    const float norm_L1 = normalize_length(_ctx.data.leg[leg_def::L].current_leg_length);
+    const float norm_L2 = normalize_length(_ctx.data.leg[leg_def::R].current_leg_length);
 
     for (uint32_t input = 0; input < INPUT_DIM; ++input)
     {
@@ -388,11 +385,13 @@ void wl_chassis_t::_gain_calculate()
         }
     }
 
-    // FL_U0 is motor-side and already includes gas-spring cancellation.
-    _ctx.data.U0[lqr_input_def::F_L1] =
-        evaluate_polynomial_ascending(norm_L1, FL_U0_POLY_COEF, U0_POLY_DEGREE);
-    _ctx.data.U0[lqr_input_def::F_L2] =
-        evaluate_polynomial_ascending(norm_L2, FL_U0_POLY_COEF, U0_POLY_DEGREE);
+    // Balance commands a common nominal leg length. Hold motor feedforward at
+    // that reference so measured length perturbations retain the spring stiffness.
+    const float norm_reference = normalize_length(_ctx.data.target_state.L);
+    const float motor_leg_feedforward =
+        evaluate_polynomial_ascending(norm_reference, FL_U0_POLY_COEF, U0_POLY_DEGREE);
+    _ctx.data.U0[lqr_input_def::F_L1] = motor_leg_feedforward;
+    _ctx.data.U0[lqr_input_def::F_L2] = motor_leg_feedforward;
     _ctx.data.target_state.beta1 = evaluate_polynomial_ascending(
         _ctx.data.leg[leg_def::L].current_leg_length, BETA_TRIM_POLY_COEF,
         BETA_TRIM_POLY_DEGREE);

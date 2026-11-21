@@ -58,8 +58,8 @@ class dm_motor_drv_t : public motor_base_t // MIT only
     float _min_torque;
     float _max_torque;
 
-    float _runtime_kp;
-    float _runtime_kd;
+    float _runtime_kp = 0.0f;
+    float _runtime_kd = 0.0f;
 };
 }; // namespace pyro
 

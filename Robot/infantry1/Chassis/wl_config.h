@@ -76,15 +76,6 @@ constexpr float SPIN_YAW_DECEL                       = 10.0f; // rad/s^2 //最�
 constexpr float SPIN_EXIT_DECEL_TIME                 = 0.2f;  // s
 constexpr float SPIN_RECOVERY_YAW_KP                 = 2.0f;
 
-// 400 N 恒轴向力按 dl5/dL 换算成等效腿力，与 Python core/config.py 一致。
-// FL_U0_POLY_COEF 已含补偿，此处的曲线用于力反馈与各模式单独补偿。
-constexpr float GAS_SPRING_LENGTH_CENTER = 0.215f;
-constexpr float GAS_SPRING_LENGTH_SCALE = 0.115f;
-constexpr uint32_t GAS_SPRING_FORCE_POLY_DEGREE = 3;
-constexpr float GAS_SPRING_FORCE_POLY_COEF[GAS_SPRING_FORCE_POLY_DEGREE + 1] = {
-    1.1133172440e+02f, 1.3207470526e+01f, -8.7296567692e+00f, -6.8886643282e-01f,
-};
-
 //过坎
 constexpr float LEG_ACCEL_THRESHOLD = 30.0f;
 constexpr float GETOVER_BETA_THRESHOLD = 8.0f * PI / 180.0f;
