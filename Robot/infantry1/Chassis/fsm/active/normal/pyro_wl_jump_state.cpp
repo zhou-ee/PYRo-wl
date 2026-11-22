@@ -279,12 +279,11 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         owner->_send_joint_torque();
         owner->_send_wheel_torque();
 
-        if (landed)
+        if (landed && handle_landing(owner))
         {
-            data.jump_phase = jump_phase_t::RETURN;
-            data.jump_phase_time = 0.0f;
+            break;
         }
-        else if (data.jump_phase_time >= JUMP_TOTAL_TIMEOUT)
+        if (data.jump_phase_time >= JUMP_TOTAL_TIMEOUT)
         {
             abort_jump();
         }
@@ -307,6 +306,14 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassi
         request_switch(&owner->_state_active._state_normal._state_balance);
         break;
     }
+}
+
+bool wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::handle_landing(wl_chassis_t *owner)
+{
+    auto &data = owner->_ctx.data;
+    data.jump_phase = jump_phase_t::RETURN;
+    data.jump_phase_time = 0.0f;
+    return true;
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::exit(wl_chassis_t *)

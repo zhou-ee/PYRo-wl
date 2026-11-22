@@ -74,6 +74,7 @@ struct wl_chassis_cmd_t final : public cmd_base_t
     chassis_active_state_t cmd_continus_state;
     chassis_function_state_t cmd_function_state;
     bool getover_detection_enabled{false};
+    bool jump_duo_enabled{false};
 
 };
 
@@ -366,11 +367,22 @@ class wl_chassis_t final
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
             };
-            struct state_jump_t final : public state_t<owner>
+            struct state_jump_t : public state_t<owner>
             {
                 void enter(owner *owner) override;
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
+
+              protected:
+                virtual bool handle_landing(owner *owner);
+            };
+            struct state_jump_duo_t final : public state_jump_t
+            {
+                void enter(owner *owner) override;
+
+              private:
+                bool handle_landing(owner *owner) override;
+                bool _second_jump{false};
             };
             struct state_spin_t final : public state_t<owner>
             {
@@ -401,9 +413,11 @@ class wl_chassis_t final
                 state_align_t   _state_align;
                 state_step_t    _state_step;
                 state_jump_t    _state_jump;
+                state_jump_duo_t _state_jump_duo;
                 state_spin_t    _state_spin;
                 state_getover_t _state_getover;
                 state_rescue_t  _state_rescue;
+                bool _jump_duo_triggered{false};
         };
         
         void on_enter(wl_chassis_t *ctx) override;

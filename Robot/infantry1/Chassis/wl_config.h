@@ -75,6 +75,7 @@ constexpr float MAX_F_L                              = 300.0f;
 constexpr float MAX_T_P                              = 60.0f;
 constexpr float MAX_CURRENT                          = 15.0f;
 constexpr float MAX_T_W                              = K_t * MAX_CURRENT;
+constexpr float BALANCE_FORWARD_ACCEL_LIMIT          = 3.0f;  // m/s^2，平衡态前进速度参考的上升速率
 constexpr float SPIN_YAW_ACCEL                       = 10.0f; // rad/s^2 //最大的小陀螺加速时的加速度
 constexpr float SPIN_YAW_DECEL                       = 10.0f; // rad/s^2 //最大的小陀螺减速是的加速度
 constexpr float SPIN_EXIT_DECEL_TIME                 = 0.2f;  // s
@@ -146,10 +147,11 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 
 // Active jump state machine. These values are separate from passive airborne
 // detection so a commanded jump never depends on a takeoff-force threshold.
+constexpr uint32_t JUMP_DUO_TRIGGER_DISTANCE_MM       = 500U;
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.12f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.13f; // 收腿完成门限基准 (m)
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 20.0f; // 蹬腿伸展力矩 (N m)28
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 15.0f; // 蹬腿伸展力矩 (N m)28
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 预压缩最长时间 (s)
 constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;

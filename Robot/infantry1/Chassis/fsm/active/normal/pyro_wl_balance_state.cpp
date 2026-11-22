@@ -289,10 +289,16 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     }
     
     
-    // One continuous reference drives both DOT_X and the X reference integral.
-    const float target_vx = owner->_landing_velocity_reference(owner->_current_cmd.v);
-    owner->_ctx.data.target_state.x += target_vx * owner->_ctx.data._dt;
-    owner->_ctx.data.target_state.dot_x = target_vx;
+    auto &data = owner->_ctx.data;
+    // 限制前进速度参考的上升速率，松杆减速和倒车直接跟随遥控指令。
+    const float max_forward_vx = std::max(0.0f, data.target_state.dot_x) +
+                                 BALANCE_FORWARD_ACCEL_LIMIT * data._dt;
+    const float commanded_vx = owner->_current_cmd.v;
+    const float target_vx = data.airborne.velocity_recovery
+        ? owner->_landing_velocity_reference(commanded_vx)
+        : std::min(commanded_vx, max_forward_vx);
+    data.target_state.x += target_vx * data._dt;
+    data.target_state.dot_x = target_vx;
 
     #if Using_Gimbal_Cmd
     //使用云台VT03
@@ -330,7 +336,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
     #endif
     
 
-    auto &data = owner->_ctx.data;
     const float previous_beta[2] = {data.target_state.beta1, data.target_state.beta2};
     const float previous_beta_speed[2] = {data.target_state.dot_beta1, data.target_state.dot_beta2};
     data.airborne.pitch_reference_acceleration = 0.0f;

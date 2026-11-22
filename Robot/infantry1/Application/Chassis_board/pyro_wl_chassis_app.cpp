@@ -48,6 +48,7 @@ extern "C"
             uint32_t notify_val = 0;
             // 接收任务通知事件（不阻塞等待，0 tick延时）
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
+            wl_chassis_cmd_ptr->jump_duo_enabled = false;
             
             if (board_ptr->check_online())
             {
@@ -203,6 +204,9 @@ void chassis_dr162cmd(uint32_t notify)
 
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
     auto &vrc = pyro::rc_drv_t::read();
+
+    wl_chassis_cmd_ptr->jump_duo_enabled =
+        vrc.switches.left.current_pos == pyro::sw_pos_t::UP;
 
     if (vrc.switches.left.current_pos != pyro::sw_pos_t::UP)
     {

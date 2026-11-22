@@ -42,6 +42,19 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
         owner->_ctx.data.current_function = chassis_function_state_t::NONE;
     }
     last_function = owner->_current_cmd.cmd_function_state;
+    // 连跳期间屏蔽其他功能切换，距离变化也不重新使能触发。
+    if (_active_state == &_state_jump_duo)
+    {
+        return;
+    }
+
+    const auto distance_front = owner->_ctx.data.distance_front;
+    const bool jump_duo_enabled = owner->_current_cmd.jump_duo_enabled;
+    if (!jump_duo_enabled || distance_front >= JUMP_DUO_TRIGGER_DISTANCE_MM)
+    {
+        _jump_duo_triggered = false;
+    }
+
     // Jump is atomic; do not let STEP/SPIN replace a jump phase.
     if (_active_state == &_state_jump)
     {
@@ -60,8 +73,13 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
     {
         change_state(&_state_spin);
     }
-
-    
+    else if (_active_state == &_state_balance && jump_duo_enabled &&
+             !_jump_duo_triggered && distance_front > 0U &&
+             distance_front < JUMP_DUO_TRIGGER_DISTANCE_MM)
+    {
+        _jump_duo_triggered = true;
+        change_state(&_state_jump_duo);
+    }
 }
 
 void wl_chassis_t::fsm_active_t::state_normal_t::on_exit(wl_chassis_t *owner)
