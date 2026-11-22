@@ -115,7 +115,7 @@ bool advance_landing_angle_reference(const float goal, const float max_velocity,
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chassis_t *owner)
 {
     owner->_ctx.data.roll_pid = {};
-    owner->_ctx.data.leg_length_pid = {};
+    owner->_ctx.data.mean_leg_length_pid = {};
     owner->_ctx.data.airborne.attitude_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.velocity_recovery = owner->_ctx.data.airborne.landing_recovery;
     owner->_ctx.data.airborne.pitch_reference_acceleration = 0.0f;
@@ -185,21 +185,21 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_chassis_t *owner)
 {
-    // //紧急下力判断
-    // if(abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
-    //    abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
-    // {
-    //     if(reset_count >= 50)
-    //     {
-    //         owner->_ctx.data.flag.leg_is_should_restart = true;
-    //         owner->_ctx.data.flag.chassis_is_align_ready =false;
-    //     }
-    //     reset_count++;
-    // }
-    // else
-    // {
-    //     reset_count = 0;
-    // }
+    //紧急下力判断
+    if(abs(owner->_ctx.data.ins.euler_rad[1]) >= PI / 4.0f ||
+       abs(owner->_ctx.data.ins.euler_rad[2]) >= PI / 9.0f)
+    {
+        if(reset_count >= 50)
+        {
+            owner->_ctx.data.flag.leg_is_should_restart = true;
+            owner->_ctx.data.flag.chassis_is_align_ready =false;
+        }
+        reset_count++;
+    }
+    else
+    {
+        reset_count = 0;
+    }
     // 过坎
     owner->_getover_rearm_elapsed = std::min(
         owner->_getover_rearm_elapsed + owner->_ctx.data._dt,
@@ -363,12 +363,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
             data.target_state.dot_beta1 = data.target_state.dot_beta2 = 0.0f;
         }
     }
-    // The remote reference is shared; the two PIDs use independent feedback/state.
-    for (auto &leg : data.leg)
-    {
-        leg.target_leg_length = data.target_aux.L;
-        leg.target_leg_speed = data.target_aux.dot_L;
-    }
     owner->_balance_control(true, true);
     owner->_vmc_trans_v2j(false);
     owner->_send_joint_torque();
@@ -378,7 +372,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
 void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::exit(wl_chassis_t *owner)
 {
     owner->_ctx.data.roll_pid = {};
-    owner->_ctx.data.leg_length_pid = {};
+    owner->_ctx.data.mean_leg_length_pid = {};
     owner->_ctx.data.airborne.velocity_recovery = false;
     owner->_ctx.data.airborne.pitch_reference_acceleration = 0.0f;
     owner->_ctx.data.airborne.beta_reference_acceleration[0] = 0.0f;

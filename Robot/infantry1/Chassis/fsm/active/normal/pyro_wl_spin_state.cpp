@@ -18,7 +18,7 @@ static bool is_add_speed = 0; // 是否是加速阶段
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_t *owner)
 {
     owner->_ctx.data.roll_pid = {};
-    owner->_ctx.data.leg_length_pid = {};
+    owner->_ctx.data.mean_leg_length_pid = {};
     owner->_ctx.data.odom.real_x = 0.0f;
     auto &target = owner->_ctx.data.target_state;
     target.x = owner->_ctx.data.measured_state.x;
@@ -186,11 +186,6 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
     owner->_ctx.data.target_state.dot_psi = spin_speed_ref;
 
     owner->_gain_calculate();
-    for (auto &leg : owner->_ctx.data.leg)
-    {
-        leg.target_leg_length = owner->_ctx.data.target_aux.L;
-        leg.target_leg_speed = owner->_ctx.data.target_aux.dot_L;
-    }
     owner->_balance_control(true, true);
 
     owner->_vmc_trans_v2j();
@@ -201,7 +196,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
 void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::exit(wl_chassis_t *owner)
 {
     owner->_ctx.data.roll_pid = {};
-    owner->_ctx.data.leg_length_pid = {};
+    owner->_ctx.data.mean_leg_length_pid = {};
 }
 
 } // namespace pyro

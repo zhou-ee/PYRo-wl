@@ -27,13 +27,13 @@ constexpr float HIP_CALIBRATION_OFFSET  = 0.50981f;
 constexpr float KNEE_CALIBRATION_OFFSET = -1.208815f  ;
 
 constexpr float LEFT_HIP_OFFSET =
-    -loop_fp32_PI(0.27099f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.89581f + HIP_CALIBRATION_OFFSET);
 constexpr float LEFT_KNEE_OFFSET =
-    -loop_fp32_PI(2.31639f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(2.81456f + KNEE_CALIBRATION_OFFSET);
 constexpr float RIGHT_HIP_OFFSET =
-    -loop_fp32_PI(0.33916f + HIP_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.31509f + HIP_CALIBRATION_OFFSET);
 constexpr float RIGHT_KNEE_OFFSET =
-    -loop_fp32_PI(0.73752f + KNEE_CALIBRATION_OFFSET);
+    -loop_fp32_PI(0.77319f + KNEE_CALIBRATION_OFFSET);
 
 
 // constexpr float LEFT_HIP_OFFSET   =0;
@@ -80,22 +80,17 @@ constexpr float SPIN_YAW_DECEL                       = 10.0f; // rad/s^2 //最�
 constexpr float SPIN_EXIT_DECEL_TIME                 = 0.2f;  // s
 constexpr float SPIN_RECOVERY_YAW_KP                 = 2.0f;
 
-// Independent leg-length PIDs, indexed [left, right]. Each uses its own L/dL.
-// Corrections are added to the corresponding leg's support force.
-// Softer position response and stronger velocity damping to reduce rebound.
-constexpr float LEG_LENGTH_PID_KP[2]                 = {800.0f, 800.0f};   // N/m
-constexpr float LEG_LENGTH_PID_KI[2]                 = {80.0f, 80.0f};     // N/(m*s)
-constexpr float LEG_LENGTH_PID_KD[2]                 = {100.0f, 100.0f};   // N*s/m
-// Keep steady retraction authority while retaining the softer P and stronger D.
-constexpr float LEG_LENGTH_PID_INTEGRAL_LIMIT[2]     = {80.0f, 80.0f};     // N
-constexpr float LEG_LENGTH_PID_MAX_OUT[2]            = {80.0f, 80.0f};     // N
-static_assert(LEG_LENGTH_PID_INTEGRAL_LIMIT[0] >= 0.0f &&
-              LEG_LENGTH_PID_INTEGRAL_LIMIT[1] >= 0.0f &&
-              LEG_LENGTH_PID_MAX_OUT[0] > 0.0f && LEG_LENGTH_PID_MAX_OUT[1] > 0.0f,
-              "Leg-length PID force limits must be valid");
+// 平均腿长 PID。左右腿施加相同的轴向修正力。
+constexpr float MEAN_LEG_LENGTH_PID_KP               = 800.0f; // N/m
+constexpr float MEAN_LEG_LENGTH_PID_KI               = 80.0f;  // N/(m*s)
+constexpr float MEAN_LEG_LENGTH_PID_KD               = 100.0f; // N*s/m
+constexpr float MEAN_LEG_LENGTH_PID_INTEGRAL_LIMIT   = 80.0f;  // N/per leg
+constexpr float MEAN_LEG_LENGTH_PID_MAX_OUT          = 80.0f;  // N/per leg
+static_assert(MEAN_LEG_LENGTH_PID_INTEGRAL_LIMIT >= 0.0f && MEAN_LEG_LENGTH_PID_MAX_OUT > 0.0f,
+              "Mean leg-length PID force limits must be valid");
 
-// Independent roll PID. Output is differential axial force per leg (N):
-// left += trim, right -= trim. Initial gains for hardware tuning.
+// 横滚 PID 输出每条腿的轴向差动力，单位 N。
+// 左腿加修正力，右腿减修正力。参数供实车调试。
 constexpr float NORMAL_ROLL_KP                       = 180.0f; // N/rad
 constexpr float NORMAL_ROLL_INTEGRAL_KI              = 60.0f;  // N/(rad*s)
 constexpr float NORMAL_ROLL_KD                       = 32.0f;  // N*s/rad
@@ -105,6 +100,15 @@ constexpr float NORMAL_ROLL_INTEGRAL_DEADBAND        =
     0.2f * PI / 180.0f;
 static_assert(NORMAL_ROLL_INTEGRAL_LIMIT >= 0.0f && NORMAL_ROLL_MAX_OUT > 0.0f,
               "Roll PID force limits must be valid");
+// 左右腿长差的补偿，削弱右腿
+constexpr float NORMAL_ROLL_HEIGHT_RATE_FF_GAIN     = 25.0f; // N/(m/s)
+constexpr float NORMAL_ROLL_HEIGHT_RATE_FF_LIMIT    = 7.0f;  // N/腿
+constexpr float NORMAL_ROLL_HEIGHT_RATE_FF_TAU      = 0.08f; // s
+static_assert(NORMAL_ROLL_HEIGHT_RATE_FF_GAIN >= 0.0f &&
+              NORMAL_ROLL_HEIGHT_RATE_FF_LIMIT >= 0.0f &&
+              NORMAL_ROLL_HEIGHT_RATE_FF_LIMIT <= NORMAL_ROLL_MAX_OUT &&
+              NORMAL_ROLL_HEIGHT_RATE_FF_TAU > 0.0f,
+              "Roll height-rate feedforward settings must be valid");
 
 // 反馈使用 Python 导出的完整气弹簧力。此倍率用于电机侧轴向力补偿。
 // 平衡通过 evaluateFeedforward 应用。直接下力通过 _motor_leg_force_from_total 应用。
@@ -126,8 +130,8 @@ constexpr float AIR_WHEEL_LOCK_K                     = 0.08f;
 constexpr float AIR_EXTENSION_MOTOR_TORQUE           = 0.0f;//空中伸腿力矩
 constexpr float AIR_TAKEOFF_FORCE_ON                 = 10.0f;//单腿支持力阈值，越小越易离地
 //测距模块
-constexpr uint32_t AIR_TAKEOFF_DISTANCE_ON_MM        = 265U;
-constexpr uint32_t AIR_TAKEOFF_DISTANCE_DOWN_MM        = 310U;
+constexpr uint32_t AIR_TAKEOFF_DISTANCE_ON_MM          = 305U;
+constexpr uint32_t AIR_TAKEOFF_DISTANCE_DOWN_MM        = 270U;
 
 constexpr float AIR_CONTACT_FORCE_OFF                = 35.0f;//落地支持力判据
 constexpr float AIR_LANDING_ACC_ON                   = 3.0f;
@@ -145,7 +149,7 @@ constexpr uint16_t AIR_LANDING_DEBOUNCE_TICKS        = 8;
 constexpr float JUMP_PRECOMPRESS_LENGTH               = 0.12f; // 预压缩目标腿长 (m)
 constexpr float JUMP_AIR_LENGTH                       = 0.13f; // 收腿完成门限基准 (m)
 constexpr float JUMP_PRECOMPRESS_MOTOR_TORQUE         = 5.0f; // 预压缩附加收腿力矩 (N m)
-constexpr float JUMP_PUSH_MOTOR_TORQUE                = 5.0f; // 蹬腿伸展力矩 (N m)28
+constexpr float JUMP_PUSH_MOTOR_TORQUE                = 20.0f; // 蹬腿伸展力矩 (N m)28
 constexpr float JUMP_RECOVERY_MOTOR_TORQUE            = 4.0f; // 空中收腿力矩 (N m)
 constexpr float JUMP_PRECOMPRESS_TIME                 = 0.2f; // 预压缩最长时间 (s)
 constexpr float JUMP_LENGTH_TOLERANCE                 = 0.003f;

@@ -358,13 +358,14 @@ void wl_chassis_t::_gain_calculate()
     float trim_state[STATE_DIM];
     wheel_leg_ground10::evaluateFeedforward(
         l1, l2, trim_state, _ctx.data.U0, GAS_SPRING_COMPENSATION_SCALE);
-    // Keep commanded x/yaw/pitch references; schedule only the equilibrium leg angles.
+    // 保留前向位置、偏航和俯仰参考值，按腿长调度平衡摆角。
     _ctx.data.target_state.beta1 = trim_state[lqr_state_def::BETA_1];
     _ctx.data.target_state.beta2 = trim_state[lqr_state_def::BETA_2];
 }
 
 float wl_chassis_t::_calc_roll_force_trim(const float left_base_force,
-                                         const float right_base_force)
+                                         const float right_base_force,
+                                         const float mean_leg_speed_ref)
 {
     auto &pid = _ctx.data.roll_pid;
     const auto &target = _ctx.data.target_aux;
@@ -380,10 +381,17 @@ float wl_chassis_t::_calc_roll_force_trim(const float left_base_force,
 
     pid.error = loop_fp32_constrain(target.phi - measured.phi, -PI, PI);
     pid.p_force = NORMAL_ROLL_KP * pid.error;
-    // Use gyro roll rate directly; no numerical differentiation of Euler angles.
+    // 微分项直接使用陀螺仪测得的横滚角速度。
     pid.d_force = NORMAL_ROLL_KD * (target.dot_phi - measured.dot_phi);
+    // 前馈为负时帮助右腿伸长，为正时帮助右腿缩短。
+    const float feedforward_target = std::clamp(
+        -NORMAL_ROLL_HEIGHT_RATE_FF_GAIN * mean_leg_speed_ref,
+        -NORMAL_ROLL_HEIGHT_RATE_FF_LIMIT, NORMAL_ROLL_HEIGHT_RATE_FF_LIMIT);
+    const float ff_alpha = dt / (NORMAL_ROLL_HEIGHT_RATE_FF_TAU + dt);
+    pid.height_rate_feedforward += ff_alpha * (feedforward_target - pid.height_rate_feedforward);
+    const float nonintegral_force = pid.p_force + pid.d_force + pid.height_rate_feedforward;
 
-    // Preserve equal-and-opposite correction within both legs' virtual-force limits.
+    // 根据两腿的虚拟力余量限幅，保持修正力等大反向。
     const float lower = std::max(-NORMAL_ROLL_MAX_OUT,
         std::max(-MAX_F_L - left_base_force, right_base_force - MAX_F_L));
     const float upper = std::min(NORMAL_ROLL_MAX_OUT,
@@ -392,48 +400,46 @@ float wl_chassis_t::_calc_roll_force_trim(const float left_base_force,
         ? NORMAL_ROLL_INTEGRAL_KI * pid.error * dt : 0.0f;
     const float candidate_i = std::clamp(pid.integral_force + integral_step,
         -NORMAL_ROLL_INTEGRAL_LIMIT, NORMAL_ROLL_INTEGRAL_LIMIT);
-    const float candidate_out = pid.p_force + candidate_i + pid.d_force;
-    // Freeze only integration that would drive a saturated output farther outward.
+    const float candidate_out = nonintegral_force + candidate_i;
+    // 积分会加重输出饱和时，暂停累积。
     if (!((candidate_out > upper && integral_step > 0.0f) ||
           (candidate_out < lower && integral_step < 0.0f)))
     {
         pid.integral_force = candidate_i;
     }
-    pid.force_trim = std::clamp(pid.p_force + pid.integral_force + pid.d_force,
-                                lower, upper);
+    pid.force_trim = std::clamp(nonintegral_force + pid.integral_force, lower, upper);
     return pid.force_trim;
 }
 
-float wl_chassis_t::_calc_leg_length_force_trim(const uint8_t side, const float base_force)
+float wl_chassis_t::_calc_mean_leg_length_force_trim(const float left_base_force,
+                                                    const float right_base_force,
+                                                    const float mean_leg_speed_ref)
 {
-    auto &pid = _ctx.data.leg_length_pid[side];
-    const auto &leg = _ctx.data.leg[side];
+    auto &pid = _ctx.data.mean_leg_length_pid;
+    const auto &target = _ctx.data.target_aux;
+    const auto &measured = _ctx.data.measured_aux;
     const float dt = _ctx.data._dt;
-    if (!std::isfinite(leg.target_leg_length) || !std::isfinite(leg.target_leg_speed) ||
-        !std::isfinite(leg.current_leg_length) || !std::isfinite(leg.current_leg_speed) ||
+    if (!std::isfinite(target.L) || !std::isfinite(target.dot_L) ||
+        !std::isfinite(measured.L) || !std::isfinite(measured.dot_L) ||
         !std::isfinite(dt) || dt <= 0.0f || dt > 0.1f)
     {
         pid = {};
         return 0.0f;
     }
 
-    const float target_length = std::clamp(leg.target_leg_length, MIN_LEG_LENGTH, MAX_LEG_LENGTH);
-    float target_speed = leg.target_leg_speed;
-    if ((target_length <= MIN_LEG_LENGTH && target_speed < 0.0f) ||
-        (target_length >= MAX_LEG_LENGTH && target_speed > 0.0f))
-    {
-        target_speed = 0.0f;
-    }
-    pid.error = target_length - leg.current_leg_length;
-    pid.p_force = LEG_LENGTH_PID_KP[side] * pid.error;
-    // Use this leg's VMC speed directly, not mean speed or reference differentiation.
-    pid.d_force = LEG_LENGTH_PID_KD[side] * (target_speed - leg.current_leg_speed);
+    const float target_length = std::clamp(target.L, MIN_LEG_LENGTH, MAX_LEG_LENGTH);
+    pid.error = target_length - measured.L;
+    pid.p_force = MEAN_LEG_LENGTH_PID_KP * pid.error;
+    pid.d_force = MEAN_LEG_LENGTH_PID_KD * (mean_leg_speed_ref - measured.dot_L);
 
-    const float lower = std::max(-LEG_LENGTH_PID_MAX_OUT[side], -MAX_F_L - base_force);
-    const float upper = std::min(LEG_LENGTH_PID_MAX_OUT[side], MAX_F_L - base_force);
-    const float integral_step = LEG_LENGTH_PID_KI[side] * pid.error * dt;
+    // 按各腿叠加 U0 后的剩余力限幅，保证两腿能施加相同修正力。
+    const float lower = std::max(-MEAN_LEG_LENGTH_PID_MAX_OUT,
+        -MAX_F_L - std::min(left_base_force, right_base_force));
+    const float upper = std::min(MEAN_LEG_LENGTH_PID_MAX_OUT,
+        MAX_F_L - std::max(left_base_force, right_base_force));
+    const float integral_step = MEAN_LEG_LENGTH_PID_KI * pid.error * dt;
     const float candidate_i = std::clamp(pid.integral_force + integral_step,
-        -LEG_LENGTH_PID_INTEGRAL_LIMIT[side], LEG_LENGTH_PID_INTEGRAL_LIMIT[side]);
+        -MEAN_LEG_LENGTH_PID_INTEGRAL_LIMIT, MEAN_LEG_LENGTH_PID_INTEGRAL_LIMIT);
     const float candidate_out = pid.p_force + candidate_i + pid.d_force;
     if (!((candidate_out > upper && integral_step > 0.0f) ||
           (candidate_out < lower && integral_step < 0.0f)))
@@ -446,7 +452,7 @@ float wl_chassis_t::_calc_leg_length_force_trim(const uint8_t side, const float 
 }
 
 void wl_chassis_t::_balance_control(const bool apply_roll_control,
-                                   const bool apply_leg_length_control)
+                                   const bool apply_mean_leg_length_control)
 {
     float error[STATE_DIM];
     for (uint8_t state = 0; state < STATE_DIM; ++state)
@@ -457,7 +463,7 @@ void wl_chassis_t::_balance_control(const bool apply_roll_control,
     error[lqr_state_def::PSI] =
         loop_fp32_constrain(error[lqr_state_def::PSI], -PI, PI);
 
-    // calculate control data
+    // 计算十状态 LQR 的四路力矩输出。
 
     for (uint8_t input = 0; input < INPUT_DIM; ++input)
     {
@@ -483,26 +489,37 @@ void wl_chassis_t::_balance_control(const bool apply_roll_control,
     float base_force[2];
     for (uint8_t i = 0; i < 2; ++i)
     {
-        // Exported U0 already contains support minus the passive spring.
+        // 导出的 U0 已从支撑力中扣除气弹簧力。
         base_force[i] = std::clamp(
             _ctx.data.U0[lqr_feedforward_def::F_L1 + i],
             -MAX_F_L, MAX_F_L);
     }
-    if (apply_leg_length_control)
+    float mean_leg_speed_ref = 0.0f;
+    if (apply_mean_leg_length_control)
     {
-        for (uint8_t i = 0; i < 2; ++i)
+        const auto &target = _ctx.data.target_aux;
+        const auto &measured = _ctx.data.measured_aux;
+        if (std::isfinite(target.L) && std::isfinite(target.dot_L) &&
+            std::isfinite(measured.L) && std::isfinite(measured.dot_L) &&
+            !(target.L <= MIN_LEG_LENGTH && target.dot_L < 0.0f) &&
+            !(target.L >= MAX_LEG_LENGTH && target.dot_L > 0.0f))
         {
-            base_force[i] += _calc_leg_length_force_trim(i, base_force[i]);
+            mean_leg_speed_ref = target.dot_L;
         }
+        const float height_trim = _calc_mean_leg_length_force_trim(
+            base_force[leg_def::L], base_force[leg_def::R], mean_leg_speed_ref);
+        base_force[leg_def::L] += height_trim;
+        base_force[leg_def::R] += height_trim;
     }
     else
     {
-        _ctx.data.leg_length_pid = {};
+        _ctx.data.mean_leg_length_pid = {};
     }
     float roll_trim = 0.0f;
     if (apply_roll_control)
     {
-        roll_trim = _calc_roll_force_trim(base_force[leg_def::L], base_force[leg_def::R]);
+        roll_trim = _calc_roll_force_trim(
+            base_force[leg_def::L], base_force[leg_def::R], mean_leg_speed_ref);
     }
     else
     {

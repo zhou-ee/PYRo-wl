@@ -7,7 +7,6 @@
 #include "pyro_motor_base.h"
 #include "wl_config.h"
 #include "dsp/window_functions.h"
-#include <array>
 #include <cstdint>
 
 namespace pyro
@@ -159,7 +158,7 @@ struct control_vec_t
 static_assert(sizeof(state_vec_t) == 10 * sizeof(float), "Ground LQR requires ten states");
 static_assert(sizeof(control_vec_t) == 4 * sizeof(float), "Ground LQR requires four torques");
 
-// State-machine references/feedback only; these never enter the LQR arrays.
+// 状态机、车高和横滚控制所用的辅助参考量与反馈量。
 struct chassis_aux_state_t
 {
     float phi, dot_phi;
@@ -171,15 +170,16 @@ struct roll_pid_data_t
     float p_force;
     float integral_force;
     float d_force;
-    float force_trim; // Left adds this force; right subtracts it.
+    float height_rate_feedforward; // 滤波后的升降差动力前馈，单位 N/腿。
+    float force_trim; // 左腿加此修正力，右腿减此修正力。
 };
-struct leg_length_pid_data_t
+struct mean_leg_length_pid_data_t
 {
-    float error; // This leg's target length minus measured length (m).
+    float error; // 目标平均腿长减去实测平均腿长，单位 m。
     float p_force;
     float integral_force;
     float d_force;
-    float force_trim; // Added only to this leg's force (N).
+    float force_trim; // 左右腿均加此修正力，单位 N/腿。
 };
 struct odom_t
 {
@@ -237,11 +237,11 @@ struct wl_chassis_data_ctx_t
     chassis_aux_state_t target_aux;
     chassis_aux_state_t measured_aux;
     roll_pid_data_t roll_pid;
-    std::array<leg_length_pid_data_t, 2> leg_length_pid;
+    mean_leg_length_pid_data_t mean_leg_length_pid;
     control_vec_t control;
     flag_data_t flag;
     float K[INPUT_DIM][STATE_DIM];
-    float U0[FEEDFORWARD_DIM]; // Four LQR torques plus two motor-side axial forces.
+    float U0[FEEDFORWARD_DIM]; // 四路 LQR 力矩与两路电机侧轴向腿力。
     odom_t odom;
     ins_data_t ins;
     uint32_t distance_down = 0;// UART10 测距模块距离，单位 mm。
@@ -305,10 +305,12 @@ class wl_chassis_t final
     float _calc_gas_spring_force(float leg_length) const;
     static float _motor_leg_force_from_total(const leg_ctx_t &leg, float total_force);
     void _gain_calculate();
-    float _calc_roll_force_trim(float left_base_force, float right_base_force);
-    float _calc_leg_length_force_trim(uint8_t side, float base_force);
+    float _calc_roll_force_trim(float left_base_force, float right_base_force,
+                                float mean_leg_speed_ref);
+    float _calc_mean_leg_length_force_trim(float left_base_force, float right_base_force,
+                                           float mean_leg_speed_ref);
     void _balance_control(bool apply_roll_control = false,
-                          bool apply_leg_length_control = false);
+                          bool apply_mean_leg_length_control = false);
     void _vmc_trans_v2j(bool apply_leg_length_wall = true);
     void _send_joint_torque() const;
     void _send_wheel_torque() const;
