@@ -46,11 +46,16 @@ add_compile_definitions(
 )
 
 set(CMSISDSP_BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
+# 沿用 IMU_Module 的聚合构建，减少独立编译的文件，并关闭未使用的 float16 内核。
+set(FASTBUILD ON CACHE BOOL "Build CMSIS-DSP using aggregate sources" FORCE)
+set(DISABLEFLOAT16 ON CACHE BOOL "Disable CMSIS-DSP float16 kernels" FORCE)
 add_subdirectory(${DSP_REPO} build_cmsis_dsp)
 
 target_include_directories(CMSISDSP PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/CubeMX/Drivers/CMSIS/Include"
 )
+# DSP 内核在 Debug 和 Release 中都沿用 IMU_Module 的优化选项。
+target_compile_options(CMSISDSP PRIVATE -O2 -ffast-math)
 
 add_library(dsppp_lib INTERFACE)
 target_include_directories(dsppp_lib INTERFACE
@@ -62,8 +67,8 @@ target_include_directories(dsppp_lib INTERFACE
 add_executable(${CMAKE_PROJECT_NAME})
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/CubeMX/cmake/stm32cubemx)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third_party/SEGGER_RTT)
 add_subdirectory(PYRo)
-
 
 if (ROBOT_ID EQUAL HERO_ID)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/hero)
@@ -73,21 +78,50 @@ elseif (ROBOT_ID EQUAL SUB_HERO_ID)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sub_hero)
     target_link_libraries(${CMAKE_PROJECT_NAME}
             Sub_Hero)
-elseif (ROBOT_ID EQUAL INFANTRY2_ID)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Robot/Infantry2)
-    target_link_libraries(${CMAKE_PROJECT_NAME}
-            Infantry2)
 elseif (ROBOT_ID EQUAL INFANTRY1_ID)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/infantry1)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Robot/infantry1)
     target_link_libraries(${CMAKE_PROJECT_NAME}
             Infantry1)
-elseif (ROBOT_ID EQUAL SUB_INFANTRY_ID)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/infantry_cross_hole)
+elseif (ROBOT_ID EQUAL INFANTRY2_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/infantry2)
     target_link_libraries(${CMAKE_PROJECT_NAME}
-            Infantry3)
+            Infantry2)
 elseif (ROBOT_ID EQUAL SENTRY_ID)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sentry)
-
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Sentry)
+elseif (ROBOT_ID EQUAL UAV_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/uav)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            UAV)
+elseif (ROBOT_ID EQUAL DARTS_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/darts)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Darts)
+elseif (ROBOT_ID EQUAL RADAR_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/radar)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Radar)
+elseif (ROBOT_ID EQUAL SUB_HERO_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sub_hero)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Sub_Hero)
+elseif (ROBOT_ID EQUAL SUB_ENGINEER_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sub_engineer)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Sub_Engineer)
+elseif (ROBOT_ID EQUAL SUB_INFANTRY_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sub_infantry)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Sub_Infantry)
+elseif (ROBOT_ID EQUAL SUB_SENTRY_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sub_sentry)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Sub_Sentry)
+elseif (ROBOT_ID EQUAL TEST_ROBOT_ID)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/test_robot)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            Test_Robot)
 endif ()
 
 
@@ -100,4 +134,3 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
 
 add_dependencies(echo_robot_id ${CMAKE_PROJECT_NAME})
-
