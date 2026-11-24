@@ -59,6 +59,13 @@ enum class jump_phase_t : uint8_t
     RETURN,
 };
 
+enum class jump_trigger_source_t : uint8_t
+{
+    NONE,
+    SINGLE_COMMAND,
+    FRONT_DISTANCE,
+};
+
 struct wl_chassis_cmd_t final : public cmd_base_t
 {
     float delta_leg_length[2];
@@ -250,6 +257,7 @@ struct wl_chassis_data_ctx_t
     airborne_data_t airborne;
     jump_phase_t jump_phase = jump_phase_t::PRE_COMPRESS;
     float jump_phase_time = 0.0f;
+    float jump_mode_time = 0.0f; // 从进入单跳或连跳状态起累计的时间 (s)
     float jump_recovery_hold_time = 0.0f;
     float jump_heading_ref = 0.0f;
     float jump_forward_velocity_ref = 0.0f; // 进入跳跃时锁存的前进速度 (m/s)
@@ -260,6 +268,8 @@ struct wl_chassis_data_ctx_t
     uint16_t jump_push_accel_hold_ticks = 0;
     float _dt;
     chassis_function_state_t current_function;//主动量，改变它即可改变状态
+    jump_trigger_source_t jump_trigger_source = jump_trigger_source_t::NONE;
+    uint32_t jump_trigger_distance_front = 0; // 最近一次跳跃切换请求判定当拍的前向距离 (mm)
 };
 
 struct wl_chassis_ctx_t
@@ -374,6 +384,7 @@ class wl_chassis_t final
                 void exit(owner *owner) override;
 
               protected:
+                void start_jump(owner *owner);
                 virtual bool handle_landing(owner *owner);
             };
             struct state_jump_duo_t final : public state_jump_t

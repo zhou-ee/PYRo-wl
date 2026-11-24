@@ -24,7 +24,7 @@ bool wl_chassis_t::fsm_active_t::state_normal_t::state_jump_duo_t::handle_landin
 
     // 第一次落地直接开始第二次预压缩，重新采样航向和前进速度。
     _second_jump = true;
-    state_jump_t::enter(owner);
+    start_jump(owner);
     return true;
 }
 

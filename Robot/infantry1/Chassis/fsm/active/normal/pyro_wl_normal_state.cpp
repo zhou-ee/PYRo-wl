@@ -31,15 +31,16 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_enter(wl_chassis_t *owner)
 
 void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
 {
+    auto &data = owner->_ctx.data;
     //判断是否下达了功能状态的指令
     static chassis_function_state_t last_function = chassis_function_state_t::NONE;
     if(owner->_current_cmd.cmd_function_state != last_function)
     {
-        owner->_ctx.data.current_function = owner->_current_cmd.cmd_function_state;
+        data.current_function = owner->_current_cmd.cmd_function_state;
     }
     else 
     {
-        owner->_ctx.data.current_function = chassis_function_state_t::NONE;
+        data.current_function = chassis_function_state_t::NONE;
     }
     last_function = owner->_current_cmd.cmd_function_state;
     // 连跳期间屏蔽其他功能切换，距离变化也不重新使能触发。
@@ -48,7 +49,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
         return;
     }
 
-    const auto distance_front = owner->_ctx.data.distance_front;
+    const auto distance_front = data.distance_front;
     const bool jump_duo_enabled = owner->_current_cmd.jump_duo_enabled;
     if (!jump_duo_enabled || distance_front >= JUMP_DUO_TRIGGER_DISTANCE_MM)
     {
@@ -61,15 +62,17 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
         return;
     }
 
-    if(owner->_ctx.data.current_function == chassis_function_state_t::STEP)
+    if(data.current_function == chassis_function_state_t::STEP)
     {
         change_state(&_state_step);
     }
-    else if(owner->_ctx.data.current_function == chassis_function_state_t::JUMP)
+    else if(data.current_function == chassis_function_state_t::JUMP)
     {
+        data.jump_trigger_source = jump_trigger_source_t::SINGLE_COMMAND;
+        data.jump_trigger_distance_front = distance_front;
         change_state(&_state_jump);
     }
-    else if(owner->_ctx.data.current_function == chassis_function_state_t::SPIN_TOGGLE)
+    else if(data.current_function == chassis_function_state_t::SPIN_TOGGLE)
     {
         change_state(&_state_spin);
     }
@@ -78,6 +81,8 @@ void wl_chassis_t::fsm_active_t::state_normal_t::on_execute(wl_chassis_t *owner)
              distance_front < JUMP_DUO_TRIGGER_DISTANCE_MM)
     {
         _jump_duo_triggered = true;
+        data.jump_trigger_source = jump_trigger_source_t::FRONT_DISTANCE;
+        data.jump_trigger_distance_front = distance_front;
         change_state(&_state_jump_duo);
     }
 }

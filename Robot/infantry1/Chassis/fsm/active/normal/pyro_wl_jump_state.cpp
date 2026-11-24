@@ -8,6 +8,12 @@ namespace pyro
 
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::enter(wl_chassis_t *owner)
 {
+    owner->_ctx.data.jump_mode_time = 0.0f;
+    start_jump(owner);
+}
+
+void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::start_jump(wl_chassis_t *owner)
+{
     auto &data = owner->_ctx.data;
 
     data.jump_phase = jump_phase_t::PRE_COMPRESS;
@@ -51,6 +57,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::enter(wl_chassis_
 void wl_chassis_t::fsm_active_t::state_normal_t::state_jump_t::execute(wl_chassis_t *owner)
 {
     auto &data = owner->_ctx.data;
+    data.jump_mode_time += data._dt;
     data.jump_phase_time += data._dt;
 
     // 对滤波后的竖直加速度积分，得到从当前阶段起累计的竖直速度变化量。。
