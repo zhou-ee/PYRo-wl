@@ -20,6 +20,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::enter(wl_chassis_
     owner->_ctx.data.roll_pid = {};
     owner->_ctx.data.mean_leg_length_pid = {};
     owner->_ctx.data.odom.real_x = 0.0f;
+    owner->_reset_forward_kf();
     auto &target = owner->_ctx.data.target_state;
     target.x = owner->_ctx.data.measured_state.x;
     target.dot_x = 0.0f;
@@ -180,6 +181,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_spin_t::execute(wl_chassi
     //无视其它状态
     owner->_ctx.data.measured_state.psi = owner->_ctx.data.ins.euler_rad[0];
     owner->_ctx.data.measured_state.dot_psi = owner->_ctx.data.ins.gyro[0];
+    owner->_update_forward_kf();
     owner->_ctx.data.target_state.x = owner->_ctx.data.measured_state.x;
     owner->_ctx.data.target_state.dot_x = 0.0f;
     owner->_ctx.data.target_state.psi = owner->_ctx.data.measured_state.psi;

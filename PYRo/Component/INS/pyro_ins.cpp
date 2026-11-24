@@ -1,6 +1,5 @@
 #include "pyro_ins.h"
 #include "pyro_dwt_drv.h"
-#include "QuaternionEKF.h"
 using namespace pyro;
 
 #define X            0
@@ -107,7 +106,7 @@ void ins_drv_t::_static_ins_task(void *argument)
 void ins_drv_t::_ins_task()
 {
     _dwt_cnt = 0;
-    IMU_QuaternionEKF_Init(10, 0.001, 10000000, 0.9996, 0.01f);
+    _attitude.init(10, 0.001, 10000000, 0.9996, 0.01f);
     _gravity_n[X] = 0.0f;
     _gravity_n[Y] = 0.0f;
     _gravity_n[Z] = imu_data.gNorm;
@@ -150,14 +149,14 @@ void ins_drv_t::_ins_task()
 
 
 
-        IMU_QuaternionEKF_Update(_gyro_b[X], _gyro_b[Y], _gyro_b[Z], _acc_b[X],
-                                 _acc_b[Y], _acc_b[Z], _dt);
-       memcpy(_q, QEKF_INS.q, sizeof(QEKF_INS.q));
+        _attitude.update(_gyro_b[X], _gyro_b[Y], _gyro_b[Z], _acc_b[X],
+                         _acc_b[Y], _acc_b[Z], _dt);
+        memcpy(_q, _attitude.q, sizeof(_attitude.q));
 
 
-        _angle_n[X] = QEKF_INS.Roll;
-        _angle_n[Y] = QEKF_INS.Pitch;
-        _angle_n[Z] = QEKF_INS.Yaw;
+        _angle_n[X] = _attitude.Roll;
+        _angle_n[Y] = _attitude.Pitch;
+        _angle_n[Z] = _attitude.Yaw;
 
         // Restore the original gravity compensation and frame transforms.
         _transform_n2b(_gravity_n, _gravity_b, _q);
@@ -179,7 +178,7 @@ status_t ins_drv_t::_transform_b2n(float *v_b, float *v_n, float *b2n_q)
         return PYRO_ERROR;
     }
 
-    // QEKF_INS.q is the body-to-navigation quaternion.
+    // _attitude.q is the body-to-navigation quaternion.
     const float *q = b2n_q;
     v_n[0] = (1.0f - 2.0f * (q[2] * q[2] + q[3] * q[3])) * v_b[0]
            + (2.0f * (q[1] * q[2] - q[0] * q[3])) * v_b[1]

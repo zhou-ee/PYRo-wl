@@ -5,6 +5,7 @@
 #include "pyro_algo_pid.h"
 #include "pyro_module_base.h"
 #include "pyro_motor_base.h"
+#include "pyro_wl_forward_kf.h"
 #include "wl_config.h"
 #include "dsp/window_functions.h"
 #include <cstdint>
@@ -193,6 +194,8 @@ struct odom_t
 {
     float real_x;
     float real_dot_x[2]; // 0 : v_x(t) , 1 :v_x(t-1)
+    ForwardStateEstimate forward;
+    float ddot_x_imu;
 };
 
 struct ins_data_t
@@ -316,6 +319,10 @@ class wl_chassis_t final
     float _calc_gas_spring_force(float leg_length) const;
     static float _motor_leg_force_from_total(const leg_ctx_t &leg, float total_force);
     void _gain_calculate();
+    void _calc_ddot_x_imu();
+    void _reset_forward_kf();
+    void _update_forward_kf();
+    void _apply_forward_estimate(const ForwardStateEstimate &estimate);
     float _calc_roll_force_trim(float left_base_force, float right_base_force,
                                 float mean_leg_speed_ref);
     float _calc_mean_leg_length_force_trim(float left_base_force, float right_base_force,
@@ -446,6 +453,7 @@ class wl_chassis_t final
     state_passive_t _state_passive;
     fsm_active_t _state_active;
 
+    wl_forward_kf_t _forward_kf;
     float _getover_elapsed{0.0f};
     float _getover_rearm_elapsed{GETOVER_REARM_DELAY};
     float _getover_target_length[2]{NORMAL_LENGTH_TARGET, NORMAL_LENGTH_TARGET};

@@ -6,6 +6,41 @@
 
 namespace pyro
 {
+// IMU 安装偏移与前向加速度带限微分，固定 1 ms 更新。
+constexpr float IMU_DX                           = 0.24f;   // m，向前为正
+constexpr float IMU_DZ                           = -0.034f; // m，向上为正
+constexpr float IMU_ACCEL_TS                     = 0.001f;
+constexpr float IMU_ACCEL_CUTOFF_HZ              = 15.0f;
+constexpr float IMU_ACCEL_WC                     = 2.0f * PI * IMU_ACCEL_CUTOFF_HZ;
+constexpr float IMU_ACCEL_DIFF_A                  =
+    (2.0f - IMU_ACCEL_WC * IMU_ACCEL_TS) / (2.0f + IMU_ACCEL_WC * IMU_ACCEL_TS);
+constexpr float IMU_ACCEL_DIFF_B                  =
+    2.0f * IMU_ACCEL_WC / (2.0f + IMU_ACCEL_WC * IMU_ACCEL_TS);
+
+// 四状态前向 KF，固定 1 kHz；Q/R/P 均为方差，以下为初始整定值。
+constexpr float FORWARD_KF_TS                    = 0.001f;
+constexpr float FORWARD_KF_ACCEL_VARIANCE        = 0.04f;   // (m/s^2)^2 / step
+constexpr float FORWARD_KF_BIAS_VARIANCE         = 1.0e-7f; // (m/s^2)^2 / step
+constexpr float FORWARD_KF_R_IMU                 = 0.25f;   // (m/s^2)^2
+constexpr float FORWARD_KF_R_WHEEL               = 0.0025f; // (m/s)^2
+constexpr float FORWARD_KF_P_INIT[4]             = {0.01f, 0.25f, 1.0f, 0.25f};
+constexpr float FORWARD_KF_MIN_VARIANCE[4]       = {1.0e-8f, 1.0e-6f, 1.0e-5f, 1.0e-8f};
+constexpr float FORWARD_KF_WHEEL_CUTOFF_HZ       = 15.0f;
+constexpr float FORWARD_KF_WHEEL_WC              = 2.0f * PI * FORWARD_KF_WHEEL_CUTOFF_HZ;
+constexpr float FORWARD_KF_WHEEL_DIFF_A          =
+    (2.0f - FORWARD_KF_WHEEL_WC * FORWARD_KF_TS) /
+    (2.0f + FORWARD_KF_WHEEL_WC * FORWARD_KF_TS);
+constexpr float FORWARD_KF_WHEEL_DIFF_B          =
+    2.0f * FORWARD_KF_WHEEL_WC / (2.0f + FORWARD_KF_WHEEL_WC * FORWARD_KF_TS);
+constexpr float FORWARD_KF_SLIP_NIS_LOW          = 4.0f;
+constexpr float FORWARD_KF_SLIP_NIS_HIGH         = 16.0f;
+constexpr float FORWARD_KF_SLIP_ACCEL_LOW        = 0.30f; // m/s^2，KF_ok 实测起评值 / Tested onset.
+constexpr float FORWARD_KF_SLIP_ACCEL_HIGH       = 0.60f; // m/s^2，KF_ok 实测满评分值 / Tested full score.
+constexpr float FORWARD_KF_BIAS_FREEZE_SCORE     = 0.2f; // 不可信轮速暂停零偏学习 / Freeze bias on untrusted wheels.
+constexpr float FORWARD_KF_SLIP_RISE_TAU         = 0.002f; // s，打滑评分上升 / Slip-score rise.
+constexpr float FORWARD_KF_SLIP_FALL_TAU         = 0.03f;  // s，轮速权重恢复
+constexpr float FORWARD_KF_WHEEL_R_MULTIPLIER    = 500.0f;
+
 constexpr float loop_fp32_PI(float val)
 {
     while (val > PI)

@@ -122,6 +122,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::enter(wl_chass
     owner->_ctx.data.airborne.beta_reference_acceleration[0] = 0.0f;
     owner->_ctx.data.airborne.beta_reference_acceleration[1] = 0.0f;
     owner->_ctx.data.odom.real_x            = 0;
+    owner->_reset_forward_kf();
 
     owner->_ctx.data.target_state.x         = 0;
     owner->_ctx.data.target_state.dot_x = owner->_ctx.data.airborne.velocity_recovery
@@ -368,6 +369,7 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
             data.target_state.dot_beta1 = data.target_state.dot_beta2 = 0.0f;
         }
     }
+    owner->_update_forward_kf();
     owner->_balance_control(true, true);
     owner->_vmc_trans_v2j(false);
     owner->_send_joint_torque();

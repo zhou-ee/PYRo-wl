@@ -36,6 +36,7 @@ status_t wl_chassis_t::_init()
     _ctx.data.wheel[leg_def::L].direction     = LEFT_WHEEL_DIRECTION;
     _ctx.data.wheel[leg_def::R].direction     = RIGHT_WHEEL_DIRECTION;
 
+    _forward_kf.init();
     return PYRO_OK;
 }
 
@@ -182,6 +183,7 @@ void wl_chassis_t::_update_feedback()
         leg.previous_leg_radps = beta_dot;
     }
 
+    _calc_ddot_x_imu();
     _update_accel_heading_frame();
     // Refresh with the current body pitch before support-force estimation.
     // The takeoff detector must account for force carried by the gas spring,
@@ -190,6 +192,90 @@ void wl_chassis_t::_update_feedback()
 
 }
 
+
+void wl_chassis_t::_calc_ddot_x_imu()
+{
+    auto &odom = _ctx.data.odom;
+    const auto &ins = _ctx.data.ins;
+    const auto &state = _ctx.data.measured_state;
+    const auto &left = _ctx.data.leg[leg_def::L];
+    const auto &right = _ctx.data.leg[leg_def::R];
+    const float wx = ins.gyro[2];
+    const float wy = ins.gyro[1];
+    const float wz = ins.gyro[0];
+    const float st = arm_sin_f32(state.theta);
+    const float ct = arm_cos_f32(state.theta);
+    const float sp = arm_sin_f32(_ctx.data.measured_aux.phi);
+    const float cp = arm_cos_f32(_ctx.data.measured_aux.phi);
+    const float s1 = arm_sin_f32(state.beta1);
+    const float c1 = arm_cos_f32(state.beta1);
+    const float s2 = arm_sin_f32(state.beta2);
+    const float c2 = arm_cos_f32(state.beta2);
+
+    // beta_i = current_leg_rad_i - pi/2 - theta；倾斜时 dot_theta != wy。
+    const float dot_theta = cp * wy - sp * wz;
+    const float s_bar = 0.5f * (left.current_leg_length * s1
+                               + right.current_leg_length * s2);
+    const float dot_s_bar = 0.5f * (
+        left.current_leg_speed * s1
+        + left.current_leg_length * c1 * (left.current_leg_radps - dot_theta)
+        + right.current_leg_speed * s2
+        + right.current_leg_length * c2 * (right.current_leg_radps - dot_theta));
+
+    static float previous_gyro[3] = {ins.gyro[0], ins.gyro[1], ins.gyro[2]};
+    static float previous_dot_s_bar = dot_s_bar;
+    static float angular_accel[3] = {};
+    static float ddot_s_bar = 0.0f;
+
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+        angular_accel[i] = IMU_ACCEL_DIFF_A * angular_accel[i]
+            + IMU_ACCEL_DIFF_B * (ins.gyro[i] - previous_gyro[i]);
+        previous_gyro[i] = ins.gyro[i];
+    }
+    ddot_s_bar = IMU_ACCEL_DIFF_A * ddot_s_bar
+        + IMU_ACCEL_DIFF_B * (dot_s_bar - previous_dot_s_bar);
+    previous_dot_s_bar = dot_s_bar;
+
+    // I -> H：减去 alpha x r 和 omega x (omega x r)，重力已由 INS 去除。
+    const float a_hx = ins.accel[0] - angular_accel[1] * IMU_DZ
+        - (wx * wz * IMU_DZ - (wy * wy + wz * wz) * IMU_DX);
+    const float a_hy = ins.accel[1]
+        - (angular_accel[0] * IMU_DX - angular_accel[2] * IMU_DZ)
+        - (wx * wy * IMU_DX + wy * wz * IMU_DZ);
+    const float a_hz = ins.accel[2] + angular_accel[1] * IMU_DX
+        - (wx * wz * IMU_DX - (wx * wx + wy * wy) * IMU_DZ);
+
+    // H -> 航向系 -> C：这里使用实际航向角速度，不能使用云台相对转速。
+    const float dot_psi = (sp * wy + cp * wz) / ct;
+    odom.ddot_x_imu = ct * a_hx + st * (sp * a_hy + cp * a_hz)
+        + ddot_s_bar - dot_psi * dot_psi * s_bar;
+}
+
+void wl_chassis_t::_reset_forward_kf()
+{
+    const auto &odom = _ctx.data.odom;
+    const bool wheel_valid = _ctx.motor.wheel[leg_def::L]->is_online() &&
+                             _ctx.motor.wheel[leg_def::R]->is_online();
+    _apply_forward_estimate(_forward_kf.reset(
+        0.0f, odom.real_dot_x[0], odom.ddot_x_imu, wheel_valid));
+}
+
+void wl_chassis_t::_update_forward_kf()
+{
+    const auto &odom = _ctx.data.odom;
+    const bool wheel_valid = _ctx.motor.wheel[leg_def::L]->is_online() &&
+                             _ctx.motor.wheel[leg_def::R]->is_online();
+    _apply_forward_estimate(_forward_kf.update(
+        odom.ddot_x_imu, odom.real_dot_x[0], wheel_valid));
+}
+
+void wl_chassis_t::_apply_forward_estimate(const ForwardStateEstimate &estimate)
+{
+    _ctx.data.odom.forward = estimate;
+    _ctx.data.measured_state.x = estimate.x;
+    _ctx.data.measured_state.dot_x = estimate.v;
+}
 
 void wl_chassis_t::_fsm_execute()
 {
