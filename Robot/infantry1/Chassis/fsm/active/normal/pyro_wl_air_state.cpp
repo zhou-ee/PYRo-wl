@@ -85,11 +85,12 @@ void wl_chassis_t::_calc_support_force()
 
 bool wl_chassis_t::_detect_takeoff()
 {
-    const bool low_support =
-        _ctx.data.airborne.support_force[leg_def::L] <
-            AIR_TAKEOFF_FORCE_ON &&
-        _ctx.data.airborne.support_force[leg_def::R] <
-            AIR_TAKEOFF_FORCE_ON;
+    //支持力判据
+    // const bool low_support =
+    //     _ctx.data.airborne.support_force[leg_def::L] <
+    //         AIR_TAKEOFF_FORCE_ON &&
+    //     _ctx.data.airborne.support_force[leg_def::R] <
+    //         AIR_TAKEOFF_FORCE_ON;
     const bool distance_clear =
         _ctx.data.distance_down >= AIR_TAKEOFF_DISTANCE_ON_MM;
     if (distance_clear)

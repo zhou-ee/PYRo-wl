@@ -62,7 +62,7 @@ ARM infantry1 Debug 构建通过；DTCM 使用 76,904 B / 128 KiB，Flash 217,71
 - 删除无调用的 `pyro_kalman_filter.cpp/.h`，消除与通用 `kf_t` 的同名类冲突。
 - 保留 `kf.cpp/.h`：`Robot/Infantry2` 仍明确引用并编译它们；其文档标明旧版适用范围。
 - 保留旧 QEKF / 前向 / KF 后端的冻结参考以便回归；它们不属于固件链接内容。
-- 更新旧 IMU 汇编/机器码检验脚本的后端路径，清理后仍可复现。
+- 旧 IMU 汇编和机器码审计脚本及报告可在提交 `f7f9fc3` 的 `tests/forward_kf` 中查阅。
 
 ## 复现
 
