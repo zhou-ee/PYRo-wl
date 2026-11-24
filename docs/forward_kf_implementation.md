@@ -131,7 +131,7 @@ IMU 输入映射沿用既有有效性约定，此模块额外检查轮速有效�
 
 `get_filter()` 提供新库的 `get_state()/get_covariance()/get_gain()/get_diagnostics()`；
 `get_measurement_noise()(1,1)` 为本拍轮速方差。冻结时检查 K 的第 3 行、bias 及其方差。
-INS 使用独立的 `ekf_t<6,3>`，前向估计不复用其状态或工作区。
+INS 使用独立的 VQF-ESKF，前向估计不复用其状态或工作区。
 
 x 没有绝对位置观测，只能累计相对位移。bias 是前向映射残差的慢变估计，
 不保证等同于传感器硬件零偏；长期失联/滑移时冻结 bias 也不能提供独立速度可观测性。
@@ -143,7 +143,8 @@ normal/stress 各 30,000 拍比较 33 个 float32；检查每个冻结样本的 
 覆盖离线、NaN/Inf、滑移、恢复与重置。另有独立 double KF、静止零量测、零偏收敛、
 2 ms/30 ms 评分响应、学习恢复、协方差正定/对称/下限和优化构建测试。
 
-13 项 CTest 和 infantry1 ARM Debug 构建通过，INS 原有轨迹仍逐字节一致。
+同步 PYRo `89ed4a3` 后，主机套件保留 9 项前向 KF 检查。
+旧姿态 EKF 回归对应历史库版本。
 本轮没有重新刷机或实测前向闭环；具体数值与适用范围见 KF_ok 对齐记录。
 
 ```powershell

@@ -14,6 +14,40 @@
 
 using namespace pyro;
 
+namespace
+{
+class pitch_motor_t final : public dm_motor_drv_t
+{
+  public:
+    pitch_motor_t(uint32_t tx_id, uint32_t rx_id, bsp_can::which_can bus)
+        : dm_motor_drv_t(tx_id, rx_id, bus)
+    {
+        _online = false;
+    }
+
+    status_t update_feedback() override
+    {
+        taskENTER_CRITICAL();
+        const status_t status = dm_motor_drv_t::update_feedback();
+        if (status == PYRO_OK)
+        {
+            _last_feedback_tick = _feedback_msg->get_last_update_time();
+            _has_feedback = true;
+            _feedback_msg->mark_read();
+        }
+        taskEXIT_CRITICAL();
+
+        _online = _has_feedback &&
+            xTaskGetTickCount() - _last_feedback_tick < pdMS_TO_TICKS(1000);
+        return status;
+    }
+
+  private:
+    TickType_t _last_feedback_tick = 0;
+    bool _has_feedback = false;
+};
+} // namespace
+
 //云台部分
 constexpr uint32_t EVENT_BIT_AUTOAIM_TOGGLE_GIMBAL      = (1 << 0);        //左上单击切换自瞄
 
@@ -195,9 +229,11 @@ void motor_deps_init()
 
     // 初始化电机
     wl_gimbal_deps->motor_deps.pitch = 
-        new pyro::dm_motor_drv_t(0x01, 0x00, pyro::bsp_can::can2);;
+        new pitch_motor_t(0x01, 0x00, pyro::bsp_can::can2);
     wl_gimbal_deps->motor_deps.yaw = 
-        new pyro::dji_gm_6020_motor_drv_t(pyro::dji_motor_tx_frame_t::id_5, pyro::bsp_can::can1);
+        new pyro::dji_gm_6020_motor_drv_t(
+            pyro::dji_motor_tx_frame_t::id_5, pyro::bsp_can::can1,
+            pyro::dji_gm_6020_motor_drv_t::CURRENT_MODE);
     wl_gimbal_deps->motor_deps.pitch->set_position_range(-PI,PI); // 设定位置限位 (rad)
     wl_gimbal_deps->motor_deps.pitch->set_rotate_range(-30.0f,30.0f); // 设定速度限位 (rad/s)
     wl_gimbal_deps->motor_deps.pitch->set_torque_range(-10.0f,10.0f); // 设定扭矩限位 (N.m)

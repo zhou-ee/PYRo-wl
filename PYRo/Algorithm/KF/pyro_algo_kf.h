@@ -231,6 +231,23 @@ template <std::size_t N, std::size_t Z, bool CheckNumerics = false> class kf_t
                      const covariance_t &Q_d,
                      const covariance_t *P_prior = nullptr);
 
+    /**
+     * @brief 提交模型自算的传播协方差：核心只做 +Q_d、数值检查、对称化/方差下限与提交。
+     *        Commit externally propagated covariance; the core only adds Q_d and
+     *        bookkeeps.
+     * @param x_pred 外部状态模型给出的预测状态，N×1 / Predicted state, N×1.
+     * @param P_propagated 调用方算好的 F·P·Fᵀ，N×N / F·P·Fᵀ computed by the caller.
+     * @param Q_d 本周期离散过程噪声，N×N / Discrete process covariance.
+     * @return 成功提交；失败保留原 x/P / Commit on success, otherwise retain.
+     * @details 与 predict(x_pred,F,Q_d) 的提交语义完全相同（含 Joseph 前的对称化与
+     *          方差下限），只是省掉通用的两次 N×N 乘法。适用于状态转移有明显结构、
+     *          可由模型用更少运算算出 F·P·Fᵀ 的场合（例如 F 为块三角）。
+     *          Same commit semantics as predict(x_pred,F,Q_d) minus the two generic
+     *          N×N multiplies; useful when the model can exploit F's structure.
+     */
+    status_t predict_covariance(const state_t &x_pred, const covariance_t &P_propagated,
+                                const covariance_t &Q_d);
+
     /** @brief 修正过程的临时视图，仅在策略调用期间有效。
      *         Transient correction view, valid only during the policy call.
      * @details 默认 dx=K*y；策略调整 K 后无需自行计算 dx。

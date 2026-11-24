@@ -301,7 +301,9 @@ void deps_init()
         
     //登记yaw轴6020，获取反馈信息
     wl_chassis_deps->motor.yaw = 
-        new pyro::dji_gm_6020_motor_drv_t(pyro::dji_motor_tx_frame_t::id_5, pyro::bsp_can::can3);
+        new pyro::dji_gm_6020_motor_drv_t(
+            pyro::dji_motor_tx_frame_t::id_5, pyro::bsp_can::can3,
+            pyro::dji_gm_6020_motor_drv_t::CURRENT_MODE);
 
     static_cast<dm_motor_drv_t *>(
         wl_chassis_deps->motor.joint[leg_def::L][joint_def::HIP])

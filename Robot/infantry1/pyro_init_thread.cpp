@@ -1,4 +1,7 @@
+#include "BMI088_driver.h"
+#include "BMI088_middleware.h"
 #include "pyro_bsp_can.h"
+#include "pyro_bsp_spi.h"
 #include "pyro_bsp_uart.h"
 #include "pyro_dr16_rc_drv.h"
 #include "pyro_dwt_drv.h"
@@ -25,6 +28,7 @@ void pyro_init_thread(void *argument)
     dwt_drv_t::init(480);
     bsp_can::init_all();
     pyro::rc_drv_t::init_virtual_rc();
+    pyro::rc_drv_t::read().buttons.pause.init(true, true, true);
     warning_drv_t::instance().start();
 
 
@@ -48,7 +52,12 @@ void pyro_init_thread(void *argument)
         ins_cfg.gz_offset = 0.00282844482f;
     #endif
     ins_cfg.g_norm = 9.83213902f;
-    ins_drv->init(ins_cfg);
+    static bmi088_spi_t imu_device(
+        bsp_spi::get_spi2(),
+        {CS1_ACCEL_GPIO_Port, CS1_ACCEL_Pin},
+        {CS1_GYRO_GPIO_Port, CS1_GYRO_Pin});
+    static bmi088_drv_t imu(imu_device);
+    ins_drv->init(imu, ins_cfg);
 
 #ifdef DR16_UART
     dr16_drv_t::instance().start();

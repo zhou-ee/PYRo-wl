@@ -318,22 +318,7 @@ void warning_drv_t::set_buzzer_warning_level(buzzer_warning_level_t level)
         {
             _current_buzzer_warning_level = level;
         }
-        else if(level == warning_drv_t::buzzer_warning_level_t::PLAYING)
-        {
-            if(_current_buzzer_warning_level == warning_drv_t::buzzer_warning_level_t::PLAYING)
-            {
-                melody_loaded = true;
-            }
-            else 
-            {
-                level = warning_drv_t::buzzer_warning_level_t::PLAYING;
-                melody_loaded = false;
-            }
-        }
-        else 
-        {
-            _current_buzzer_warning_level = (int)level > (int)_current_buzzer_warning_level ? level : _current_buzzer_warning_level;
-        }
+        _current_buzzer_warning_level = (int)level > (int)_current_buzzer_warning_level ? level : _current_buzzer_warning_level;
         taskEXIT_CRITICAL();
     }
     void warning_drv_t::add_rgb_warning_type(RGB_waring_type_t type)
