@@ -50,6 +50,7 @@ if (BOARD STREQUAL "CHASSIS_BOARD")
                 DR16_UART=PYRO_UART5
                 STP23L_DOWN_UART=PYRO_UART10
                 STP23L_FRONT_UART=PYRO_UART7
+                EDT_DEBUG_EN=1
         )
 elseif (BOARD STREQUAL "GIMBAL_BOARD")
         target_sources(Infantry1

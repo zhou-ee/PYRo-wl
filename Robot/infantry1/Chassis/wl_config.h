@@ -152,10 +152,11 @@ constexpr float GAS_SPRING_COMPENSATION_SCALE        = 1.0f;
 //过坎
 constexpr float LEG_ACCEL_THRESHOLD = 30.0f;
 constexpr float GETOVER_BETA_THRESHOLD = 8.0f * PI / 180.0f;
+constexpr float GETOVER_FORWARD_PITCH_THRESHOLD = 30.0f * PI / 180.0f; // 前倾触发过坎的角度阈值
 constexpr float GETOVER_SHORTEN_LENGTH = 0.05f;
 constexpr float GETOVER_MIN_TARGET_LENGTH = 0.20f;
 constexpr float GETOVER_FORWARD_RAD = 2.0f * PI / 180.0f;
-constexpr float GETOVER_FORCE_SCALE = 2.0f;
+constexpr float GETOVER_RETRACT_MOTOR_TORQUE = 5.0f; // 单个关节的开环收腿力矩幅值 (N·m)
 constexpr float GETOVER_TIMEOUT = 0.12f;
 constexpr float GETOVER_REARM_DELAY = 1.0f;
 // Airborne and landing detection defaults. Tune from logged support-force data.

@@ -408,8 +408,7 @@ float wl_chassis_t::_motor_torque_to_leg_force(const leg_ctx_t &leg, const float
     {
         return 0.0f;
     }
-    // Positive signed_torque always means extension (+F_L), independent of
-    // the kinematic branch. Each joint receives +/- its magnitude in VMC.
+    // 正力矩对应伸腿（正轴向力）。VMC 根据当前构型将轴向力映射为方向相反的关节力矩。
     return 2.0f * signed_torque / jacobian;
 }
 
@@ -627,9 +626,8 @@ void wl_chassis_t::_vmc_trans_v2j(const bool apply_leg_length_wall)
 {
     constexpr float MAX_MOTOR_TORQUE = 40.0f;
 
-    // Inputs are already motor-side forces; each phase applies its own
-    // feedforward exactly once. Airborne extension can explicitly bypass the
-    // leg-length wall so the fixed extension effort is not opposed at the stop.
+    // 输入是电机侧轴向力，各阶段已各自叠加一次前馈。
+    // 空中伸腿可显式关闭腿长虚拟墙，避免虚拟墙在限位处抵消固定伸腿力矩。
     for (auto &leg : _ctx.data.leg)
     {
         leg.virtual_wall_force = apply_leg_length_wall

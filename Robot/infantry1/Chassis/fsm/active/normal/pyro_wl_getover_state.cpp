@@ -56,15 +56,16 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_getover_t::execute(owner 
     owner->_gain_calculate();
     owner->_balance_control();
 
-    /* Replace leg-length force and wheel torque before the single send. */
+    // 保留腿摆和轮毂平衡控制，收腿使用固定力矩并叠加气弹簧前馈。
     for (uint8_t i = 0; i < 2; ++i)
     {
         auto &leg = owner->_ctx.data.leg[i];
         leg.target_leg_length = owner->_getover_target_length[i];
-        const float total_force = GETOVER_FORCE_SCALE * owner->_ctx.pid.leg_length[i]->calculate(
-            leg.target_leg_length, leg.current_leg_length, leg.current_leg_speed);
-        leg.out_F_L = std::clamp(
-            owner->_motor_leg_force_from_total(leg, total_force), -MAX_F_L, MAX_F_L);
+        // 单腿到位后停止施加收腿力矩，等另一腿到位或超时。
+        const float retract_torque = leg.current_leg_length > leg.target_leg_length
+            ? -GETOVER_RETRACT_MOTOR_TORQUE : 0.0f;
+        const float retract_force = owner->_motor_torque_to_leg_force(leg, retract_torque);
+        leg.out_F_L = owner->_motor_leg_force_from_total(leg, retract_force);
 
         auto &wheel = owner->_ctx.data.wheel[i];
         wheel.out_T_w = std::clamp(

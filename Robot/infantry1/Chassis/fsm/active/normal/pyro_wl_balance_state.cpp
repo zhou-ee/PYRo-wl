@@ -212,9 +212,11 @@ void wl_chassis_t::fsm_active_t::state_normal_t::state_balance_t::execute(wl_cha
         return std::fabs(leg.current_leg_rad_accel) > LEG_ACCEL_THRESHOLD &&
                beta[i] < -GETOVER_BETA_THRESHOLD;
     };
+    const bool pitched_forward =
+        owner->_ctx.data.measured_state.theta > GETOVER_FORWARD_PITCH_THRESHOLD;
     if (owner->_current_cmd.getover_detection_enabled &&
         owner->_getover_rearm_elapsed >= GETOVER_REARM_DELAY &&
-        (leg_hits_obstacle(leg_def::L) || leg_hits_obstacle(leg_def::R)))
+        (pitched_forward || leg_hits_obstacle(leg_def::L) || leg_hits_obstacle(leg_def::R)))
     {
         owner->_getover_rearm_elapsed = 0.0f;
         request_switch(&owner->_state_active._state_normal._state_getover);
